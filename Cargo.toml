@@ -1,18 +1,17 @@
 [package]
 name = "at-rs"
-version = "0.0.1"
+version = "0.0.3"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 description = "AT Parser for serial based device crates"
 readme = "README.md"
-keywords = ["arm", "cortex-m", "AT", "driver", "no-std", "embedded"]
+keywords = ["arm", "cortex-m", "AT", "no-std"]
 categories = ["embedded", "no-std"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/BlackbirdHQ/at-rs"
+repository = "https://github.com/MathiasKoch/at-rs"
 edition = "2018"
 
 [lib]
 name = "at_rs"
-doctest = false
 
 [dependencies]
 embedded-hal = { version = "0.2.3" }

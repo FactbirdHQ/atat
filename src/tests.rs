@@ -122,8 +122,8 @@ macro_rules! setup {
 
     let wifi = SerialMock::new($expectations);
 
-    static mut WIFI_CMD_Q: Option<Queue<TestCommand, consts::U4, u8>> = None;
-    static mut WIFI_RESP_Q: Option<Queue<Result<TestResponse, ATError>, consts::U4, u8>> = None;
+    static mut WIFI_CMD_Q: Option<Queue<TestCommand, consts::U10, u8>> = None;
+    static mut WIFI_RESP_Q: Option<Queue<Result<TestResponse, ATError>, consts::U10, u8>> = None;
 
     unsafe { WIFI_CMD_Q = Some(Queue::u8()) };
     unsafe { WIFI_RESP_Q = Some(Queue::u8()) };

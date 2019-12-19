@@ -9,13 +9,15 @@
 
 ## Tests
 
-> The crate is covered by tests using the [embedded-hal-mock] crate. These tests can be run by `cargo test --lib --target = x86_64-unknown-linux-gnu` or the `cargo th` alias.
+> The crate is covered by tests using the [embedded-hal-mock] crate. These tests can be run by `cargo test --lib --target x86_64-unknown-linux-gnu`.
 
 [embedded-hal-mock]: https://crates.io/crates/embedded-hal-mock
 
 ## Examples
 
 The crate has examples for usage with [cortex-m-rt] and [cortex-m-rtfm] crates.
+
+The samples can be built using `cargo build --example cortex-m-rt --target thumbv7em-none-eabihf` and `cargo build --example rtfm --target thumbv7em-none-eabihf`.
 
 Furthermore I have used the crate to build initial drivers for uBlox cell modules ([ublox-cell-rs]) and uBlox wifi modules ([ublox-wifi-rs])
 
