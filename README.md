@@ -5,7 +5,7 @@
 
 [embedded-hal]: https://crates.io/crates/embedded-hal
 
-## [Documentation](https://docs.rs/at-rs/latest/at-rs/)
+## [Documentation](https://docs.rs/at-rs/latest)
 
 ## Tests
 
