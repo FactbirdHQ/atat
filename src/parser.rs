@@ -11,8 +11,8 @@ use crate::error::Error as ATError;
 use crate::traits::ATCommandInterface;
 use crate::{MaxCommandLen, MaxResponseLines};
 
-type CmdConsumer<C> = Consumer<'static, C, consts::U4, u8>;
-type RespProducer<R> = Producer<'static, Result<R, ATError>, consts::U4, u8>;
+type CmdConsumer<C> = Consumer<'static, C, consts::U10, u8>;
+type RespProducer<R> = Producer<'static, Result<R, ATError>, consts::U10, u8>;
 
 pub struct ATParser<Serial, C, R>
 where

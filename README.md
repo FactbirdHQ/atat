@@ -15,9 +15,9 @@
 
 ## Examples
 
-> The crate has examples for usage with [cortex-m-rt] and [cortex-m-rtfm] crates.
+The crate has examples for usage with [cortex-m-rt] and [cortex-m-rtfm] crates.
 
-> Furthermore I have used the crate to build initial drivers for uBlox cell modules ([ublox-cell-rs]) and uBlox wifi modules ([ublox-wifi-rs])
+Furthermore I have used the crate to build initial drivers for uBlox cell modules ([ublox-cell-rs]) and uBlox wifi modules ([ublox-wifi-rs])
 
 [cortex-m-rt]: https://crates.io/crates/cortex-m-rt
 [cortex-m-rtfm]: https://crates.io/crates/cortex-m-rtfm
@@ -28,6 +28,25 @@
 
     - Minimum rustc version 1.31
     - Tested and built using nightly toolchain, but should work fine for stable as well
+
+## Supported Crates
+
+The following dependent crates provide platform-agnostic device drivers built on `embedded-hal` which also implement this crate's [`ATCommandInterface`] trait:
+
+| Device Name | Description | Crate + Docs |
+|-------------|-------------|--------------|
+| [ublox-wifi-rs]  | Driver crate for UBlox host-based wifi devices with AT-command interface | [![crates.io][ublox-wifi-rs-crate-img]][ublox-wifi-rs] [![docs.rs][ublox-wifi-rs-docs-img]][ublox-wifi-rs-docs] |
+| [ublox-cell-rs]  | Driver crate for UBlox host-based cellular devices with AT-command interface | [![crates.io][ublox-cell-rs-crate-img]][ublox-cell-rs] [![docs.rs][ublox-cell-rs-docs-img]][ublox-cell-rs-docs] |
+
+[ublox-wifi-rs]: https://github.com/MathiasKoch/ublox-wifi-rs
+[ublox-wifi-rs-crate-img]: https://img.shields.io/crates/v/ublox-wifi-rs.svg
+[ublox-wifi-rs-docs-img]: https://docs.rs/ublox-wifi-rs/badge.svg
+[ublox-wifi-rs-docs]: https://docs.rs/ublox-wifi-rs/
+
+[ublox-cell-rs]: https://github.com/MathiasKoch/ublox-cell-rs
+[ublox-cell-rs-crate-img]: https://img.shields.io/crates/v/ublox-cell-rs.svg
+[ublox-cell-rs-docs-img]: https://docs.rs/ublox-cell-rs/badge.svg
+[ublox-cell-rs-docs]: https://docs.rs/ublox-cell-rs/
 
 ## License
 

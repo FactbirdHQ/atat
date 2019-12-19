@@ -52,8 +52,8 @@ const APP: () = {
 
   #[init(spawn = [at_loop])]
   fn init(ctx: init::Context) -> init::LateResources {
-    static mut CMD_Q: Option<Queue<Command, consts::U4, u8>> = None;
-    static mut RESP_Q: Option<Queue<Result<Response, ATError>, consts::U4, u8>> = None;
+    static mut CMD_Q: Option<Queue<Command, consts::U10, u8>> = None;
+    static mut RESP_Q: Option<Queue<Result<Response, ATError>, consts::U10, u8>> = None;
 
     let p = pac::Peripherals::take().unwrap();
 

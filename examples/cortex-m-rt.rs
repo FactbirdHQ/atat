@@ -42,8 +42,8 @@ type SerialUSART2 = Serial<
   ),
 >;
 
-static mut CMD_Q: Option<Queue<Command, consts::U4, u8>> = None;
-static mut RESP_Q: Option<Queue<Result<Response, ATError>, consts::U4, u8>> = None;
+static mut CMD_Q: Option<Queue<Command, consts::U10, u8>> = None;
+static mut RESP_Q: Option<Queue<Result<Response, ATError>, consts::U10, u8>> = None;
 static mut AT_PARSER: Option<ATParser<SerialUSART2, Command, Response>> = None;
 
 #[entry]
