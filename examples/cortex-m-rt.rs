@@ -75,9 +75,6 @@ fn main() -> ! {
   unsafe { CMD_Q = Some(Queue::u8()) };
   unsafe { RESP_Q = Some(Queue::u8()) };
 
-  let (mut cmd_p, cmd_c) = unsafe { CMD_Q.as_mut().unwrap().split() };
-  let (resp_p, mut resp_c) = unsafe { RESP_Q.as_mut().unwrap().split() };
-
   // TRY using a different USART peripheral here
   // let serial = Serial::usart1(p.USART1, (tx, rx), 9_600.bps(), clocks, &mut rcc.apb2);
   let serial = Serial::usart2(
@@ -87,8 +84,16 @@ fn main() -> ! {
     clocks,
     &mut rcc.apb1r1,
   );
+  let tim = Timer::tim6(p.TIM6, 100.hz(), clocks, &mut rcc.apb1r1);
 
-  let at_parser = ATParser::new(serial, (cmd_c, resp_p));
+  let (at_client, at_parser) = at::new(
+      unsafe { (CMD_Q.as_mut().unwrap(), RESP_Q.as_mut().unwrap()) },
+      serial,
+      tim,
+      1000,
+    );
+
+  let (mut cmd_p, mut resp_c) = at_client.release();
 
   unsafe { AT_PARSER = Some(at_parser) };
   // configure NVIC interrupts

@@ -79,11 +79,10 @@ const APP: () = {
     let tx = gpioa.pa2.into_af7(&mut gpioa.moder, &mut gpioa.afrl);
     let rx = gpioa.pa3.into_af7(&mut gpioa.moder, &mut gpioa.afrl);
 
+    let mut timer = Timer::tim7(p.TIM7, 1.hz(), clocks, &mut rcc.apb1r1);
+
     *CMD_Q = Some(Queue::u8());
     *RESP_Q = Some(Queue::u8());
-
-    let (mut cmd_p, cmd_c) = CMD_Q.as_mut().unwrap().split();
-    let (resp_p, resp_c) = RESP_Q.as_mut().unwrap().split();
 
     let mut serial = Serial::usart2(
       p.USART2,
@@ -95,10 +94,16 @@ const APP: () = {
 
     serial.listen(Rxne);
 
-    let at_parser = at::ATParser::new(serial, (cmd_c, resp_p));
+    let (at_client, at_parser) = at::new(
+      unsafe { (CMD_Q.as_mut().unwrap(), RESP_Q.as_mut().unwrap()) },
+      serial,
+      timer,
+      1000,
+    );
+
+    let (mut cmd_p, _) = at_client.release();
 
     ctx.spawn.at_loop().unwrap();
-
     cmd_p.enqueue(Command::AT).unwrap();
 
     init::LateResources { at_parser }

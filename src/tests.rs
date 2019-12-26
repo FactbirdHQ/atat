@@ -116,6 +116,17 @@ impl ATCommandInterface<TestResponse> for TestCommand {
   }
 }
 
+struct Seconds(u32);
+trait U32Ext { fn s(self) -> Seconds; }
+impl U32Ext for u32 { fn s(self) -> Seconds { Seconds(self) } }
+
+struct Timer6;
+impl embedded_hal::timer::CountDown for Timer6 {
+    type Time = Seconds;
+    fn start<T>(&mut self, _: T) where T: Into<Seconds> {}
+    fn wait(&mut self) -> ::nb::Result<(), void::Void> { Ok(()) }
+}
+
 macro_rules! setup {
   ($expectations: expr) => {{
     setup_log();
@@ -131,8 +142,10 @@ macro_rules! setup {
     let (wifi_cmd_p, wifi_cmd_c) = unsafe { WIFI_CMD_Q.as_mut().unwrap().split() };
     let (wifi_resp_p, wifi_resp_c) = unsafe { WIFI_RESP_Q.as_mut().unwrap().split() };
 
+    let at = client::ATClient::new((wifi_cmd_p, wifi_resp_c), 1000, Timer6);
+
     let test_at = ATParser::new(wifi, (wifi_cmd_c, wifi_resp_p));
-    (test_at, (wifi_cmd_p, wifi_resp_c))
+    (test_at, at.release())
   }};
 }
 
