@@ -1,4 +1,3 @@
-
 extern crate env_logger;
 extern crate std;
 
@@ -6,12 +5,7 @@ use super::*;
 use core::fmt::Write;
 use embedded_hal_mock::serial::{Mock as SerialMock, Transaction as SerialTransaction};
 
-use heapless::{
-    String,
-    Vec,
-    spsc::Queue,
-    consts,
-};
+use heapless::{consts, spsc::Queue, String, Vec};
 #[allow(unused_imports)]
 use log::{error, info, warn};
 
@@ -47,17 +41,34 @@ enum TestCommand {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum TestResponse {
+enum TestResponseType {
+  SingleSolicited(TestResponse),
+  MultiSolicited(Vec<TestResponse, heapless::consts::U4>),
+  Unsolicited(TestUnsolicitedResponse),
   None,
-  SerialNum { serial: String<MaxCommandLen> },
-  UMSM { start_mode: u8 },
-  CSGT { mode: u8, text: String<MaxCommandLen> },
+}
 
+#[derive(Debug, Clone, PartialEq)]
+enum TestResponse {
+  SerialNum {
+    serial: String<MaxCommandLen>,
+  },
+  UMSM {
+    start_mode: u8,
+  },
+  CSGT {
+    mode: u8,
+    text: String<MaxCommandLen>,
+  },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum TestUnsolicitedResponse {
   // Unsolicited responses
   PeerDisconnected { peer_handle: u8 },
 }
 
-impl ATCommandInterface<TestResponse> for TestCommand {
+impl ATCommandInterface<TestResponseType> for TestCommand {
   fn get_cmd(&self) -> String<MaxCommandLen> {
     let mut buffer = String::new();
     match self {
@@ -80,51 +91,67 @@ impl ATCommandInterface<TestResponse> for TestCommand {
       }
     }
   }
-  fn parse_resp(&self, response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>) -> TestResponse {
+  fn parse_resp(
+    &self,
+    response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>,
+  ) -> TestResponseType {
     if response_lines.is_empty() {
-      return TestResponse::None;
+      return TestResponseType::None;
     }
-    let mut responses: Vec<Vec<&str, MaxResponseLines>, MaxResponseLines> = utils::split_parameterized_resp(response_lines);
+    let mut responses: Vec<Vec<&str, MaxResponseLines>, MaxResponseLines> =
+      utils::split_parameterized_resp(response_lines);
 
     let response = responses.pop().unwrap();
 
     match *self {
-      TestCommand::AT => TestResponse::None,
-      TestCommand::GetUMSM => TestResponse::UMSM {
+      TestCommand::AT => TestResponseType::None,
+      TestCommand::GetUMSM => TestResponseType::SingleSolicited(TestResponse::UMSM {
         start_mode: response[0].parse::<u8>().unwrap(),
-      },
-      TestCommand::GetCSGT => TestResponse::CSGT {
+      }),
+      TestCommand::GetCSGT => TestResponseType::SingleSolicited(TestResponse::CSGT {
         mode: response[0].parse::<u8>().unwrap(),
         text: String::from(response[1]),
-      },
-      TestCommand::GetSerialNum => TestResponse::SerialNum {
+      }),
+      TestCommand::GetSerialNum => TestResponseType::SingleSolicited(TestResponse::SerialNum {
         serial: String::from(response[0]),
-      },
-      TestCommand::SetDefaultPeer { .. } => TestResponse::None,
+      }),
+      TestCommand::SetDefaultPeer { .. } => TestResponseType::None,
     }
   }
 
-  fn parse_unsolicited(response_line: &str) -> TestResponse {
+  fn parse_unsolicited(response_line: &str) -> TestResponseType {
     let (cmd, parameters) = utils::split_parameterized_unsolicited(response_line);
 
     match cmd {
-      "+UUDPD" => TestResponse::PeerDisconnected {
+      "+UUDPD" => TestResponseType::Unsolicited(TestUnsolicitedResponse::PeerDisconnected {
         peer_handle: parameters[0].parse::<u8>().unwrap(),
-      },
-      _ => TestResponse::None,
+      }),
+      _ => TestResponseType::None,
     }
   }
 }
 
 struct Seconds(u32);
-trait U32Ext { fn s(self) -> Seconds; }
-impl U32Ext for u32 { fn s(self) -> Seconds { Seconds(self) } }
+trait U32Ext {
+  fn s(self) -> Seconds;
+}
+impl U32Ext for u32 {
+  fn s(self) -> Seconds {
+    Seconds(self)
+  }
+}
 
 struct Timer6;
 impl embedded_hal::timer::CountDown for Timer6 {
-    type Time = Seconds;
-    fn start<T>(&mut self, _: T) where T: Into<Seconds> {}
-    fn wait(&mut self) -> ::nb::Result<(), void::Void> { Ok(()) }
+  type Time = Seconds;
+  fn start<T>(&mut self, _: T)
+  where
+    T: Into<Seconds>,
+  {
+  }
+  fn wait(&mut self) -> ::nb::Result<(), void::Void> {
+    Ok(())
+  }
 }
 
 macro_rules! setup {
@@ -134,7 +161,8 @@ macro_rules! setup {
     let wifi = SerialMock::new($expectations);
 
     static mut WIFI_CMD_Q: Option<Queue<TestCommand, consts::U10, u8>> = None;
-    static mut WIFI_RESP_Q: Option<Queue<Result<TestResponse, ATError>, consts::U10, u8>> = None;
+    static mut WIFI_RESP_Q: Option<Queue<Result<TestResponseType, ATError>, consts::U10, u8>> =
+      None;
 
     unsafe { WIFI_CMD_Q = Some(Queue::u8()) };
     unsafe { WIFI_RESP_Q = Some(Queue::u8()) };
@@ -184,7 +212,7 @@ fn test_at_command_echo() {
 
   assert_eq!(
     wifi_resp_c.dequeue().unwrap().ok(),
-    Some(TestResponse::None)
+    Some(TestResponseType::None)
   );
   cleanup!(test_at, wifi_resp_c);
 }
@@ -204,7 +232,7 @@ fn test_at_command() {
 
   assert_eq!(
     wifi_resp_c.dequeue().unwrap().ok(),
-    Some(TestResponse::None)
+    Some(TestResponseType::None)
   );
   cleanup!(test_at, wifi_resp_c);
 }
@@ -230,7 +258,7 @@ fn test_parameterized_command() {
 
   assert_eq!(
     wifi_resp_c.dequeue().unwrap().ok(),
-    Some(TestResponse::None)
+    Some(TestResponseType::None)
   );
   cleanup!(test_at, wifi_resp_c);
 }
@@ -250,9 +278,9 @@ fn test_response() {
 
   assert_eq!(
     wifi_resp_c.dequeue().unwrap().ok(),
-    Some(TestResponse::SerialNum {
+    Some(TestResponseType::SingleSolicited(TestResponse::SerialNum {
       serial: String::from("abcdef012345")
-    })
+    }))
   );
   cleanup!(test_at, wifi_resp_c);
 }
@@ -295,7 +323,9 @@ fn test_parameterized_single_response() {
 
   assert_eq!(
     wifi_resp_c.dequeue().unwrap().ok(),
-    Some(TestResponse::UMSM { start_mode: 0 })
+    Some(TestResponseType::SingleSolicited(TestResponse::UMSM {
+      start_mode: 0
+    }))
   );
   cleanup!(test_at, wifi_resp_c);
 }
@@ -315,10 +345,10 @@ fn test_parameterized_multi_response() {
 
   assert_eq!(
     wifi_resp_c.dequeue().unwrap().ok(),
-    Some(TestResponse::CSGT {
+    Some(TestResponseType::SingleSolicited(TestResponse::CSGT {
       mode: 0,
       text: String::from("test")
-    })
+    }))
   );
   cleanup!(test_at, wifi_resp_c);
 }
@@ -341,14 +371,16 @@ fn test_response_unsolicited() {
 
   assert_eq!(
     wifi_resp_c.dequeue().unwrap().ok(),
-    Some(TestResponse::CSGT {
+    Some(TestResponseType::SingleSolicited(TestResponse::CSGT {
       mode: 0,
       text: String::from("test")
-    })
+    }))
   );
   assert_eq!(
     wifi_resp_c.dequeue().unwrap().ok(),
-    Some(TestResponse::PeerDisconnected { peer_handle: 0 })
+    Some(TestResponseType::Unsolicited(
+      TestUnsolicitedResponse::PeerDisconnected { peer_handle: 0 }
+    ))
   );
   cleanup!(test_at, wifi_resp_c);
 }

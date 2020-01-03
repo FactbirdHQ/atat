@@ -100,20 +100,10 @@ pub trait ATCommandInterface<R> {
 pub trait ATInterface<Command, Response> {
     fn send(&mut self, cmd: Command) -> Result<Response, Error>;
 
-    fn send_multi_response(&mut self, cmd: Command) -> Result<Vec<Response, MaxResponseLines>, Error>;
-
-    fn send_multi_response_timeout(
-        &mut self,
-        cmd: Command,
-        timeout: u32,
-    ) -> Result<Vec<Response, MaxResponseLines>, Error>;
-
     fn send_timeout(&mut self, cmd: Command, timeout: u32) -> Result<Response, Error>;
 
-    fn send_no_response(&mut self, cmd: Command) -> Result<(), Error>;
-
     // Can these be made using rusts new shiny async/await?
-    fn wait_responses(&mut self, timeout: u32) -> Result<Vec<Response, MaxResponseLines>, Error>;
+    fn wait_responses(&mut self, timeout: u32) -> Result<Response, Error>;
 
     // fn is_wifi_enabled(&self) -> Result<bool, WifiError>;
 
