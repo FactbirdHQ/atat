@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "at-rs"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "cortex-m 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cortex-m-rt 0.6.11 (registry+https://github.com/rust-lang/crates.io-index)",
