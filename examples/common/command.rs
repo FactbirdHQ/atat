@@ -178,7 +178,7 @@ impl ATCommandInterface<Response> for Command {
         }
     }
 
-    fn parse_unsolicited(_response_line: &str) -> Response {
-        Response::None
+    fn parse_unsolicited(_response_line: &str) -> Result<Response, ()> {
+        Ok(Response::None)
     }
 }

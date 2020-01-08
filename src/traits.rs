@@ -1,6 +1,7 @@
-use heapless::{String, Vec};
-use crate::{MaxCommandLen, MaxResponseLines};
 use crate::error::Error;
+use crate::{MaxCommandLen, MaxResponseLines};
+use embedded_hal::timer::CountDown;
+use heapless::{String, Vec};
 
 /// Trait to be implemented by device driver crates.
 ///
@@ -91,25 +92,19 @@ use crate::error::Error;
 /// }
 /// ```
 pub trait ATCommandInterface<R> {
-    fn get_cmd(&self) -> String<MaxCommandLen>;
-    fn parse_resp(&self, response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>) -> R;
-    fn parse_unsolicited(response_line: &str) -> R;
+  fn get_cmd(&self) -> String<MaxCommandLen>;
+  fn parse_resp(&self, response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>) -> R;
+  fn parse_unsolicited(response_line: &str) -> Option<R>;
 }
 
+pub trait ATInterface<T: CountDown, Command, Response> {
+  fn send(&mut self, cmd: Command) -> Result<Response, Error>;
 
-pub trait ATInterface<Command, Response> {
-    fn send(&mut self, cmd: Command) -> Result<Response, Error>;
+  fn send_timeout(&mut self, cmd: Command, timeout: T::Time) -> Result<Response, Error>;
 
-    fn send_timeout(&mut self, cmd: Command, timeout: u32) -> Result<Response, Error>;
+  fn wait_response(&mut self) -> Result<Response, Error>;
 
-    // Can these be made using rusts new shiny async/await?
-    fn wait_responses(&mut self, timeout: u32) -> Result<Response, Error>;
+  fn peek_response(&mut self) -> &Result<Response, Error>;
 
-    // fn is_wifi_enabled(&self) -> Result<bool, WifiError>;
-
-    // /// Turn on the wifi interface of host machine.
-    // fn turn_on(&mut self) -> Result<(), WifiError>;
-
-    // /// Turn off the wifi interface of host machine.
-    // fn turn_off(&mut self) -> Result<(), WifiError>;
+  fn wait_response_timeout(&mut self, timeout: T::Time) -> Result<Response, Error>;
 }

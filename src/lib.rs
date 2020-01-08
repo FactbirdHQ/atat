@@ -1,4 +1,3 @@
-#![feature(rustc_private)]
 #![no_std]
 
 #[macro_use]
@@ -11,9 +10,9 @@ mod parser;
 mod traits;
 pub mod utils;
 
-pub type MaxCommandLen = heapless::consts::U60;
-pub type MaxResponseLen = heapless::consts::U60;
-pub type MaxResponseLines = heapless::consts::U8;
+pub type MaxCommandLen = heapless::consts::U64;
+pub type MaxResponseLen = heapless::consts::U64;
+pub type MaxResponseLines = heapless::consts::U160;
 
 pub use self::buffer::Buffer;
 pub use self::error::Error;
@@ -24,22 +23,32 @@ pub use self::traits::{ATCommandInterface, ATInterface};
 mod tests;
 
 use embedded_hal::{serial, timer::CountDown};
-use heapless::{consts, spsc::Queue};
+use heapless::{spsc::Queue, ArrayLength};
 
-type CmdQueue<C> = Queue<C, consts::U10, u8>;
-type RespQueue<R> = Queue<Result<R, error::Error>, consts::U10, u8>;
+type CmdQueue<C, N> = Queue<C, N, u8>;
+type RespQueue<R, N> = Queue<Result<R, error::Error>, N, u8>;
 
-pub fn new<Serial, C, R, T>(
-  queues: (&'static mut CmdQueue<C>, &'static mut RespQueue<R>),
+pub fn new<Serial, C, R, T, RxBufferLen, CmdQueueLen, RespQueueLen>(
+  queues: (
+    &'static mut CmdQueue<C, CmdQueueLen>,
+    &'static mut RespQueue<R, RespQueueLen>,
+  ),
   serial: Serial,
   timer: T,
-  default_timeout: u32,
-) -> (client::ATClient<T, C, R>, parser::ATParser<Serial, C, R>)
+  default_timeout: T::Time,
+) -> (
+  client::ATClient<T, C, R, CmdQueueLen, RespQueueLen>,
+  parser::ATParser<Serial, C, R, RxBufferLen, CmdQueueLen, RespQueueLen>,
+)
 where
   Serial: serial::Write<u8> + serial::Read<u8>,
+  RxBufferLen: ArrayLength<u8>,
+  CmdQueueLen: ArrayLength<C>,
+  RespQueueLen: ArrayLength<Result<R, error::Error>>,
   C: ATCommandInterface<R>,
   R: core::fmt::Debug,
   T: CountDown,
+  T::Time: Copy,
 {
   let (wifi_cmd_p, wifi_cmd_c) = queues.0.split();
   let (wifi_resp_p, wifi_resp_c) = queues.1.split();

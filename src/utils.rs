@@ -13,7 +13,9 @@ pub fn split_parameterized_resp(
       // parse response lines for parameters
       let mut v: Vec<&str, MaxResponseLines> = response_line
         .rsplit(|c: char| c == ':' || c == ',')
+        .filter(|s| !s.is_empty())
         .collect();
+
       if v.len() > 1 {
         v.pop();
         v.reverse();
@@ -26,6 +28,7 @@ pub fn split_parameterized_resp(
 pub fn split_parameterized_unsolicited(response_line: &str) -> (&str, Vec<&str, MaxResponseLines>) {
   let mut parameters: Vec<&str, MaxResponseLines> = response_line
       .rsplit(|c: char| c == ':' || c == ',')
+      .filter(|s| !s.is_empty())
       .collect();
 
     let cmd = parameters.pop().unwrap();

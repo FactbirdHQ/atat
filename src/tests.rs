@@ -43,7 +43,7 @@ enum TestCommand {
 #[derive(Debug, Clone, PartialEq)]
 enum TestResponseType {
   SingleSolicited(TestResponse),
-  MultiSolicited(Vec<TestResponse, heapless::consts::U4>),
+  // MultiSolicited(Vec<TestResponse, heapless::consts::U4>),
   Unsolicited(TestUnsolicitedResponse),
   None,
 }
@@ -119,37 +119,48 @@ impl ATCommandInterface<TestResponseType> for TestCommand {
     }
   }
 
-  fn parse_unsolicited(response_line: &str) -> TestResponseType {
+  fn parse_unsolicited(response_line: &str) -> Option<TestResponseType> {
     let (cmd, parameters) = utils::split_parameterized_unsolicited(response_line);
 
-    match cmd {
+    Some(match cmd {
       "+UUDPD" => TestResponseType::Unsolicited(TestUnsolicitedResponse::PeerDisconnected {
         peer_handle: parameters[0].parse::<u8>().unwrap(),
       }),
-      _ => TestResponseType::None,
-    }
+      _ => return None,
+    })
   }
 }
 
-struct Seconds(u32);
+#[derive(Clone, Copy)]
+struct MilliSeconds(u32);
 trait U32Ext {
-  fn s(self) -> Seconds;
+  fn s(self) -> MilliSeconds;
+  fn ms(self) -> MilliSeconds;
 }
 impl U32Ext for u32 {
-  fn s(self) -> Seconds {
-    Seconds(self)
+  fn s(self) -> MilliSeconds {
+    MilliSeconds(self / 1000)
+  }
+  fn ms(self) -> MilliSeconds {
+    MilliSeconds(self)
   }
 }
 
 struct Timer6;
 impl embedded_hal::timer::CountDown for Timer6 {
-  type Time = Seconds;
+  type Time = MilliSeconds;
   fn start<T>(&mut self, _: T)
   where
-    T: Into<Seconds>,
+    T: Into<MilliSeconds>,
   {
   }
   fn wait(&mut self) -> ::nb::Result<(), void::Void> {
+    Ok(())
+  }
+}
+impl embedded_hal::timer::Cancel for Timer6 {
+  type Error = ();
+  fn cancel(&mut self) -> Result<(), Self::Error> {
     Ok(())
   }
 }
@@ -170,9 +181,16 @@ macro_rules! setup {
     let (wifi_cmd_p, wifi_cmd_c) = unsafe { WIFI_CMD_Q.as_mut().unwrap().split() };
     let (wifi_resp_p, wifi_resp_c) = unsafe { WIFI_RESP_Q.as_mut().unwrap().split() };
 
-    let at = client::ATClient::new((wifi_cmd_p, wifi_resp_c), 1000, Timer6);
+    let at = client::ATClient::new((wifi_cmd_p, wifi_resp_c), 1000.ms(), Timer6);
 
-    let test_at = ATParser::new(wifi, (wifi_cmd_c, wifi_resp_p));
+    let test_at = ATParser::<
+      SerialMock<_>,
+      TestCommand,
+      TestResponseType,
+      consts::U100,
+      consts::U10,
+      consts::U10,
+    >::new(wifi, (wifi_cmd_c, wifi_resp_p));
     (test_at, at.release())
   }};
 }
@@ -201,6 +219,7 @@ fn test_at_command_echo() {
   let expected_response = b"AT\r\nOK\r\n";
   let expectations = [
     SerialTransaction::write_many(b"AT\r\n"),
+    SerialTransaction::flush(),
     SerialTransaction::read_many(expected_response),
   ];
 
@@ -222,6 +241,7 @@ fn test_at_command() {
   let expected_response = b"OK\r\n";
   let expectations = [
     SerialTransaction::write_many(b"AT\r\n"),
+    SerialTransaction::flush(),
     SerialTransaction::read_many(expected_response),
   ];
   let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
@@ -242,6 +262,7 @@ fn test_parameterized_command() {
   let expected_response = b"OK\r\n";
   let expectations = [
     SerialTransaction::write_many(b"AT+UDDRP=1,testString,2\r\n"),
+    SerialTransaction::flush(),
     SerialTransaction::read_many(expected_response),
   ];
   let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
@@ -268,6 +289,7 @@ fn test_response() {
   let expected_response = b"abcdef012345\r\nOK\r\n";
   let expectations = [
     SerialTransaction::write_many(b"AT+CGSN\r\n"),
+    SerialTransaction::flush(),
     SerialTransaction::read_many(expected_response),
   ];
   let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
@@ -290,6 +312,7 @@ fn test_error() {
   let expected_response = b"ERROR\r\n";
   let expectations = [
     SerialTransaction::write_many(b"AT+UDDRP=1,testString,2\r\n"),
+    SerialTransaction::flush(),
     SerialTransaction::read_many(expected_response),
   ];
   let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
@@ -304,7 +327,10 @@ fn test_error() {
 
   spin!(test_at, expected_response.len());
 
-  assert_eq!(wifi_resp_c.dequeue().unwrap(), Err(ATError::ParseString));
+  assert_eq!(
+    wifi_resp_c.dequeue().unwrap(),
+    Err(ATError::InvalidResponse)
+  );
   cleanup!(test_at, wifi_resp_c);
 }
 
@@ -313,6 +339,7 @@ fn test_parameterized_single_response() {
   let expected_response = b"+UMSM:0\r\nOK\r\n";
   let expectations = [
     SerialTransaction::write_many(b"AT+UMSM?\r\n"),
+    SerialTransaction::flush(),
     SerialTransaction::read_many(expected_response),
   ];
   let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
@@ -335,6 +362,7 @@ fn test_parameterized_multi_response() {
   let expected_response = b"+CSGT:0,test\r\nOK\r\n";
   let expectations = [
     SerialTransaction::write_many(b"AT+CSGT?\r\n"),
+    SerialTransaction::flush(),
     SerialTransaction::read_many(expected_response),
   ];
   let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
@@ -359,6 +387,7 @@ fn test_response_unsolicited() {
   let expected_unsolicited = b"+UUDPD:0\r\n";
   let expectations = [
     SerialTransaction::write_many(b"AT+CSGT?\r\n"),
+    SerialTransaction::flush(),
     SerialTransaction::read_many(expected_response),
     SerialTransaction::read_many(expected_unsolicited),
   ];
