@@ -19,11 +19,11 @@ The crate has examples for usage with [cortex-m-rt] and [cortex-m-rtfm] crates.
 
 The samples can be built using `cargo build --example cortex-m-rt --target thumbv7em-none-eabihf` and `cargo build --example rtfm --target thumbv7em-none-eabihf`.
 
-Furthermore I have used the crate to build initial drivers for uBlox cell modules ([ublox-cell-rs]) and uBlox wifi modules ([ublox-wifi-rs])
+Furthermore I have used the crate to build initial drivers for uBlox cell modules ([ublox-cell-rs]) and uBlox short-range modules ([ublox-short-range-rs])
 
 [cortex-m-rt]: https://crates.io/crates/cortex-m-rt
 [cortex-m-rtfm]: https://crates.io/crates/cortex-m-rtfm
-[ublox-wifi-rs]: https://crates.io/crates/ublox-wifi-rs
+[ublox-short-range-rs]: https://crates.io/crates/ublox-short-range-rs
 [ublox-cell-rs]: https://crates.io/crates/ublox-cell-rs
 
 ## About
@@ -37,13 +37,13 @@ The following dependent crates provide platform-agnostic device drivers built on
 
 | Device Name | Description | Crate + Docs |
 |-------------|-------------|--------------|
-| [ublox-wifi-rs]  | Driver crate for UBlox host-based wifi devices with AT-command interface | [![crates.io][ublox-wifi-rs-crate-img]][ublox-wifi-rs] [![docs.rs][ublox-wifi-rs-docs-img]][ublox-wifi-rs-docs] |
+| [ublox-wifi-rs]  | Driver crate for UBlox host-based wifi devices with AT-command interface | [![crates.io][ublox-wifi-rs-crate-img]][ublox-short-range-rs] [![docs.rs][ublox-short-range-rs-docs-img]][ublox-short-range-rs-docs] |
 | [ublox-cell-rs]  | Driver crate for UBlox host-based cellular devices with AT-command interface | [![crates.io][ublox-cell-rs-crate-img]][ublox-cell-rs] [![docs.rs][ublox-cell-rs-docs-img]][ublox-cell-rs-docs] |
 
-[ublox-wifi-rs]: https://github.com/MathiasKoch/ublox-wifi-rs
-[ublox-wifi-rs-crate-img]: https://img.shields.io/crates/v/ublox-wifi-rs.svg
-[ublox-wifi-rs-docs-img]: https://docs.rs/ublox-wifi-rs/badge.svg
-[ublox-wifi-rs-docs]: https://docs.rs/ublox-wifi-rs/
+[ublox-short-range-rs]: https://github.com/BlackbirdHQ/ublox-short-range-rs
+[ublox-short-range-rs-crate-img]: https://img.shields.io/crates/v/ublox-short-range-rs.svg
+[ublox-short-range-rs-docs-img]: https://docs.rs/ublox-short-range-rs/badge.svg
+[ublox-short-range-rs-docs]: https://docs.rs/ublox-short-range-rs/
 
 [ublox-cell-rs]: https://github.com/MathiasKoch/ublox-cell-rs
 [ublox-cell-rs-crate-img]: https://img.shields.io/crates/v/ublox-cell-rs.svg
