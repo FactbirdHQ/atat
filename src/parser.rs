@@ -45,10 +45,14 @@ where
     RespQueueLen: ArrayLength<Result<Response, ATError>>,
 {
     pub fn new(
-        serial: Serial,
+        mut serial: Serial,
         queues: Queues<Command, Response, CmdQueueLen, RespQueueLen>,
     ) -> Self {
         let (cmd_c, resp_p) = queues;
+
+        block!(serial.flush()).ok();
+        while serial.read().is_ok() {}
+
         Self {
             serial,
             prev_cmd: None,
@@ -132,7 +136,8 @@ where
                     .inspect(|line| self.rx_buf.remove_line(&line))
                     .collect::<Vec<_, MaxResponseLines>>();
 
-                self.rx_buf.remove_line(&String::<consts::U4>::from("OK"));
+                // FIXME
+                self.rx_buf.remove_line(&String::<consts::U2>::from("OK"));
 
                 if let Some(prev_cmd) = &self.prev_cmd {
                     let prev_command = prev_cmd.get_cmd();

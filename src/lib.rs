@@ -29,32 +29,32 @@ type CmdQueue<C, N> = Queue<C, N, u8>;
 type RespQueue<R, N> = Queue<Result<R, error::Error>, N, u8>;
 
 pub fn new<Serial, C, R, T, RxBufferLen, CmdQueueLen, RespQueueLen>(
-  queues: (
-    &'static mut CmdQueue<C, CmdQueueLen>,
-    &'static mut RespQueue<R, RespQueueLen>,
-  ),
-  serial: Serial,
-  timer: T,
-  default_timeout: T::Time,
+    queues: (
+        &'static mut CmdQueue<C, CmdQueueLen>,
+        &'static mut RespQueue<R, RespQueueLen>,
+    ),
+    serial: Serial,
+    timer: T,
+    default_timeout: T::Time,
 ) -> (
-  client::ATClient<T, C, R, CmdQueueLen, RespQueueLen>,
-  parser::ATParser<Serial, C, R, RxBufferLen, CmdQueueLen, RespQueueLen>,
+    client::ATClient<T, C, R, CmdQueueLen, RespQueueLen>,
+    parser::ATParser<Serial, C, R, RxBufferLen, CmdQueueLen, RespQueueLen>,
 )
 where
-  Serial: serial::Write<u8> + serial::Read<u8>,
-  RxBufferLen: ArrayLength<u8>,
-  CmdQueueLen: ArrayLength<C>,
-  RespQueueLen: ArrayLength<Result<R, error::Error>>,
-  C: ATCommandInterface<R>,
-  R: core::fmt::Debug,
-  T: CountDown,
-  T::Time: Copy,
+    Serial: serial::Write<u8> + serial::Read<u8>,
+    RxBufferLen: ArrayLength<u8>,
+    CmdQueueLen: ArrayLength<C>,
+    RespQueueLen: ArrayLength<Result<R, error::Error>>,
+    C: ATCommandInterface<R>,
+    R: core::fmt::Debug,
+    T: CountDown,
+    T::Time: Copy,
 {
-  let (wifi_cmd_p, wifi_cmd_c) = queues.0.split();
-  let (wifi_resp_p, wifi_resp_c) = queues.1.split();
+    let (wifi_cmd_p, wifi_cmd_c) = queues.0.split();
+    let (wifi_resp_p, wifi_resp_c) = queues.1.split();
 
-  let client = client::ATClient::new((wifi_cmd_p, wifi_resp_c), default_timeout, timer);
-  let parser = ATParser::new(serial, (wifi_cmd_c, wifi_resp_p));
+    let client = client::ATClient::new((wifi_cmd_p, wifi_resp_c), default_timeout, timer);
+    let parser = ATParser::new(serial, (wifi_cmd_c, wifi_resp_p));
 
-  (client, parser)
+    (client, parser)
 }

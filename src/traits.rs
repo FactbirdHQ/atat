@@ -92,19 +92,19 @@ use heapless::{String, Vec};
 /// }
 /// ```
 pub trait ATCommandInterface<R> {
-  fn get_cmd(&self) -> String<MaxCommandLen>;
-  fn parse_resp(&self, response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>) -> R;
-  fn parse_unsolicited(response_line: &str) -> Option<R>;
+    fn get_cmd(&self) -> String<MaxCommandLen>;
+    fn parse_resp(&self, response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>) -> R;
+    fn parse_unsolicited(response_line: &str) -> Option<R>;
 }
 
 pub trait ATInterface<T: CountDown, Command, Response> {
-  fn send(&mut self, cmd: Command) -> Result<Response, Error>;
+    fn send(&mut self, cmd: Command) -> Result<Response, Error>;
 
-  fn send_timeout(&mut self, cmd: Command, timeout: T::Time) -> Result<Response, Error>;
+    fn send_timeout(&mut self, cmd: Command, timeout: T::Time) -> Result<Response, Error>;
 
-  fn wait_response(&mut self) -> Result<Response, Error>;
+    fn wait_response(&mut self) -> Result<Response, Error>;
 
-  fn peek_response(&mut self) -> &Result<Response, Error>;
+    fn peek_response(&mut self) -> &Result<Response, Error>;
 
-  fn wait_response_timeout(&mut self, timeout: T::Time) -> Result<Response, Error>;
+    fn wait_response_timeout(&mut self, timeout: T::Time) -> Result<Response, Error>;
 }

@@ -161,11 +161,15 @@ impl ATCommandInterface<Response> for Command {
         }
     }
 
-    fn parse_resp(&self, response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>) -> Response {
+    fn parse_resp(
+        &self,
+        response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>,
+    ) -> Response {
         if response_lines.is_empty() {
             return Response::None;
         }
-        let mut responses: Vec<Vec<&str, MaxResponseLines>, MaxResponseLines> = utils::split_parameterized_resp(response_lines);
+        let mut responses: Vec<Vec<&str, MaxResponseLines>, MaxResponseLines> =
+            utils::split_parameterized_resp(response_lines);
 
         let response = responses.pop().unwrap();
 

@@ -26,10 +26,14 @@ where
         let mut result = String::new();
         let mut last_end = 0;
         for (start, part) in self.buffer.match_indices(line.as_str()) {
-            result.push_str(unsafe { self.buffer.get_unchecked(last_end..start) }).ok();
+            result
+                .push_str(unsafe { self.buffer.get_unchecked(last_end..start) })
+                .ok();
             last_end = start + part.len();
         }
-        result.push_str(unsafe { self.buffer.get_unchecked(last_end..self.buffer.len()) }).ok();
+        result
+            .push_str(unsafe { self.buffer.get_unchecked(last_end..self.buffer.len()) })
+            .ok();
         self.buffer = result;
     }
 
