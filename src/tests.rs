@@ -21,7 +21,7 @@ static INIT: Once = Once::new();
 
 fn setup_log() {
     INIT.call_once(|| {
-        env_logger::Builder::from_env(Env::default().default_filter_or("info"))
+        env_logger::Builder::from_env(Env::default().default_filter_or("trace"))
             .is_test(true)
             .init();
     });
@@ -75,15 +75,19 @@ impl ATRequestType for TestCommand {
         Some(self)
     }
 
-    fn get_bytes(&self) -> &str {
-        self.get_cmd().as_str()
+    fn get_bytes<N: ArrayLength<u8>>(&self) -> Vec<u8, N> {
+        let mut command = self.get_cmd();
+        if !command.ends_with("\r\n") {
+            command.push_str("\r\n").ok();
+        }
+        command.into_bytes()
     }
 }
 
 impl ATCommandInterface for TestCommand {
     type Response = TestResponseType;
 
-    fn get_cmd(&self) -> String<MaxCommandLen> {
+    fn get_cmd<N: ArrayLength<u8>>(&self) -> String<N> {
         let mut buffer = String::new();
         match self {
             TestCommand::AT => String::from("AT"),
@@ -185,28 +189,21 @@ macro_rules! setup {
     ($expectations: expr) => {{
         setup_log();
 
-        let wifi = SerialMock::new($expectations);
+        let serial = SerialMock::new($expectations);
 
-        static mut WIFI_CMD_Q: Option<Queue<TestCommand, consts::U10, u8>> = None;
-        static mut WIFI_RESP_Q: Option<Queue<Result<TestResponseType, ATError>, consts::U10, u8>> =
-            None;
+        static mut REQ_Q: Option<Queue<TestCommand, consts::U10, u8>> = None;
+        static mut RES_Q: Option<Queue<Result<TestResponseType, ATError>, consts::U10, u8>> = None;
 
-        unsafe { WIFI_CMD_Q = Some(Queue::u8()) };
-        unsafe { WIFI_RESP_Q = Some(Queue::u8()) };
+        unsafe { REQ_Q = Some(Queue::u8()) };
+        unsafe { RES_Q = Some(Queue::u8()) };
 
-        let (wifi_cmd_p, wifi_cmd_c) = unsafe { WIFI_CMD_Q.as_mut().unwrap().split() };
-        let (wifi_resp_p, wifi_resp_c) = unsafe { WIFI_RESP_Q.as_mut().unwrap().split() };
+        let (req_p, req_c) = unsafe { REQ_Q.as_mut().unwrap().split() };
+        let (res_p, res_c) = unsafe { RES_Q.as_mut().unwrap().split() };
 
-        let at = client::ATClient::new((wifi_cmd_p, wifi_resp_c), 1000.ms(), Timer6);
+        let at = client::ATClient::new((req_p, res_c), 1000.ms(), Timer6);
 
-        let test_at = ATParser::<
-            SerialMock<_>,
-            TestCommand,
-            consts::U100,
-            consts::U10,
-            consts::U10,
-        >::new(wifi, (wifi_cmd_c, wifi_resp_p));
-        (test_at, at.release())
+        let parser = ATParser::<_, _, consts::U100, _, _>::new(serial, (req_c, res_p));
+        (parser, at.release())
     }};
 }
 
@@ -221,10 +218,10 @@ macro_rules! spin {
 }
 
 macro_rules! cleanup {
-    ($at: expr, $wifi_resp_c: expr) => {
-        let (mut serial, (mut wifi_cmd_c, _)) = $at.release();
-        assert!($wifi_resp_c.dequeue().is_none());
-        assert!(wifi_cmd_c.dequeue().is_none());
+    ($parser: expr, $res_c: expr) => {
+        let (mut serial, (mut req_c, _)) = $parser.release();
+        assert!($res_c.dequeue().is_none());
+        assert!(req_c.dequeue().is_none());
         serial.done();
     };
 }
@@ -233,56 +230,59 @@ macro_rules! cleanup {
 fn test_at_command_echo() {
     let expected_response = b"AT\r\nOK\r\n";
     let expectations = [
+        SerialTransaction::flush(),
+        SerialTransaction::read_many([0x00, 0xFF]),
         SerialTransaction::write_many(b"AT\r\n"),
         SerialTransaction::flush(),
         SerialTransaction::read_many(expected_response),
     ];
 
-    let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
+    let (mut parser, (mut req_p, mut res_c)) = setup!(&expectations);
 
-    wifi_cmd_p.enqueue(TestCommand::AT).unwrap();
+    req_p.enqueue(TestCommand::AT).unwrap();
 
-    spin!(test_at, expected_response.len());
+    spin!(parser, expected_response.len());
 
-    assert_eq!(
-        wifi_resp_c.dequeue().unwrap().ok(),
-        Some(TestResponseType::None)
-    );
-    cleanup!(test_at, wifi_resp_c);
+    assert_eq!(res_c.dequeue().unwrap().ok(), Some(TestResponseType::None));
+    cleanup!(parser, res_c);
 }
 
 #[test]
 fn test_at_command() {
     let expected_response = b"OK\r\n";
     let expectations = [
+        SerialTransaction::flush(),
+        SerialTransaction::read_many([0x00, 0xFF]),
         SerialTransaction::write_many(b"AT\r\n"),
         SerialTransaction::flush(),
         SerialTransaction::read_many(expected_response),
     ];
-    let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
+    let (mut parser, (mut req_p, mut res_c)) = setup!(&expectations);
 
-    wifi_cmd_p.enqueue(TestCommand::AT).unwrap();
+    req_p.enqueue(TestCommand::AT).unwrap();
 
-    spin!(test_at, expected_response.len());
+    spin!(parser, expected_response.len());
 
     assert_eq!(
-        wifi_resp_c.dequeue().unwrap().ok(),
+        res_c.dequeue().unwrap().ok(),
         Some(TestResponseType::None)
     );
-    cleanup!(test_at, wifi_resp_c);
+    cleanup!(parser, res_c);
 }
 
 #[test]
 fn test_parameterized_command() {
     let expected_response = b"OK\r\n";
     let expectations = [
+        SerialTransaction::flush(),
+        SerialTransaction::read_many([0x00, 0xFF]),
         SerialTransaction::write_many(b"AT+UDDRP=1,testString,2\r\n"),
         SerialTransaction::flush(),
         SerialTransaction::read_many(expected_response),
     ];
-    let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
+    let (mut parser, (mut req_p, mut res_c)) = setup!(&expectations);
 
-    wifi_cmd_p
+    req_p
         .enqueue(TestCommand::SetDefaultPeer {
             peer_id: 1,
             url: String::from("testString"),
@@ -290,49 +290,53 @@ fn test_parameterized_command() {
         })
         .unwrap();
 
-    spin!(test_at, expected_response.len());
+    spin!(parser, expected_response.len());
 
     assert_eq!(
-        wifi_resp_c.dequeue().unwrap().ok(),
+        res_c.dequeue().unwrap().ok(),
         Some(TestResponseType::None)
     );
-    cleanup!(test_at, wifi_resp_c);
+    cleanup!(parser, res_c);
 }
 
 #[test]
 fn test_response() {
     let expected_response = b"abcdef012345\r\nOK\r\n";
     let expectations = [
+        SerialTransaction::flush(),
+        SerialTransaction::read_many([0x00, 0xFF]),
         SerialTransaction::write_many(b"AT+CGSN\r\n"),
         SerialTransaction::flush(),
         SerialTransaction::read_many(expected_response),
     ];
-    let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
+    let (mut parser, (mut req_p, mut res_c)) = setup!(&expectations);
 
-    wifi_cmd_p.enqueue(TestCommand::GetSerialNum).unwrap();
+    req_p.enqueue(TestCommand::GetSerialNum).unwrap();
 
-    spin!(test_at, expected_response.len());
+    spin!(parser, expected_response.len());
 
     assert_eq!(
-        wifi_resp_c.dequeue().unwrap().ok(),
+        res_c.dequeue().unwrap().ok(),
         Some(TestResponseType::SingleSolicited(TestResponse::SerialNum {
             serial: String::from("abcdef012345")
         }))
     );
-    cleanup!(test_at, wifi_resp_c);
+    cleanup!(parser, res_c);
 }
 
 #[test]
 fn test_error() {
     let expected_response = b"ERROR\r\n";
     let expectations = [
+        SerialTransaction::flush(),
+        SerialTransaction::read_many([0x00, 0xFF]),
         SerialTransaction::write_many(b"AT+UDDRP=1,testString,2\r\n"),
         SerialTransaction::flush(),
         SerialTransaction::read_many(expected_response),
     ];
-    let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
+    let (mut parser, (mut req_p, mut res_c)) = setup!(&expectations);
 
-    wifi_cmd_p
+    req_p
         .enqueue(TestCommand::SetDefaultPeer {
             peer_id: 1,
             url: String::from("testString"),
@@ -340,60 +344,64 @@ fn test_error() {
         })
         .unwrap();
 
-    spin!(test_at, expected_response.len());
+    spin!(parser, expected_response.len());
 
     assert_eq!(
-        wifi_resp_c.dequeue().unwrap(),
+        res_c.dequeue().unwrap(),
         Err(ATError::InvalidResponse)
     );
-    cleanup!(test_at, wifi_resp_c);
+    cleanup!(parser, res_c);
 }
 
 #[test]
 fn test_parameterized_single_response() {
     let expected_response = b"+UMSM:0\r\nOK\r\n";
     let expectations = [
+        SerialTransaction::flush(),
+        SerialTransaction::read_many([0x00, 0xFF]),
         SerialTransaction::write_many(b"AT+UMSM?\r\n"),
         SerialTransaction::flush(),
         SerialTransaction::read_many(expected_response),
     ];
-    let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
+    let (mut parser, (mut req_p, mut res_c)) = setup!(&expectations);
 
-    wifi_cmd_p.enqueue(TestCommand::GetUMSM).unwrap();
+    req_p.enqueue(TestCommand::GetUMSM).unwrap();
 
-    spin!(test_at, expected_response.len());
+    spin!(parser, expected_response.len());
 
     assert_eq!(
-        wifi_resp_c.dequeue().unwrap().ok(),
+        res_c.dequeue().unwrap().ok(),
         Some(TestResponseType::SingleSolicited(TestResponse::UMSM {
             start_mode: 0
         }))
     );
-    cleanup!(test_at, wifi_resp_c);
+    cleanup!(parser, res_c);
 }
 
 #[test]
 fn test_parameterized_multi_response() {
     let expected_response = b"+CSGT:0,test\r\nOK\r\n";
     let expectations = [
+        SerialTransaction::flush(),
+        SerialTransaction::read_many([0x00, 0xFF]),
         SerialTransaction::write_many(b"AT+CSGT?\r\n"),
         SerialTransaction::flush(),
         SerialTransaction::read_many(expected_response),
     ];
-    let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
+    let (mut parser, (mut req_p, mut res_c)) = setup!(&expectations);
 
-    wifi_cmd_p.enqueue(TestCommand::GetCSGT).unwrap();
+    req_p.enqueue(TestCommand::GetCSGT).unwrap();
 
-    spin!(test_at, expected_response.len());
+    spin!(parser, expected_response.len());
 
     assert_eq!(
-        wifi_resp_c.dequeue().unwrap().ok(),
+        res_c.dequeue().unwrap().ok(),
         Some(TestResponseType::SingleSolicited(TestResponse::CSGT {
             mode: 0,
             text: String::from("test")
         }))
     );
-    cleanup!(test_at, wifi_resp_c);
+    cleanup!(parser, res_c);
 }
 
 #[test]
@@ -401,30 +409,32 @@ fn test_response_unsolicited() {
     let expected_response = b"+CSGT:0,test\r\nOK\r\n";
     let expected_unsolicited = b"+UUDPD:0\r\n";
     let expectations = [
+        SerialTransaction::flush(),
+        SerialTransaction::read_many([0x00, 0xFF]),
         SerialTransaction::write_many(b"AT+CSGT?\r\n"),
         SerialTransaction::flush(),
         SerialTransaction::read_many(expected_response),
         SerialTransaction::read_many(expected_unsolicited),
     ];
-    let (mut test_at, (mut wifi_cmd_p, mut wifi_resp_c)) = setup!(&expectations);
+    let (mut parser, (mut req_p, mut res_c)) = setup!(&expectations);
 
-    wifi_cmd_p.enqueue(TestCommand::GetCSGT).unwrap();
+    req_p.enqueue(TestCommand::GetCSGT).unwrap();
 
-    spin!(test_at, expected_response.len());
-    spin!(test_at, expected_unsolicited.len());
+    spin!(parser, expected_response.len());
+    spin!(parser, expected_unsolicited.len());
 
     assert_eq!(
-        wifi_resp_c.dequeue().unwrap().ok(),
+        res_c.dequeue().unwrap().ok(),
         Some(TestResponseType::SingleSolicited(TestResponse::CSGT {
             mode: 0,
             text: String::from("test")
         }))
     );
     assert_eq!(
-        wifi_resp_c.dequeue().unwrap().ok(),
+        res_c.dequeue().unwrap().ok(),
         Some(TestResponseType::Unsolicited(
             TestUnsolicitedResponse::PeerDisconnected { peer_handle: 0 }
         ))
     );
-    cleanup!(test_at, wifi_resp_c);
+    cleanup!(parser, res_c);
 }

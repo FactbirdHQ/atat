@@ -2,7 +2,7 @@
 //! Following https://www.spezial.com/sites/default/files/odin-w2-atcommands_manual_ubx-14044127.pdf
 
 use core::fmt::Write;
-use heapless::{String, Vec};
+use heapless::{String, Vec, ArrayLength};
 
 use at::{utils, ATCommandInterface, ATRequestType, MaxCommandLen, MaxResponseLines};
 
@@ -123,12 +123,16 @@ impl ATRequestType for Command {
     fn try_get_cmd(self) -> Option<Self::Command> {
         Some(self)
     }
+
+    fn get_bytes<N: ArrayLength<u8>>(&self) -> Vec<u8, N> {
+        self.get_cmd().into_bytes()
+    }
 }
 
 impl ATCommandInterface for Command {
     type Response = Response;
 
-    fn get_cmd(&self) -> String<MaxCommandLen> {
+    fn get_cmd<N: ArrayLength<u8>>(&self) -> String<N> {
         let mut buffer = String::new();
         match self {
             Command::AT => String::from("AT"),
