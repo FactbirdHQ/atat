@@ -42,9 +42,9 @@ type SerialUSART2 = Serial<
     ),
 >;
 
-static mut CMD_Q: Option<Queue<Command, consts::U10, u8>> = None;
-static mut RESP_Q: Option<Queue<Result<Response, ATError>, consts::U10, u8>> = None;
-static mut AT_PARSER: Option<ATParser<SerialUSART2, Command, Response>> = None;
+static mut REQ_Q: Option<Queue<Command, consts::U5, u8>> = None;
+static mut RES_Q: Option<Queue<Result<Response, ATError>, consts::U5, u8>> = None;
+static mut AT_PARSER: Option<ATParser<SerialUSART2, Command, consts::U1024, consts::U5, consts::U5>> = None;
 
 #[entry]
 fn main() -> ! {
@@ -72,8 +72,8 @@ fn main() -> ! {
     let tx = gpioa.pa2.into_af7(&mut gpioa.moder, &mut gpioa.afrl);
     let rx = gpioa.pa3.into_af7(&mut gpioa.moder, &mut gpioa.afrl);
 
-    unsafe { CMD_Q = Some(Queue::u8()) };
-    unsafe { RESP_Q = Some(Queue::u8()) };
+    unsafe { REQ_Q = Some(Queue::u8()) };
+    unsafe { RES_Q = Some(Queue::u8()) };
 
     // TRY using a different USART peripheral here
     // let serial = Serial::usart1(p.USART1, (tx, rx), 9_600.bps(), clocks, &mut rcc.apb2);
@@ -87,10 +87,10 @@ fn main() -> ! {
     let tim = Timer::tim6(p.TIM6, 100.hz(), clocks, &mut rcc.apb1r1);
 
     let (at_client, at_parser) = at::new(
-        unsafe { (CMD_Q.as_mut().unwrap(), RESP_Q.as_mut().unwrap()) },
+        unsafe { (REQ_Q.as_mut().unwrap(), RES_Q.as_mut().unwrap()) },
         serial,
         tim,
-        1000,
+        1.hz(),
     );
 
     let (mut cmd_p, mut resp_c) = at_client.release();

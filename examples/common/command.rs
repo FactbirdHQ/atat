@@ -4,7 +4,7 @@
 use core::fmt::Write;
 use heapless::{String, Vec};
 
-use at::{utils, ATCommandInterface, MaxCommandLen, MaxResponseLines};
+use at::{utils, ATCommandInterface, ATRequestType, MaxCommandLen, MaxResponseLines};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
@@ -117,7 +117,17 @@ pub enum Response {
     None,
 }
 
-impl ATCommandInterface<Response> for Command {
+impl ATRequestType for Command {
+    type Command = Command;
+
+    fn try_get_cmd(self) -> Option<Self::Command> {
+        Some(self)
+    }
+}
+
+impl ATCommandInterface for Command {
+    type Response = Response;
+
     fn get_cmd(&self) -> String<MaxCommandLen> {
         let mut buffer = String::new();
         match self {
@@ -182,7 +192,7 @@ impl ATCommandInterface<Response> for Command {
         }
     }
 
-    fn parse_unsolicited(_response_line: &str) -> Result<Response, ()> {
-        Ok(Response::None)
+    fn parse_unsolicited(_response_line: &str) -> Option<Response> {
+        Some(Response::None)
     }
 }

@@ -91,10 +91,19 @@ use heapless::{String, Vec};
 ///   }
 /// }
 /// ```
-pub trait ATCommandInterface<R> {
+pub trait ATCommandInterface {
+    type Response;
+
     fn get_cmd(&self) -> String<MaxCommandLen>;
-    fn parse_resp(&self, response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>) -> R;
-    fn parse_unsolicited(response_line: &str) -> Option<R>;
+    fn parse_resp(&self, response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>) -> Self::Response;
+    fn parse_unsolicited(response_line: &str) -> Option<Self::Response>;
+}
+
+pub trait ATRequestType {
+    type Command;
+
+    fn try_get_cmd(self) -> Option<Self::Command>;
+    fn get_bytes(&self) -> &str;
 }
 
 pub trait ATInterface<T: CountDown, Command, Response> {

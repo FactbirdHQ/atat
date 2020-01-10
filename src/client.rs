@@ -6,73 +6,88 @@ use heapless::{
 use embedded_hal::timer::CountDown;
 
 use crate::error::Error;
-use crate::traits::ATInterface;
+use crate::traits::{ATCommandInterface, ATRequestType, ATInterface};
+use crate::Response;
 
-type CmdProducer<C, N> = Producer<'static, C, N, u8>;
-type RespConsumer<R, N> = Consumer<'static, Result<R, Error>, N, u8>;
+type ReqProducer<Req, N> = Producer<'static, Req, N, u8>;
+type ResConsumer<Res, N> = Consumer<'static, Result<Res, Error>, N, u8>;
 
-pub struct ATClient<T, C, R, CmdQueueLen, RespQueueLen>
+pub struct ATClient<T, Req, ReqQueueLen, ResQueueLen>
 where
+    Req: ATRequestType,
+    Req::Command: ATCommandInterface,
     T: CountDown,
-    CmdQueueLen: ArrayLength<C>,
-    RespQueueLen: ArrayLength<Result<R, Error>>,
+    ReqQueueLen: ArrayLength<Req>,
+    ResQueueLen: ArrayLength<Result<Response<Req>, Error>>,
 {
-    cmd_p: CmdProducer<C, CmdQueueLen>,
-    resp_c: RespConsumer<R, RespQueueLen>,
+    req_p: ReqProducer<Req, ReqQueueLen>,
+    res_c: ResConsumer<Response<Req>, ResQueueLen>,
     default_timeout: T::Time,
     timer: T,
 }
 
-impl<T, C, R, CmdQueueLen, RespQueueLen> ATClient<T, C, R, CmdQueueLen, RespQueueLen>
+impl<T, Req, ReqQueueLen, ResQueueLen> ATClient<T, Req, ReqQueueLen, ResQueueLen>
 where
+    Req: ATRequestType,
+    Req::Command: ATCommandInterface,
     T: CountDown,
     T::Time: Copy,
-    CmdQueueLen: ArrayLength<C>,
-    RespQueueLen: ArrayLength<Result<R, Error>>,
+    ReqQueueLen: ArrayLength<Req>,
+    ResQueueLen: ArrayLength<Result<Response<Req>, Error>>,
 {
     pub fn new(
-        queues: (CmdProducer<C, CmdQueueLen>, RespConsumer<R, RespQueueLen>),
+        queues: (
+            ReqProducer<Req, ReqQueueLen>,
+            ResConsumer<Response<Req>, ResQueueLen>,
+        ),
         default_timeout: T::Time,
         timer: T,
     ) -> Self {
-        let (cmd_p, resp_c) = queues;
+        let (req_p, res_c) = queues;
         Self {
-            cmd_p,
-            resp_c,
+            req_p,
+            res_c,
             default_timeout,
             timer,
         }
     }
 
-    pub fn release(self) -> (CmdProducer<C, CmdQueueLen>, RespConsumer<R, RespQueueLen>) {
-        (self.cmd_p, self.resp_c)
+    pub fn release(
+        self,
+    ) -> (
+        ReqProducer<Req, ReqQueueLen>,
+        ResConsumer<Response<Req>, ResQueueLen>,
+    ) {
+        (self.req_p, self.res_c)
     }
 }
 
-impl<T, C, R, CmdQueueLen, RespQueueLen> ATInterface<T, C, R>
-    for ATClient<T, C, R, CmdQueueLen, RespQueueLen>
+impl<T, Req, ReqQueueLen, ResQueueLen> ATInterface<T, Req, Response<Req>>
+    for ATClient<T, Req, ReqQueueLen, ResQueueLen>
 where
+    Req: ATRequestType,
+    Req::Command: ATCommandInterface,
     T: CountDown,
     T::Time: Copy,
-    R: core::fmt::Debug,
-    CmdQueueLen: ArrayLength<C>,
-    RespQueueLen: ArrayLength<Result<R, Error>>,
+    Response<Req>: core::fmt::Debug,
+    ReqQueueLen: ArrayLength<Req>,
+    ResQueueLen: ArrayLength<Result<Response<Req>, Error>>,
 {
-    fn send(&mut self, cmd: C) -> Result<R, Error> {
-        self.send_timeout(cmd, self.default_timeout)
+    fn send(&mut self, req: Req) -> Result<Response<Req>, Error> {
+        self.send_timeout(req, self.default_timeout)
     }
 
-    fn send_timeout(&mut self, cmd: C, timeout: T::Time) -> Result<R, Error> {
-        match self.cmd_p.enqueue(cmd) {
+    fn send_timeout(&mut self, req: Req, timeout: T::Time) -> Result<Response<Req>, Error> {
+        match self.req_p.enqueue(req) {
             Ok(_) => self.wait_response_timeout(timeout),
             Err(_e) => Err(Error::Overflow),
         }
     }
 
-    fn wait_response_timeout(&mut self, timeout: T::Time) -> Result<R, Error> {
+    fn wait_response_timeout(&mut self, timeout: T::Time) -> Result<Response<Req>, Error> {
         self.timer.start(timeout);
         loop {
-            if let Some(result) = self.resp_c.dequeue() {
+            if let Some(result) = self.res_c.dequeue() {
                 // self.timer.cancel().map_err(|_| Error::Timeout)?;
                 return result.map_err(|_e| Error::InvalidResponse);
             }
@@ -82,14 +97,14 @@ where
         }
     }
 
-    fn wait_response(&mut self) -> Result<R, Error> {
+    fn wait_response(&mut self) -> Result<Response<Req>, Error> {
         self.wait_response_timeout(self.default_timeout)
     }
 
-    fn peek_response(&mut self) -> &Result<R, Error> {
+    fn peek_response(&mut self) -> &Result<Response<Req>, Error> {
         self.timer.start(self.default_timeout);
         loop {
-            if let Some(result) = self.resp_c.peek() {
+            if let Some(result) = self.res_c.peek() {
                 return result;
             }
             if self.timer.wait().is_ok() {

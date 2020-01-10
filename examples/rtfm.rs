@@ -47,13 +47,13 @@ type SerialUSART2 = Serial<
 #[app(device = hal::pac, peripherals = true, monotonic = rtfm::cyccnt::CYCCNT)]
 const APP: () = {
     struct Resources {
-        at_parser: at::ATParser<SerialUSART2, Command, Response>,
+        at_parser: at::ATParser<SerialUSART2, Command, consts::U1024, consts::U5, consts::U5>,
     }
 
     #[init(spawn = [at_loop])]
     fn init(ctx: init::Context) -> init::LateResources {
-        static mut CMD_Q: Option<Queue<Command, consts::U10, u8>> = None;
-        static mut RESP_Q: Option<Queue<Result<Response, ATError>, consts::U10, u8>> = None;
+        static mut CMD_Q: Option<Queue<Command, consts::U5, u8>> = None;
+        static mut RESP_Q: Option<Queue<Result<Response, ATError>, consts::U5, u8>> = None;
 
         let p = pac::Peripherals::take().unwrap();
 
@@ -98,7 +98,7 @@ const APP: () = {
             unsafe { (CMD_Q.as_mut().unwrap(), RESP_Q.as_mut().unwrap()) },
             serial,
             timer,
-            1000,
+            1.hz(),
         );
 
         let (mut cmd_p, _) = at_client.release();

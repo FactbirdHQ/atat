@@ -8,47 +8,52 @@ use heapless::{
 
 use crate::buffer::Buffer;
 use crate::error::Error as ATError;
-use crate::traits::ATCommandInterface;
+use crate::traits::{ATCommandInterface, ATRequestType};
 use crate::{MaxCommandLen, MaxResponseLines};
+use crate::Response;
 
 use log::{error, info, warn};
 
-type CmdConsumer<C, N> = Consumer<'static, C, N, u8>;
-type RespProducer<R, N> = Producer<'static, Result<R, ATError>, N, u8>;
-type Queues<C, R, CmdQueueLen, RespQueueLen> =
-    (CmdConsumer<C, CmdQueueLen>, RespProducer<R, RespQueueLen>);
+type CmdConsumer<Req, N> = Consumer<'static, Req, N, u8>;
+type RespProducer<Res, N> = Producer<'static, Result<Res, ATError>, N, u8>;
+type Queues<Req, Res, CmdQueueLen, RespQueueLen> =
+    (CmdConsumer<Req, CmdQueueLen>, RespProducer<Res, RespQueueLen>);
 
-pub struct ATParser<Serial, C, R, RxBufferLen, CmdQueueLen, RespQueueLen>
+
+pub struct ATParser<Serial, Req, RxBufferLen, CmdQueueLen, RespQueueLen>
 where
     Serial: serial::Write<u8> + serial::Read<u8>,
-    C: ATCommandInterface<R>,
+    Req: ATRequestType,
+    Req::Command: ATCommandInterface,
     RxBufferLen: ArrayLength<u8>,
-    CmdQueueLen: ArrayLength<C>,
-    RespQueueLen: ArrayLength<Result<R, ATError>>,
-    R: core::fmt::Debug,
+    CmdQueueLen: ArrayLength<Req>,
+    RespQueueLen: ArrayLength<Result<Response<Req>, ATError>>,
+    Response<Req>: core::fmt::Debug,
 {
     serial: Serial,
-    prev_cmd: Option<C>,
+    prev_cmd: Option<Req::Command>,
     rx_buf: Buffer<RxBufferLen>,
-    cmd_c: CmdConsumer<C, CmdQueueLen>,
-    resp_p: RespProducer<R, RespQueueLen>,
+    req_c: CmdConsumer<Req, CmdQueueLen>,
+    res_p: RespProducer<Response<Req>, RespQueueLen>,
 }
 
-impl<Serial, Command, Response, RxBufferLen, CmdQueueLen, RespQueueLen>
-    ATParser<Serial, Command, Response, RxBufferLen, CmdQueueLen, RespQueueLen>
+impl<Serial, Req, RxBufferLen, CmdQueueLen, RespQueueLen>
+    ATParser<Serial, Req, RxBufferLen, CmdQueueLen, RespQueueLen>
 where
     Serial: serial::Write<u8> + serial::Read<u8>,
-    Command: ATCommandInterface<Response>,
-    Response: core::fmt::Debug,
+    Req: ATRequestType,
+    Req::Command: ATCommandInterface,
+    Response<Req>: core::fmt::Debug,
     RxBufferLen: ArrayLength<u8>,
-    CmdQueueLen: ArrayLength<Command>,
-    RespQueueLen: ArrayLength<Result<Response, ATError>>,
+    CmdQueueLen: ArrayLength<Req>,
+    RespQueueLen: ArrayLength<Result<Response<Req>, ATError>>,
 {
+
     pub fn new(
         mut serial: Serial,
-        queues: Queues<Command, Response, CmdQueueLen, RespQueueLen>,
+        queues: Queues<Req, Response<Req>, CmdQueueLen, RespQueueLen>,
     ) -> Self {
-        let (cmd_c, resp_p) = queues;
+        let (req_c, res_p) = queues;
 
         block!(serial.flush()).ok();
         while serial.read().is_ok() {}
@@ -57,13 +62,13 @@ where
             serial,
             prev_cmd: None,
             rx_buf: Buffer::new(),
-            cmd_c,
-            resp_p,
+            req_c,
+            res_p,
         }
     }
 
-    pub fn release(self) -> (Serial, Queues<Command, Response, CmdQueueLen, RespQueueLen>) {
-        (self.serial, (self.cmd_c, self.resp_p))
+    pub fn release(self) -> (Serial, Queues<Req, Response<Req>, CmdQueueLen, RespQueueLen>) {
+        (self.serial, (self.req_c, self.res_p))
     }
 
     pub fn handle_irq(&mut self)
@@ -86,9 +91,9 @@ where
         }
     }
 
-    fn notify_response(&mut self, response: Result<Response, ATError>) {
-        if self.resp_p.ready() {
-            self.resp_p.enqueue(response).ok();
+    fn notify_response(&mut self, response: Result<Response<Req>, ATError>) {
+        if self.res_p.ready() {
+            self.res_p.enqueue(response).ok();
         } else {
             // TODO: Handle response queue not ready!
             warn!("Response queue is not ready!");
@@ -156,7 +161,7 @@ where
             // Unsolicited
             if lines.len() > 0 {
                 let resp_line = lines.pop().unwrap();
-                if let Some(resp) = Command::parse_unsolicited(&resp_line) {
+                if let Some(resp) = Req::Command::parse_unsolicited(&resp_line) {
                     self.rx_buf.remove_line(&resp_line);
                     self.notify_response(Ok(resp));
                 }
@@ -164,30 +169,38 @@ where
         }
 
         // Handle Send
-        if let Some(cmd) = self.cmd_c.dequeue() {
-            match self.send(cmd) {
+        if let Some(cmd) = self.req_c.dequeue() {
+            match self.write_all(cmd.get_bytes()) {
                 Ok(()) => (),
                 Err(_e) => {
                     self.notify_response(Err(ATError::Write));
                 }
             }
+            // if let Some(c) = cmd.try_get_cmd() {
+            //     match self.send(c) {
+            //         Ok(()) => (),
+            //         Err(_e) => {
+            //             self.notify_response(Err(ATError::Write));
+            //         }
+            //     }
+            // }
         }
     }
 
-    /// Send an AT command to the module, extracting any relevant response
-    fn send(
-        &mut self,
-        cmd: Command,
-    ) -> Result<(), <Serial as embedded_hal::serial::Write<u8>>::Error> {
-        let mut command = cmd.get_cmd();
-
-        self.prev_cmd = Some(cmd);
-
-        if !command.ends_with("\r\n") {
-            command.push_str("\r\n").ok();
-        }
-
-        // Transmit the AT Command
-        self.write_all(&command)
-    }
 }
+    // Send an AT command to the module, extracting any relevant response
+    // fn send(
+    //     &mut self,
+    //     cmd: Req::Command,
+    // ) -> Result<(), <Serial as embedded_hal::serial::Write<u8>>::Error> {
+    //     let mut command = cmd.get_cmd();
+
+    //     self.prev_cmd = Some(cmd);
+
+    //     if !command.ends_with("\r\n") {
+    //         command.push_str("\r\n").ok();
+    //     }
+
+    //     // Transmit the AT Command
+    //     self.write_all(&command)
+    // }

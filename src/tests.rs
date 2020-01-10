@@ -68,7 +68,21 @@ enum TestUnsolicitedResponse {
     PeerDisconnected { peer_handle: u8 },
 }
 
-impl ATCommandInterface<TestResponseType> for TestCommand {
+impl ATRequestType for TestCommand {
+    type Command = TestCommand;
+
+    fn try_get_cmd(self) -> Option<Self::Command> {
+        Some(self)
+    }
+
+    fn get_bytes(&self) -> &str {
+        self.get_cmd().as_str()
+    }
+}
+
+impl ATCommandInterface for TestCommand {
+    type Response = TestResponseType;
+
     fn get_cmd(&self) -> String<MaxCommandLen> {
         let mut buffer = String::new();
         match self {
@@ -188,7 +202,6 @@ macro_rules! setup {
         let test_at = ATParser::<
             SerialMock<_>,
             TestCommand,
-            TestResponseType,
             consts::U100,
             consts::U10,
             consts::U10,
