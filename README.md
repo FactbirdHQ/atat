@@ -39,17 +39,17 @@ The following dependent crates provide platform-agnostic device drivers built on
 | Device Name | Description | Crate + Docs |
 |-------------|-------------|--------------|
 | [ublox-short-range-rs]  | Driver crate for U-Blox host-based short range devices (wifi and BT) with AT-command interface | <!--[![crates.io][ublox-short-range-rs-crate-img]][ublox-short-range-rs] [![docs.rs][ublox-short-range-rs-docs-img]][ublox-short-range-rs-docs] --> |
-| [ublox-cell-rs]  | Driver crate for U-Blox host-based cellular devices with AT-command interface | [![crates.io][ublox-cell-rs-crate-img]][ublox-cell-rs] [![docs.rs][ublox-cell-rs-docs-img]][ublox-cell-rs-docs] |
+<!-- | [ublox-cell-rs]  | Driver crate for U-Blox host-based cellular devices with AT-command interface | [![crates.io][ublox-cell-rs-crate-img]][ublox-cell-rs] [![docs.rs][ublox-cell-rs-docs-img]][ublox-cell-rs-docs] | -->
 
 [ublox-short-range-rs]: https://github.com/BlackbirdHQ/ublox-short-range-rs
 <!-- [ublox-short-range-rs-crate-img]: https://img.shields.io/crates/v/ublox-short-range-rs.svg
 [ublox-short-range-rs-docs-img]: https://docs.rs/ublox-short-range-rs/badge.svg
 [ublox-short-range-rs-docs]: https://docs.rs/ublox-short-range-rs/ -->
 
-[ublox-cell-rs]: https://github.com/MathiasKoch/ublox-cell-rs
+<!-- [ublox-cell-rs]: https://github.com/MathiasKoch/ublox-cell-rs
 [ublox-cell-rs-crate-img]: https://img.shields.io/crates/v/ublox-cell-rs.svg
 [ublox-cell-rs-docs-img]: https://docs.rs/ublox-cell-rs/badge.svg
-[ublox-cell-rs-docs]: https://docs.rs/ublox-cell-rs/
+[ublox-cell-rs-docs]: https://docs.rs/ublox-cell-rs/ -->
 
 ## License
 
