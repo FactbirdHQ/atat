@@ -27,6 +27,10 @@ use heapless::{spsc::Queue, ArrayLength};
 
 type ReqQueue<Req, N> = Queue<Req, N, u8>;
 type ResQueue<Res, N> = Queue<Result<Res, error::Error>, N, u8>;
+type ClientParser<Serial, T, Req, RxBufferLen, ReqQueueLen, ResQueueLen> = (
+    client::ATClient<T, Req, ReqQueueLen, ResQueueLen>,
+    parser::ATParser<Serial, Req, RxBufferLen, ReqQueueLen, ResQueueLen>,
+);
 pub type Response<Req> = <<Req as ATRequestType>::Command as ATCommandInterface>::Response;
 
 pub fn new<Serial, Req, T, RxBufferLen, ReqQueueLen, ResQueueLen>(
@@ -37,10 +41,7 @@ pub fn new<Serial, Req, T, RxBufferLen, ReqQueueLen, ResQueueLen>(
     serial: Serial,
     timer: T,
     default_timeout: T::Time,
-) -> (
-    client::ATClient<T, Req, ReqQueueLen, ResQueueLen>,
-    parser::ATParser<Serial, Req, RxBufferLen, ReqQueueLen, ResQueueLen>,
-)
+) -> ClientParser<Serial, T, Req, RxBufferLen, ReqQueueLen, ResQueueLen>
 where
     Serial: serial::Write<u8> + serial::Read<u8>,
     RxBufferLen: ArrayLength<u8>,

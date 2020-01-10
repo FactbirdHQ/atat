@@ -12,7 +12,7 @@ use crate::traits::{ATCommandInterface, ATRequestType};
 use crate::Response;
 use crate::{MaxCommandLen, MaxResponseLines};
 
-use log::{error, info, trace, warn};
+use log::{error, trace, warn};
 
 type CmdConsumer<Req, N> = Consumer<'static, Req, N, u8>;
 type RespProducer<Res, N> = Producer<'static, Result<Res, ATError>, N, u8>;
@@ -107,7 +107,7 @@ where
         if self.res_p.ready() {
             self.res_p.enqueue(response).ok();
         } else {
-            // TODO: Handle response queue not ready!
+            // FIXME: Handle response queue not ready!
             warn!("Response queue is not ready!");
         }
     }
@@ -150,7 +150,7 @@ where
                     .inspect(|line| self.rx_buf.remove_line(&line))
                     .collect::<Vec<_, MaxResponseLines>>();
 
-                // FIXME
+                // FIXME:
                 self.rx_buf.remove_line(&String::<consts::U2>::from("OK"));
 
                 if let Some(prev_cmd) = &self.prev_cmd {
