@@ -18,7 +18,6 @@ embedded-hal = { version = "0.2.3" }
 heapless = "0.5.1"
 nb = { version = "0.1.2" }
 ufmt = "0.1.0"
-log = {version = "0.4", default-features = false}
 
 [dev-dependencies]
 cortex-m = "0.6.1"
@@ -29,5 +28,6 @@ cortex-m-rtfm = "0.5.1"
 void = { version = "1.0.2", default-features = false }
 
 [target.'x86_64-unknown-linux-gnu'.dev-dependencies]
+log = {version = "0.4", default-features = false}
 env_logger = "0.7.1"
 embedded-hal-mock = "0.7.1"

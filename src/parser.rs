@@ -12,6 +12,7 @@ use crate::traits::{ATCommandInterface, ATRequestType};
 use crate::Response;
 use crate::{MaxCommandLen, MaxResponseLines};
 
+#[cfg(test)]
 use log::{error, trace, warn};
 
 type CmdConsumer<Req, N> = Consumer<'static, Req, N, u8>;
@@ -91,13 +92,17 @@ where
             Ok(c) => {
                 // FIXME: handle buffer being full
                 if self.rx_buf.push(c).is_err() {
+                    #[cfg(test)]
                     error!("RXBuf is full!\r");
                 }
             }
             Err(e) => match e {
                 nb::Error::WouldBlock => (),
                 nb::Error::Other(e) => {
+                    #[cfg(test)]
                     error!("rx buffer error: {:?}\r", e);
+                    #[cfg(not(test))] // Silence unused variable warning
+                    let _ = e;
                 }
             },
         }
@@ -108,6 +113,7 @@ where
             self.res_p.enqueue(response).ok();
         } else {
             // TODO: Handle response queue not ready!
+            #[cfg(test)]
             warn!("Response queue is not ready!");
         }
     }
@@ -129,6 +135,7 @@ where
             .lines()
             .filter_map(|p| {
                 if !p.is_empty() {
+                    #[cfg(test)]
                     trace!("{:?}", p);
                     Some(String::from(p))
                 } else {
