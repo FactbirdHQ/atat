@@ -1,0 +1,61 @@
+on:
+  push:
+  schedule:
+    - cron: '30 3 * * 2'
+
+name: CI
+
+jobs:
+
+  test_stable:
+    name: Test (stable)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: thumbv7m-none-eabi
+          override: true
+      - name: Ensure that library compiles on ARMv7
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --target thumbv7m-none-eabi
+      - name: Ensure that examples compile on ARMv7
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --examples --target thumbv7m-none-eabi
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --tests --all-features
+
+  clippy:
+    name: Run clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            components: clippy
+            override: true
+      - uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
+
+  rustfmt:
+    name: Run rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            components: rustfmt
+            override: true
+      - run: cargo fmt -- --check

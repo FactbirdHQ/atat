@@ -1,5 +1,9 @@
 # `AT Parser`
 
+[![Build status][workflow-badge]][workflow]
+[![Crates.io Version][crates-io-badge]][crates-io]
+[![Crates.io Downloads][crates-io-download-badge]][crates-io-download]
+
 > A driver support crate for AT-command based serial modules, using the [embedded-hal] traits.
 
 
@@ -66,3 +70,11 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
+
+<!-- Badges -->
+[workflow]: https://github.com/MathiasKoch/at-rs/actions?query=workflow%3ACI
+[workflow-badge]: https://img.shields.io/github/workflow/status/MathiasKoch/at-rs/CI/master
+[crates-io]: https://crates.io/crates/at-rs
+[crates-io-badge]: https://img.shields.io/crates/v/at-rs.svg?maxAge=3600
+[crates-io-download]: https://crates.io/crates/at-rs
+[crates-io-download-badge]: https://img.shields.io/crates/d/at-rs.svg?maxAge=3600
