@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::{MaxCommandLen, MaxResponseLines};
 use embedded_hal::timer::CountDown;
-use heapless::{String, Vec, ArrayLength};
+use heapless::{ArrayLength, String, Vec};
 
 /// Trait to be implemented by device driver crates.
 ///
@@ -95,7 +95,10 @@ pub trait ATCommandInterface {
     type Response;
 
     fn get_cmd<N: ArrayLength<u8>>(&self) -> String<N>;
-    fn parse_resp(&self, response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>) -> Self::Response;
+    fn parse_resp(
+        &self,
+        response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>,
+    ) -> Self::Response;
     fn parse_unsolicited(response_line: &str) -> Option<Self::Response>;
 }
 

@@ -6,7 +6,7 @@ use heapless::{
 use embedded_hal::timer::CountDown;
 
 use crate::error::Error;
-use crate::traits::{ATCommandInterface, ATRequestType, ATInterface};
+use crate::traits::{ATCommandInterface, ATInterface, ATRequestType};
 use crate::Response;
 
 type ReqProducer<Req, N> = Producer<'static, Req, N, u8>;
