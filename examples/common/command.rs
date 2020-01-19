@@ -2,7 +2,7 @@
 //! Following https://www.spezial.com/sites/default/files/odin-w2-atcommands_manual_ubx-14044127.pdf
 
 use core::fmt::Write;
-use heapless::{String, Vec, ArrayLength};
+use heapless::{ArrayLength, String, Vec};
 
 use at::{utils, ATCommandInterface, ATRequestType, MaxCommandLen, MaxResponseLines};
 

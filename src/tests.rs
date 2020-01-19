@@ -263,10 +263,7 @@ fn test_at_command() {
 
     spin!(parser, expected_response.len());
 
-    assert_eq!(
-        res_c.dequeue().unwrap().ok(),
-        Some(TestResponseType::None)
-    );
+    assert_eq!(res_c.dequeue().unwrap().ok(), Some(TestResponseType::None));
     cleanup!(parser, res_c);
 }
 
@@ -292,10 +289,7 @@ fn test_parameterized_command() {
 
     spin!(parser, expected_response.len());
 
-    assert_eq!(
-        res_c.dequeue().unwrap().ok(),
-        Some(TestResponseType::None)
-    );
+    assert_eq!(res_c.dequeue().unwrap().ok(), Some(TestResponseType::None));
     cleanup!(parser, res_c);
 }
 
@@ -346,10 +340,7 @@ fn test_error() {
 
     spin!(parser, expected_response.len());
 
-    assert_eq!(
-        res_c.dequeue().unwrap(),
-        Err(ATError::InvalidResponse)
-    );
+    assert_eq!(res_c.dequeue().unwrap(), Err(ATError::InvalidResponse));
     cleanup!(parser, res_c);
 }
 
