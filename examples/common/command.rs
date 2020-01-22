@@ -1,13 +1,10 @@
-//! AT Commands for ODIN-W2 module\
-//! Following https://www.spezial.com/sites/default/files/odin-w2-atcommands_manual_ubx-14044127.pdf
-
 use core::fmt::Write;
 use heapless::{String, Vec, ArrayLength};
 
 use at::{utils, ATCommandInterface, ATRequestType, MaxCommandLen, MaxResponseLines};
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DTRValue {
     /// DTR line is ignored
     Ignore = 0,
@@ -20,7 +17,7 @@ pub enum DTRValue {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DSRValue {
     /// sets DSR line to ON
     On = 0,
@@ -33,7 +30,7 @@ pub enum DSRValue {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     // 5 General
     /// 5.1 AT Attention Command
@@ -177,7 +174,7 @@ impl ATCommandInterface for Command {
 
     fn parse_resp(
         &self,
-        response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>,
+        response_lines: &Vec<String<MaxCommandLen>, MaxResponseLines>,
     ) -> Response {
         if response_lines.is_empty() {
             return Response::None;

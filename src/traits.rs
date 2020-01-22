@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::{MaxCommandLen, MaxResponseLines};
 use embedded_hal::timer::CountDown;
-use heapless::{String, Vec, ArrayLength};
+use heapless::{ArrayLength, String, Vec};
 
 /// Trait to be implemented by device driver crates.
 ///
@@ -95,7 +95,11 @@ pub trait ATCommandInterface {
     type Response;
 
     fn get_cmd<N: ArrayLength<u8>>(&self) -> String<N>;
-    fn parse_resp(&self, response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>) -> Self::Response;
+
+    fn parse_resp(
+        &self,
+        response_lines: &Vec<String<MaxCommandLen>, MaxResponseLines>,
+    ) -> Self::Response;
     fn parse_unsolicited(response_line: &str) -> Option<Self::Response>;
 }
 
@@ -106,14 +110,15 @@ pub trait ATRequestType {
     fn get_bytes<N: ArrayLength<u8>>(&self) -> Vec<u8, N>;
 }
 
-pub trait ATInterface<T: CountDown, Command, Response> {
-    fn send(&mut self, cmd: Command) -> Result<Response, Error>;
+pub trait ATInterface<T: CountDown, Command, Response>
+where
+    T::Time: Copy,
+{
+    fn send(&mut self, cmd: Command) -> nb::Result<Response, Error>;
 
-    fn send_timeout(&mut self, cmd: Command, timeout: T::Time) -> Result<Response, Error>;
+    fn send_timeout(&mut self, cmd: Command, timeout: T::Time) -> nb::Result<Response, Error>;
 
-    fn wait_response(&mut self) -> Result<Response, Error>;
+    fn wait_response(&mut self) -> nb::Result<Response, Error>;
 
-    fn peek_response(&mut self) -> &Result<Response, Error>;
-
-    fn wait_response_timeout(&mut self, timeout: T::Time) -> Result<Response, Error>;
+    // fn peek_response(&mut self) -> &nb::Result<Response, Error>;
 }

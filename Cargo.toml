@@ -15,13 +15,13 @@ name = "at_rs"
 
 [dependencies]
 embedded-hal = { version = "0.2.3" }
-heapless = "0.5.1"
+heapless = "0.5.2"
 nb = { version = "0.1.2" }
-ufmt = "0.1.0"
+# ufmt = "0.1.0"
 log = {version = "0.4", default-features = false}
 
 [dev-dependencies]
-cortex-m = "0.6.1"
+cortex-m = "0.6.2"
 cortex-m-rt = { version = "0.6.11" }
 panic-halt = "0.2.0"
 stm32l4xx-hal = { version = "0.5.0", features = ["stm32l4x5", "rt"] }
@@ -31,3 +31,6 @@ void = { version = "1.0.2", default-features = false }
 [target.'x86_64-unknown-linux-gnu'.dev-dependencies]
 env_logger = "0.7.1"
 embedded-hal-mock = "0.7.1"
+
+[features]
+logging = []

@@ -13,6 +13,10 @@ pub enum Error {
     /// Invalid response from module
     InvalidResponse,
 
+    ResponseError,
+
+    Aborted,
+
     Overflow,
 
     ParseString,

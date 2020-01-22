@@ -19,7 +19,7 @@ use std::sync::Once;
 
 static INIT: Once = Once::new();
 
-fn setup_log() {
+pub fn setup_log() {
     INIT.call_once(|| {
         env_logger::Builder::from_env(Env::default().default_filter_or("trace"))
             .is_test(true)
@@ -27,7 +27,7 @@ fn setup_log() {
     });
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum TestCommand {
     AT,
     GetSerialNum,
@@ -111,7 +111,7 @@ impl ATCommandInterface for TestCommand {
     }
     fn parse_resp(
         &self,
-        response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>,
+        response_lines: &Vec<String<MaxCommandLen>, MaxResponseLines>,
     ) -> TestResponseType {
         if response_lines.is_empty() {
             return TestResponseType::None;

@@ -6,11 +6,17 @@ use heapless::{
 use embedded_hal::timer::CountDown;
 
 use crate::error::Error;
-use crate::traits::{ATCommandInterface, ATRequestType, ATInterface};
+use crate::traits::{ATCommandInterface, ATInterface, ATRequestType};
 use crate::Response;
 
 type ReqProducer<Req, N> = Producer<'static, Req, N, u8>;
 type ResConsumer<Res, N> = Consumer<'static, Result<Res, Error>, N, u8>;
+
+#[derive(PartialEq)]
+enum State {
+    Idle,
+    AwaitingResponse,
+}
 
 pub struct ATClient<T, Req, ReqQueueLen, ResQueueLen>
 where
@@ -23,6 +29,7 @@ where
     req_p: ReqProducer<Req, ReqQueueLen>,
     res_c: ResConsumer<Response<Req>, ResQueueLen>,
     default_timeout: T::Time,
+    state: State,
     timer: T,
 }
 
@@ -31,7 +38,6 @@ where
     Req: ATRequestType,
     Req::Command: ATCommandInterface,
     T: CountDown,
-    T::Time: Copy,
     ReqQueueLen: ArrayLength<Req>,
     ResQueueLen: ArrayLength<Result<Response<Req>, Error>>,
 {
@@ -49,6 +55,7 @@ where
             res_c,
             default_timeout,
             timer,
+            state: State::Idle,
         }
     }
 
@@ -69,47 +76,48 @@ where
     Req::Command: ATCommandInterface,
     T: CountDown,
     T::Time: Copy,
-    Response<Req>: core::fmt::Debug,
     ReqQueueLen: ArrayLength<Req>,
     ResQueueLen: ArrayLength<Result<Response<Req>, Error>>,
 {
-    fn send(&mut self, req: Req) -> Result<Response<Req>, Error> {
+    fn send(&mut self, req: Req) -> nb::Result<Response<Req>, Error> {
         self.send_timeout(req, self.default_timeout)
     }
 
-    fn send_timeout(&mut self, req: Req, timeout: T::Time) -> Result<Response<Req>, Error> {
-        match self.req_p.enqueue(req) {
-            Ok(_) => self.wait_response_timeout(timeout),
-            Err(_e) => Err(Error::Overflow),
+    fn send_timeout(&mut self, req: Req, timeout: T::Time) -> nb::Result<Response<Req>, Error> {
+        if self.state == State::Idle {
+            match self.req_p.enqueue(req) {
+                Ok(_) => {
+                    self.timer.start(timeout);
+                    self.state = State::AwaitingResponse;
+                    self.wait_response()
+                }
+                Err(_e) => Err(nb::Error::Other(Error::Overflow)),
+            }
+        } else {
+            self.wait_response()
         }
     }
 
-    fn wait_response_timeout(&mut self, timeout: T::Time) -> Result<Response<Req>, Error> {
-        self.timer.start(timeout);
-        loop {
-            if let Some(result) = self.res_c.dequeue() {
-                // self.timer.cancel().map_err(|_| Error::Timeout)?;
-                return result.map_err(|_e| Error::InvalidResponse);
-            }
-            if self.timer.wait().is_ok() {
-                return Err(Error::Timeout);
-            }
+    fn wait_response(&mut self) -> nb::Result<Response<Req>, Error> {
+        if let Some(result) = self.res_c.dequeue() {
+            self.state = State::Idle;
+            return result.map_err(|_e| nb::Error::Other(Error::InvalidResponse));
         }
+        if self.timer.wait().is_ok() {
+            self.state = State::Idle;
+            return Err(nb::Error::Other(Error::Timeout));
+        }
+        Err(nb::Error::WouldBlock)
     }
 
-    fn wait_response(&mut self) -> Result<Response<Req>, Error> {
-        self.wait_response_timeout(self.default_timeout)
-    }
-
-    fn peek_response(&mut self) -> &Result<Response<Req>, Error> {
-        self.timer.start(self.default_timeout);
-        loop {
-            if let Some(result) = self.res_c.peek() {
-                return result;
-            }
-            if self.timer.wait().is_ok() {
-                return &Err(Error::Timeout);
-            }
-        }
-    }
+    // fn peek_response(&mut self) -> &nb::Result<Response<Req>, Error> {
+    //     self.timer.start(self.default_timeout);
+    //     if let Some(result) = self.res_c.peek() {
+    //         return result.map_err(|e| nb::Error::Other(e));
+    //     }
+    //     if self.timer.wait().is_ok() {
+    //         return &Err(nb::Error::Other(Error::Timeout));
+    //     }
+    //     &Err(nb::Error::WouldBlock)
+    // }
 }

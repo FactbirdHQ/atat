@@ -1,9 +1,7 @@
-//! Test the serial interface
-//!
-//! This example requires you to short (connect) the TX and RX pins.
 // #![deny(warnings)]
 #![no_main]
 #![no_std]
+
 
 extern crate at_rs as at;
 extern crate cortex_m;
@@ -41,6 +39,7 @@ type SerialUSART2 = Serial<
         PA3<Alternate<AF7, Input<Floating>>>,
     ),
 >;
+
 
 static mut REQ_Q: Option<Queue<Command, consts::U5, u8>> = None;
 static mut RES_Q: Option<Queue<Result<Response, ATError>, consts::U5, u8>> = None;

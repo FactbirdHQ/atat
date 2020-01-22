@@ -12,7 +12,7 @@ pub mod utils;
 
 pub type MaxCommandLen = heapless::consts::U64;
 pub type MaxResponseLen = heapless::consts::U64;
-pub type MaxResponseLines = heapless::consts::U160;
+pub type MaxResponseLines = heapless::consts::U10;
 
 pub use self::buffer::Buffer;
 pub use self::error::Error;
@@ -48,10 +48,9 @@ where
     ReqQueueLen: ArrayLength<Req>,
     ResQueueLen: ArrayLength<Result<Response<Req>, error::Error>>,
     Req: ATRequestType,
-    Req::Command: ATCommandInterface,
+    Req::Command: ATCommandInterface + PartialEq,
     Response<Req>: core::fmt::Debug,
     T: CountDown,
-    T::Time: Copy,
 {
     let (wifi_req_p, wifi_req_c) = queues.0.split();
     let (wifi_res_p, wifi_res_c) = queues.1.split();

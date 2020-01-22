@@ -2,13 +2,12 @@ use crate::{MaxCommandLen, MaxResponseLines};
 use heapless::{String, Vec};
 
 pub fn split_parameterized_resp(
-    response_lines: &mut Vec<String<MaxCommandLen>, MaxResponseLines>,
+    response_lines: &Vec<String<MaxCommandLen>, MaxResponseLines>,
 ) -> Vec<Vec<&str, MaxResponseLines>, MaxResponseLines> {
-    response_lines.reverse();
-
     // Handle list items
     response_lines
         .iter()
+        .rev()
         .map(|response_line| {
             // parse response lines for parameters
             let mut v: Vec<&str, MaxResponseLines> = response_line
