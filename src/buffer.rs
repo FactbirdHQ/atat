@@ -1,4 +1,6 @@
 use heapless::{ArrayLength, String, Vec};
+
+#[cfg(test)]
 use log::info;
 // Serial receive buffer
 #[derive(Default)]
@@ -54,7 +56,10 @@ where
         self.buffer
             .split_terminator(term_char)
             .map(|l| l.trim_matches(|c: char| c == format_char))
-            .inspect(|l| info!("{:?}", l))
+            .inspect(|l| {
+                #[cfg(test)]
+                info!("{:?}", l)
+            })
             .map(String::from)
             .collect()
     }

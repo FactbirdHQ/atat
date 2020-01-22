@@ -1,5 +1,5 @@
 use core::fmt::Write;
-use heapless::{String, Vec, ArrayLength};
+use heapless::{ArrayLength, String, Vec};
 
 use at::{utils, ATCommandInterface, ATRequestType, MaxCommandLen, MaxResponseLines};
 

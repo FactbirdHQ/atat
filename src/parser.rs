@@ -12,6 +12,7 @@ use crate::traits::{ATCommandInterface, ATRequestType};
 use crate::Response;
 use crate::{MaxCommandLen, MaxResponseLines};
 
+#[cfg(test)]
 use log::{error, info, warn};
 
 type CmdConsumer<Req, N> = Consumer<'static, Req, N, u8>;
@@ -135,10 +136,15 @@ where
             Ok(c) => {
                 // FIXME: handle buffer being full
                 if self.rx_buf.push(c).is_err() {
+                    #[cfg(test)]
                     error!("RXBuf is full!\r");
                 }
             }
-            Err(e) => error!("{:?}\r", e),
+            Err(e) =>
+            {
+                #[cfg(test)]
+                error!("{:?}\r", e)
+            }
         }
     }
 
@@ -147,6 +153,7 @@ where
             self.res_p.enqueue(response).ok();
         } else {
             // FIXME: Handle response queue not ready!
+            #[cfg(test)]
             warn!("Response queue is not ready!\r");
         }
     }
@@ -184,6 +191,7 @@ where
             let lines: Vec<String<MaxCommandLen>, MaxResponseLines> =
                 self.rx_buf.at_lines(self.line_term_char, self.format_char);
 
+            #[cfg(test)]
             info!("Rx: {:?} - {:?}\r", lines, self.rx_buf.buffer);
 
             if self.state.is_awaiting_response() {
@@ -199,12 +207,15 @@ where
                     self.state = State::Idle;
                     self.notify_response(Err(ATError::Aborted));
                 } else if lines.iter().any(|line| line.as_str() == "OK") {
+                    #[cfg(test)]
                     info!("IM here\r");
                     let full_response = self.take_response(&lines, String::from("OK"));
 
+                    #[cfg(test)]
                     info!("Received OK: {:?}\r", full_response);
                     if let State::WaitingResponse(prev_cmd) = &self.state {
                         let prev_command: String<MaxCommandLen> = prev_cmd.get_cmd();
+                        #[cfg(test)]
                         info!("prev_cmd: {:?}\r", prev_command);
                         let filtered = full_response
                             .iter()
@@ -239,6 +250,7 @@ where
             if let Some(cmd) = req.try_get_cmd() {
                 self.state = State::WaitingResponse(cmd);
             }
+            #[cfg(test)]
             info!("Sending {:?}\r", bytes);
 
             match self.write_all(&bytes) {

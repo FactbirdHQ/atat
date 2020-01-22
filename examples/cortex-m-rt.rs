@@ -43,7 +43,9 @@ type SerialUSART2 = Serial<
 
 static mut REQ_Q: Option<Queue<Command, consts::U5, u8>> = None;
 static mut RES_Q: Option<Queue<Result<Response, ATError>, consts::U5, u8>> = None;
-static mut AT_PARSER: Option<ATParser<SerialUSART2, Command, consts::U1024, consts::U5, consts::U5>> = None;
+static mut AT_PARSER: Option<
+    ATParser<SerialUSART2, Command, consts::U1024, consts::U5, consts::U5>,
+> = None;
 
 #[entry]
 fn main() -> ! {
