@@ -12,7 +12,7 @@ use crate::traits::{ATCommandInterface, ATRequestType};
 use crate::Response;
 use crate::{MaxCommandLen, MaxResponseLines};
 
-#[cfg(test)]
+#[cfg(feature = "logging")]
 use log::{error, info, warn};
 
 type CmdConsumer<Req, N> = Consumer<'static, Req, N, u8>;
@@ -64,7 +64,6 @@ where
     line_term_char: char,
     /// Response formatting character S4 (Default = '\n' [010])
     format_char: char,
-    echo_enabled: bool,
 }
 
 impl<Serial, Req, RxBufferLen, CmdQueueLen, RespQueueLen>
@@ -103,7 +102,6 @@ where
 
             line_term_char: '\r',
             format_char: '\n',
-            echo_enabled: true,
         }
     }
 
@@ -113,10 +111,6 @@ where
 
     pub fn set_format_char(&mut self, c: char) {
         self.format_char = c;
-    }
-
-    pub fn set_echo_enabled(&mut self, enabled: bool) {
-        self.echo_enabled = enabled;
     }
 
     pub fn release(
@@ -136,14 +130,14 @@ where
             Ok(c) => {
                 // FIXME: handle buffer being full
                 if self.rx_buf.push(c).is_err() {
-                    #[cfg(test)]
+                    #[cfg(feature = "logging")]
                     error!("RXBuf is full!\r");
                 }
             }
             Err(e) =>
             {
-                #[cfg(test)]
-                error!("{:?}\r", e)
+                // #[cfg(feature = "logging")]
+                // error!("{:?} = {:?}\r", e, self.rx_buf.buffer)
             }
         }
     }
@@ -153,7 +147,7 @@ where
             self.res_p.enqueue(response).ok();
         } else {
             // FIXME: Handle response queue not ready!
-            #[cfg(test)]
+            #[cfg(feature = "logging")]
             warn!("Response queue is not ready!\r");
         }
     }
@@ -175,7 +169,6 @@ where
             .iter()
             .take_while(|&line| line.as_str() != final_result_code)
             .inspect(|line| self.rx_buf.remove_line(&line))
-            .filter(|p| !p.is_empty())
             .cloned()
             .collect::<Vec<_, MaxResponseLines>>();
 
@@ -188,34 +181,45 @@ where
         // TODO: Handle parsing Data Mode Packets + Extended Data Mode Packets
 
         if self.rx_buf.buffer.len() > 0 {
-            let lines: Vec<String<MaxCommandLen>, MaxResponseLines> =
-                self.rx_buf.at_lines(self.line_term_char, self.format_char);
+            while self.rx_buf.buffer.chars().nth(0) == Some(self.line_term_char)
+                || self.rx_buf.buffer.chars().nth(0) == Some(self.format_char)
+                || self.rx_buf.buffer.chars().nth(0) == Some(' ')
+            {
+                self.rx_buf.remove_first();
+            }
+        }
 
-            #[cfg(test)]
-            info!("Rx: {:?} - {:?}\r", lines, self.rx_buf.buffer);
+        if self.rx_buf.buffer.len() > 0 {
+            let mut lines: Vec<String<MaxCommandLen>, MaxResponseLines> =
+                self.rx_buf.at_lines(self.line_term_char, self.format_char);
 
             if self.state.is_awaiting_response() {
                 // Information Text Response (ITR)
                 if lines.iter().any(|line| line.as_str() == "ERROR") {
                     // Clean up the receive buffer
-                    self.take_response(&lines, String::from("ERROR"));
+                    let full_response = self.take_response(&lines, String::from("ERROR"));
+                    #[cfg(feature = "logging")]
+                    info!("Received ERROR: {:?}\r", full_response);
+
                     self.state = State::Idle;
                     self.notify_response(Err(ATError::InvalidResponse));
                 } else if lines.iter().any(|line| line.as_str() == "ABORTED") {
                     // Clean up the receive buffer
-                    self.take_response(&lines, String::from("ABORTED"));
+                    let full_response = self.take_response(&lines, String::from("ABORTED"));
+                    #[cfg(feature = "logging")]
+                    info!("Received ABORTED: {:?}\r", full_response);
                     self.state = State::Idle;
                     self.notify_response(Err(ATError::Aborted));
                 } else if lines.iter().any(|line| line.as_str() == "OK") {
-                    #[cfg(test)]
-                    info!("IM here\r");
                     let full_response = self.take_response(&lines, String::from("OK"));
 
-                    #[cfg(test)]
+                    #[cfg(feature = "logging")]
                     info!("Received OK: {:?}\r", full_response);
+
                     if let State::WaitingResponse(prev_cmd) = &self.state {
                         let prev_command: String<MaxCommandLen> = prev_cmd.get_cmd();
-                        #[cfg(test)]
+
+                        #[cfg(feature = "logging")]
                         info!("prev_cmd: {:?}\r", prev_command);
                         let filtered = full_response
                             .iter()
@@ -228,30 +232,34 @@ where
                         self.state = State::Idle;
                     }
                 }
-                // } else {
-                //     // Unsolicited Response Code (URC)
-                //     if lines.len() > 0 {
-                //         warn!("Unsolicited!\r");
-                //         let resp_line = lines.pop().unwrap();
-                //         if let Some(resp) = Req::Command::parse_unsolicited(&resp_line) {
-                //             self.rx_buf.remove_line(&resp_line);
-                //             self.notify_response(Ok(resp));
-                // self.urc_handlers.for_each(|handler| handler(resp));
-                //         }
-                //     }
-            }
-        }
+            } else {
+                // Unsolicited Response Code (URC)
+                if lines.len() > 0 {
+                    lines.reverse();
+                    let resp_line = lines.pop().unwrap();
 
-        // Handle Send
-        if let Some(req) = self.req_c.dequeue() {
+                    #[cfg(feature = "logging")]
+                    warn!("Unsolicited! {:?} - {:?}\r", resp_line, self.rx_buf.buffer);
+                    if let Some(resp) = Req::Command::parse_unsolicited(&resp_line) {
+                        self.rx_buf.remove_line(&resp_line);
+                        // self.notify_response(Ok(resp));
+                        // self.urc_handlers.for_each(|handler| handler(resp));
+                    }
+                } else {
+                    #[cfg(feature = "logging")]
+                    info!("Rx: {:?} - {:?}\r", lines, self.rx_buf.buffer);
+                }
+            }
+        } else if let Some(req) = self.req_c.dequeue() {
+            // Only send if the receive buffer is empty
             let bytes: Vec<u8, consts::U1024> = req.get_bytes();
 
             // If we are currently sending an AT command, store it for parsing the response
             if let Some(cmd) = req.try_get_cmd() {
                 self.state = State::WaitingResponse(cmd);
             }
-            #[cfg(test)]
-            info!("Sending {:?}\r", bytes);
+            // #[cfg(feature = "logging")]
+            // info!("Sending {:?}\r", bytes);
 
             match self.write_all(&bytes) {
                 Ok(()) => (),

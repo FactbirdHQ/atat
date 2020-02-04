@@ -87,8 +87,8 @@ where
         if self.state == State::Idle {
             match self.req_p.enqueue(req) {
                 Ok(_) => {
-                    self.timer.start(timeout);
                     self.state = State::AwaitingResponse;
+                    // self.timer.start(timeout);
                     self.wait_response()
                 }
                 Err(_e) => Err(nb::Error::Other(Error::Overflow)),
@@ -103,10 +103,10 @@ where
             self.state = State::Idle;
             return result.map_err(|_e| nb::Error::Other(Error::InvalidResponse));
         }
-        if self.timer.wait().is_ok() {
-            self.state = State::Idle;
-            return Err(nb::Error::Other(Error::Timeout));
-        }
+        // if self.timer.wait().is_ok() {
+        //     self.state = State::Idle;
+        //     return Err(nb::Error::Other(Error::Timeout));
+        // }
         Err(nb::Error::WouldBlock)
     }
 

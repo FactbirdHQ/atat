@@ -12,7 +12,7 @@ pub mod utils;
 
 pub type MaxCommandLen = heapless::consts::U64;
 pub type MaxResponseLen = heapless::consts::U64;
-pub type MaxResponseLines = heapless::consts::U10;
+pub type MaxResponseLines = heapless::consts::U50;
 
 pub use self::buffer::Buffer;
 pub use self::error::Error;

@@ -1,7 +1,8 @@
 use heapless::{ArrayLength, String, Vec};
 
-#[cfg(test)]
+#[cfg(feature = "logging")]
 use log::info;
+
 // Serial receive buffer
 #[derive(Default)]
 pub struct Buffer<N: ArrayLength<u8>> {
@@ -24,23 +25,27 @@ where
         }
     }
 
-    pub fn remove_line<A: ArrayLength<u8>>(&mut self, line: &String<A>) {
+    pub fn remove_first(&mut self) {
+        let mut result = String::new();
+        if self.buffer.len() > 0 {
+            result
+                .push_str(unsafe { self.buffer.get_unchecked(1..self.buffer.len()) })
+                .ok();
+        }
+        self.buffer = result;
+    }
+
+    pub fn remove_line<A: ArrayLength<u8>>(
+        &mut self,
+        line: &String<A>,
+    ) {
         let mut result = String::new();
         let mut last_end = 0;
         if let Some((start, part)) = self.buffer.match_indices(line.as_str()).next() {
-            let mut len = part.len();
-            if let Some(c) = self.buffer.get(start+part.len()..=start+part.len()+1) {
-                if c.chars().nth(0) == Some('\r') {
-                    len += 1;
-                    if c.chars().nth(1) == Some('\n') {
-                        len += 1;
-                    }
-                }
-            }
             result
                 .push_str(unsafe { self.buffer.get_unchecked(last_end..start) })
                 .ok();
-            last_end = start + len;
+            last_end = start + part.len();
         }
         result
             .push_str(unsafe { self.buffer.get_unchecked(last_end..self.buffer.len()) })
@@ -56,11 +61,8 @@ where
         self.buffer
             .split_terminator(term_char)
             .map(|l| l.trim_matches(|c: char| c == format_char))
-            .inspect(|l| {
-                #[cfg(test)]
-                info!("{:?}", l)
-            })
             .map(String::from)
+            .filter(|p| !p.is_empty())
             .collect()
     }
 
@@ -69,12 +71,11 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
-    use heapless::consts;
     use crate::tests::setup_log;
+    use heapless::consts;
 
     #[test]
     fn simple_at() {
@@ -82,8 +83,8 @@ mod test {
 
         let mut rx: Buffer<consts::U60> = Buffer::from(b"AT\r\n\r\nOK\r\n");
         let lines: Vec<String<consts::U60>, consts::U8> = rx.at_lines('\n', '\r');
+#[cfg(feature = "logging")]
         info!("{:?}", lines);
-
 
         let full_response = lines
             .iter()
@@ -94,11 +95,23 @@ mod test {
 
         rx.remove_line::<consts::U2>(&String::from("OK"));
 
-        assert_eq!(lines.len(), 3);
-        assert_eq!(lines, ["AT", "", "OK"]);
+        if rx.buffer.len() > 0 {
+            while rx.buffer.chars().nth(0) == Some('\n')
+                || rx.buffer.chars().nth(0) == Some('\r')
+            {
+                rx.remove_first();
+            }
+        }
+
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines, ["AT", "OK"]);
         assert_eq!(full_response.len(), 1);
         assert_eq!(full_response, ["AT"]);
-        assert!(rx.buffer.is_empty(), "rx buffer still contains data: {:?}", rx.buffer);
+        assert!(
+            rx.buffer.is_empty(),
+            "rx buffer still contains data: {:?}",
+            rx.buffer
+        );
     }
 
     #[test]
@@ -107,7 +120,6 @@ mod test {
 
         let mut rx: Buffer<consts::U60> = Buffer::from(b"AT\r\r\nOK\r\n");
         let lines: Vec<String<consts::U60>, consts::U8> = rx.at_lines('\n', '\r');
-        info!("{:?}", lines);
 
         let full_response = lines
             .iter()
@@ -118,10 +130,22 @@ mod test {
 
         rx.remove_line::<consts::U2>(&String::from("OK"));
 
+        if rx.buffer.len() > 0 {
+            while rx.buffer.chars().nth(0) == Some('\n')
+                || rx.buffer.chars().nth(0) == Some('\r')
+            {
+                rx.remove_first();
+            }
+        }
+
         assert_eq!(lines.len(), 2);
         assert_eq!(lines, ["AT", "OK"]);
         assert_eq!(full_response.len(), 1);
         assert_eq!(full_response, ["AT"]);
-        assert!(rx.buffer.is_empty(), "rx buffer still contains data: {:?}", rx.buffer);
+        assert!(
+            rx.buffer.is_empty(),
+            "rx buffer still contains data: {:?}",
+            rx.buffer
+        );
     }
 }

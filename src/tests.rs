@@ -7,6 +7,7 @@ use embedded_hal_mock::serial::{Mock as SerialMock, Transaction as SerialTransac
 
 use heapless::{consts, spsc::Queue, String, Vec};
 #[allow(unused_imports)]
+#[cfg(feature = "logging")]
 use log::{error, info, warn};
 
 use crate::error::Error as ATError;
