@@ -55,8 +55,8 @@ where
     let (wifi_req_p, wifi_req_c) = queues.0.split();
     let (wifi_res_p, wifi_res_c) = queues.1.split();
 
-    let client = client::ATClient::new((wifi_req_p, wifi_res_c), default_timeout, timer);
     let parser = ATParser::new(serial, (wifi_req_c, wifi_res_p));
+    let client = client::ATClient::new((wifi_req_p, wifi_res_c), default_timeout, timer);
 
     (client, parser)
 }

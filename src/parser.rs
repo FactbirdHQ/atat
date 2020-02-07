@@ -134,8 +134,7 @@ where
                     error!("RXBuf is full!\r");
                 }
             }
-            Err(e) =>
-            {
+            Err(e) => {
                 // #[cfg(feature = "logging")]
                 // error!("{:?} = {:?}\r", e, self.rx_buf.buffer)
             }
@@ -199,7 +198,18 @@ where
                     // Clean up the receive buffer
                     let full_response = self.take_response(&lines, String::from("ERROR"));
                     #[cfg(feature = "logging")]
-                    info!("Received ERROR: {:?}\r", full_response);
+                    info!("[ERROR]: {:?}\r", full_response);
+
+                    self.state = State::Idle;
+                    self.notify_response(Err(ATError::InvalidResponse));
+                } else if lines
+                    .iter()
+                    .any(|line| line.as_str().starts_with("+CME ERROR"))
+                {
+                    // Clean up the receive buffer
+                    self.rx_buf.buffer.clear();
+                    #[cfg(feature = "logging")]
+                    info!("[+CME ERROR]: {:?}\r", lines);
 
                     self.state = State::Idle;
                     self.notify_response(Err(ATError::InvalidResponse));
@@ -207,20 +217,17 @@ where
                     // Clean up the receive buffer
                     let full_response = self.take_response(&lines, String::from("ABORTED"));
                     #[cfg(feature = "logging")]
-                    info!("Received ABORTED: {:?}\r", full_response);
+                    info!("[ABORTED]: {:?}\r", full_response);
                     self.state = State::Idle;
                     self.notify_response(Err(ATError::Aborted));
                 } else if lines.iter().any(|line| line.as_str() == "OK") {
                     let full_response = self.take_response(&lines, String::from("OK"));
 
-                    #[cfg(feature = "logging")]
-                    info!("Received OK: {:?}\r", full_response);
-
                     if let State::WaitingResponse(prev_cmd) = &self.state {
                         let prev_command: String<MaxCommandLen> = prev_cmd.get_cmd();
 
                         #[cfg(feature = "logging")]
-                        info!("prev_cmd: {:?}\r", prev_command);
+                        info!("[OK]: {:?}\r", full_response);
                         let filtered = full_response
                             .iter()
                             .filter(|line| !line.starts_with(prev_command.as_str()))
@@ -238,12 +245,11 @@ where
                     lines.reverse();
                     let resp_line = lines.pop().unwrap();
 
-                    #[cfg(feature = "logging")]
-                    warn!("Unsolicited! {:?} - {:?}\r", resp_line, self.rx_buf.buffer);
                     if let Some(resp) = Req::Command::parse_unsolicited(&resp_line) {
                         self.rx_buf.remove_line(&resp_line);
-                        // self.notify_response(Ok(resp));
-                        // self.urc_handlers.for_each(|handler| handler(resp));
+                        // self.notify_urc(&resp);
+                    } else {
+                        self.rx_buf.buffer.clear();
                     }
                 } else {
                     #[cfg(feature = "logging")]
