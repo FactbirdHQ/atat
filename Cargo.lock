@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "atat"
-version = "0.1.4-alpha.0"
+version = "0.1.4"
 dependencies = [
  "atat_derive 0.1.2",
  "cortex-m",
