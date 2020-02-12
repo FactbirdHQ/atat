@@ -22,7 +22,7 @@ dependencies = [
 
 [[package]]
 name = "atat"
-version = "0.1.6"
+version = "0.1.7-alpha.0"
 dependencies = [
  "atat_derive 0.1.2",
  "cortex-m",
