@@ -1,7 +1,7 @@
 
 [package]
 name = "atat_derive"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 edition = "2018"
 
@@ -11,7 +11,7 @@ quote = "1.0"
 syn = {version = "1.0", features = ["extra-traits","full"]}
 proc-macro2 = "1.0"
 proc-macro-error = "0.4"
-serde_at = { version = "0.1.0", path = "../serde_at" }
+serde_at = { version = "0.1.1", path = "../serde_at" }
 
 [lib]
 proc-macro = true
