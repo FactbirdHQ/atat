@@ -4,9 +4,6 @@
 extern crate nb;
 extern crate ufmt;
 
-#[cfg(feature = "logging")]
-extern crate log;
-
 mod buffer;
 pub mod client;
 mod error;

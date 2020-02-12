@@ -6,9 +6,6 @@ use crate::error::{Error, NBResult, Result};
 use crate::traits::{ATATCmd, ATATInterface};
 use crate::Mode;
 
-#[cfg(feature = "logging")]
-use log::info;
-
 type ResConsumer = Consumer<'static, Result<String<consts::U256>>, consts::U10, u8>;
 
 #[derive(Debug)]

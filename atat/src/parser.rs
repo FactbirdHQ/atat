@@ -5,9 +5,6 @@ use heapless::{consts, spsc::Producer, ArrayLength, String};
 use crate::buffer::Buffer;
 use crate::error::{Error, Result};
 
-#[cfg(feature = "logging")]
-use log::{error, info, warn};
-
 type RespProducer = Producer<'static, Result<String<consts::U256>>, consts::U10, u8>;
 
 #[derive(Clone, PartialEq)]
@@ -71,8 +68,6 @@ where
         match block!(self.rx.read()) {
             Ok(c) => {
                 if self.rx_buf.push(c).is_err() {
-                    // #[cfg(feature = "logging")]
-                    // error!("RXBuf is full!\r");
 
                     // Notify error response, and reset rx_buf
                     self.notify_response(Err(Error::Overflow));
@@ -83,8 +78,6 @@ where
                             if self.rx_buf.buffer.starts_with("AT")
                                 && self.rx_buf.buffer.ends_with("\r\n")
                             {
-                                // #[cfg(feature = "logging")]
-                                // info!("Rx: {:?}!\r", self.rx_buf.buffer);
                                 self.state = State::ReceivingResponse;
                                 self.rx_buf.buffer.clear();
                             } else if self.rx_buf.buffer.ends_with("\r\n") {
@@ -111,8 +104,6 @@ where
                                 } else {
                                     return;
                                 };
-                                // #[cfg(feature = "logging")]
-                                // info!("Rx: {:?} - {:?}\r", self.rx_buf.buffer, ind);
 
                                 let resp = self.rx_buf.take(ind.0);
 
@@ -129,8 +120,6 @@ where
                 }
             }
             Err(_e) => {
-                // #[cfg(feature = "logging")]
-                // error!("{:?} = {:?}\r", e, self.rx_buf.buffer)
             }
         }
     }

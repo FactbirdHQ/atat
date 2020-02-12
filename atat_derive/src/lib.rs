@@ -1,4 +1,4 @@
-#![feature(proc_macro_diagnostic)]
+// #![feature(proc_macro_diagnostic)]
 
 extern crate proc_macro;
 extern crate proc_macro2;
@@ -30,11 +30,13 @@ pub fn derive_atat_resp(input: TokenStream) -> TokenStream {
             _ => panic!("Cannot handle unnamed struct fields"),
         },
         _ => {
-            item.span()
-                .unstable()
-                .error("ATATResp can only be applied to structs!")
-                .emit();
-            TokenStream::new()
+            // item.span()
+            //     .unstable()
+            //     .error("ATATResp can only be applied to structs!")
+            //     .emit();
+            // TokenStream::new()
+            panic!("ATATResp can only be applied to structs!");
+
         }
     }
 }
@@ -62,11 +64,12 @@ pub fn derive_atat_cmd(input: TokenStream) -> TokenStream {
             }
         }
         _ => {
-            item.span()
-                .unstable()
-                .error("ATATCmd can only be applied to structs!")
-                .emit();
-            TokenStream::new()
+            // item.span()
+            //     .unstable()
+            //     .error("ATATCmd can only be applied to structs!")
+            //     .emit();
+            // TokenStream::new()
+            panic!("ATATCmd can only be applied to structs!");
         }
     }
 }

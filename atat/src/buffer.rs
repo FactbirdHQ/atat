@@ -1,8 +1,5 @@
 use heapless::{ArrayLength, String, Vec};
 
-#[cfg(feature = "logging")]
-use log::info;
-
 // Serial receive buffer
 #[derive(Default)]
 pub struct Buffer<N: ArrayLength<u8>> {
@@ -93,8 +90,6 @@ where
 
 //         let mut rx: Buffer<consts::U60> = Buffer::from(b"AT\r\n\r\nOK\r\n");
 //         let lines: Vec<String<consts::U60>, consts::U8> = rx.at_lines('\n', '\r');
-//         #[cfg(feature = "logging")]
-//         info!("{:?}", lines);
 
 //         let full_response = lines
 //             .iter()
