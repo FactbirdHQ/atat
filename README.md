@@ -56,7 +56,7 @@ Furthermore I have used the crate to build initial WIP drivers for uBlox cellula
 
 ## Supported Crates
 
-The following dependent crates provide platform-agnostic device drivers built on `embedded-hal` which also implement this crate's [`ATCommandInterface`] trait:
+The following dependent crates provide platform-agnostic device drivers built on `embedded-hal` which also implement this crate's traits:
 
 | Device Name | Description | Crate + Docs |
 |-------------|-------------|--------------|
@@ -90,8 +90,8 @@ for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
 
 <!-- Badges -->
-[workflow]: https://github.com/MathiasKoch/atat/actions?query=workflow%3ACI
-[workflow-badge]: https://img.shields.io/github/workflow/status/MathiasKoch/atat/CI/master
+[workflow]: https://github.com/BlackbirdHQ/atat/actions?query=workflow%3ACI
+[workflow-badge]: https://img.shields.io/github/workflow/status/BlackbirdHQ/atat/CI/master
 [crates-io]: https://crates.io/crates/atat
 [crates-io-badge]: https://img.shields.io/crates/v/atat.svg?maxAge=3600
 [crates-io-download]: https://crates.io/crates/atat
