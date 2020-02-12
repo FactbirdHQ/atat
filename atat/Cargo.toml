@@ -1,6 +1,6 @@
 [package]
 name = "atat"
-version = "0.1.3"
+version = "0.1.4-alpha.0"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 description = "AT Parser for serial based device crates"
 readme = "../README.md"
