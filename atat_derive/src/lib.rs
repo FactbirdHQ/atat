@@ -311,7 +311,9 @@ fn get_lit(tokens: proc_macro2::TokenStream) -> Result<Literal> {
     for f in tokens.clone() {
         if let TokenTree::Group(g) = f {
             for l in g.stream() {
-                if let TokenTree::Literal(lit) = l { return Ok(lit) }
+                if let TokenTree::Literal(lit) = l {
+                    return Ok(lit);
+                }
             }
         }
     }
@@ -323,7 +325,9 @@ fn get_cmd_response(attrs: &Vec<Attribute>) -> Result<AtCmdAttr> {
         for f in tokens.clone() {
             if let TokenTree::Group(g) = f {
                 for l in g.stream() {
-                    if let TokenTree::Ident(ident) = l { return Ok(ident) }
+                    if let TokenTree::Ident(ident) = l {
+                        return Ok(ident);
+                    }
                 }
             }
         }
