@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "atat_derive"
-version = "0.1.6-alpha.0"
+version = "0.1.6"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",
