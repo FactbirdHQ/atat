@@ -1,7 +1,7 @@
 
 [package]
 name = "atat_derive"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 edition = "2018"
 description = "Derive macro for atat"
