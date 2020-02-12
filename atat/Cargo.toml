@@ -18,7 +18,7 @@ embedded-hal = { version = "0.2.3" }
 heapless = "0.5.3"
 nb = { version = "0.1.2" }
 ufmt = "0.1.0"
-atat_derive = { path = "../atat_derive", optional = true}
+atat_derive = { version = "0.1.0", path = "../atat_derive", optional = true}
 log = { version = "0.4", default-features = false, optional = true }
 
 [dev-dependencies]
