@@ -331,7 +331,7 @@ where
     }
 }
 
-/// Serializes the given data structure as a string of JSON text
+/// Serializes the given data structure as a string
 pub fn to_string<B, C, T>(value: &T, cmd: String<C>) -> Result<String<B>>
 where
     B: heapless::ArrayLength<u8>,
@@ -343,7 +343,7 @@ where
     Ok(unsafe { String::from_utf8_unchecked(ser.buf) })
 }
 
-/// Serializes the given data structure as a JSON byte vector
+/// Serializes the given data structure as a byte vector
 pub fn to_vec<B, C, T>(value: &T, cmd: String<C>) -> Result<Vec<u8, B>>
 where
     B: heapless::ArrayLength<u8>,

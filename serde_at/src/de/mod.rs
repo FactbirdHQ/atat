@@ -1,4 +1,4 @@
-//! Deserialize JSON data to a Rust data structure
+//! Deserialize AT Command strings to a Rust data structure
 
 use core::str::FromStr;
 use core::{fmt, str};
@@ -16,7 +16,7 @@ mod seq;
 /// Deserialization result
 pub type Result<T> = core::result::Result<T, Error>;
 
-/// This type represents all possible errors that can occur when deserializing JSON data
+/// This type represents all possible errors that can occur when deserializing AT Command strings
 #[derive(Debug, PartialEq)]
 pub enum Error {
     /// EOF while parsing a list.
@@ -28,10 +28,10 @@ pub enum Error {
     /// EOF while parsing a string.
     EofWhileParsingString,
 
-    /// EOF while parsing a JSON number.
+    /// EOF while parsing an AT Command string.
     EofWhileParsingNumber,
 
-    /// EOF while parsing a JSON value.
+    /// EOF while parsing an AT Command string.
     EofWhileParsingValue,
 
     /// Expected this character to be a `':'`.
@@ -46,7 +46,7 @@ pub enum Error {
     /// Expected to parse either a `true`, `false`, or a `null`.
     ExpectedSomeIdent,
 
-    /// Expected this character to start a JSON value.
+    /// Expected this character to start an AT Command string.
     ExpectedSomeValue,
 
     /// Invalid number.
@@ -61,10 +61,10 @@ pub enum Error {
     /// Object key is not a string.
     KeyMustBeAString,
 
-    /// JSON has non-whitespace trailing characters after the value.
+    /// AT Command string has non-whitespace trailing characters after the value.
     TrailingCharacters,
 
-    /// JSON has a comma after the last value in an array or map.
+    /// AT Command string has a comma after the last value in an array or map.
     TrailingComma,
 
     /// Error with a custom message that we had to discard.
@@ -528,8 +528,6 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         self.deserialize_str(visitor)
     }
 
-    /// Used to throw out fields from JSON objects that we don’t want to
-    /// keep in our structs.
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -539,9 +537,6 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             b'[' => self.deserialize_seq(visitor),
             b'{' => self.deserialize_struct("ignored", &[], visitor),
             b',' | b'}' | b']' => Err(Error::ExpectedSomeValue),
-            // If it’s something else then we chomp until we get to an end delimiter.
-            // This does technically allow for illegal JSON since we’re just ignoring
-            // characters rather than parsing them.
             _ => loop {
                 match self.peek() {
                     // The visitor is expected to be UnknownAny’s visitor, which
@@ -585,7 +580,7 @@ impl fmt::Display for Error {
                 Error::EofWhileParsingList => "EOF while parsing a list.",
                 Error::EofWhileParsingObject => "EOF while parsing an object.",
                 Error::EofWhileParsingString => "EOF while parsing a string.",
-                Error::EofWhileParsingValue => "EOF while parsing a JSON value.",
+                Error::EofWhileParsingValue => "EOF while parsing an AT Command string.",
                 Error::ExpectedColon => "Expected this character to be a `':'`.",
                 Error::ExpectedListCommaOrEnd => {
                     "Expected this character to be either a `','` or\
@@ -601,21 +596,21 @@ impl fmt::Display for Error {
                     "Expected to parse either a `true`, `false`, or a \
                      `null`."
                 }
-                Error::ExpectedSomeValue => "Expected this character to start a JSON value.",
+                Error::ExpectedSomeValue => "Expected this character to start an AT Command string.",
                 Error::InvalidNumber => "Invalid number.",
                 Error::InvalidType => "Invalid type",
                 Error::InvalidUnicodeCodePoint => "Invalid unicode code point.",
                 Error::KeyMustBeAString => "Object key is not a string.",
                 Error::TrailingCharacters => {
-                    "JSON has non-whitespace trailing characters after \
+                    "AT Command string has non-whitespace trailing characters after \
                      the \
                      value."
                 }
-                Error::TrailingComma => "JSON has a comma after the last value in an array or map.",
-                Error::CustomError => "JSON does not match deserializer’s expected format.",
+                Error::TrailingComma => "AT Command string has a comma after the last value in an array or map.",
+                Error::CustomError => "AT Command string does not match deserializer’s expected format.",
                 #[cfg(feature = "custom-error-messages")]
                 Error::CustomErrorWithMessage(msg) => msg.as_str(),
-                _ => "Invalid JSON",
+                _ => "Invalid AT Command string",
             }
         )
     }
