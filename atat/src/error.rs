@@ -21,3 +21,6 @@ pub enum Error {
 
     ParseString,
 }
+
+pub type Result<T> = core::result::Result<T, Error>;
+pub type NBResult<T> = nb::Result<T, Error>;

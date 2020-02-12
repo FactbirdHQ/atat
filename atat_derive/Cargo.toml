@@ -1,0 +1,17 @@
+
+[package]
+name = "atat_derive"
+version = "0.1.0"
+authors = ["Mathias Koch <mk@blackbird.online>"]
+edition = "2018"
+
+[dependencies]
+ufmt = "0.1.0"
+quote = "1.0"
+syn = {version = "1.0", features = ["extra-traits","full"]}
+proc-macro2 = "1.0"
+proc-macro-error = "0.4"
+serde_at = { path = "../serde_at" }
+
+[lib]
+proc-macro = true

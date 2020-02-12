@@ -29,15 +29,13 @@ This crate attempts to work from these AT best practices:
 > - The DTE shall wait some time (the recommended value is at least 20 ms) after the reception of an AT command final response or URC before issuing a new AT commandto give the module the opportunity to transmit the buffered URCs. Otherwise the collision of the URCs with the subsequent AT command is still possible
 > - The DTE shall be aware that, when using a serial port without HW flow control, the first character is used to wake up the module from power saving
 
+## [Documentation](https://docs.rs/atat/latest)
 
-
-## [Documentation](https://docs.rs/at-rs/latest)
-
-## Tests
+<!-- ## Tests
 
 > The crate is covered by tests using the [embedded-hal-mock] crate. These tests can be run by `cargo test --lib --target x86_64-unknown-linux-gnu`.
 
-[embedded-hal-mock]: https://crates.io/crates/embedded-hal-mock
+[embedded-hal-mock]: https://crates.io/crates/embedded-hal-mock -->
 
 ## Examples
 The crate has examples for usage with [cortex-m-rt] and [cortex-m-rtfm] crates.
@@ -92,9 +90,9 @@ for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
 
 <!-- Badges -->
-[workflow]: https://github.com/MathiasKoch/at-rs/actions?query=workflow%3ACI
-[workflow-badge]: https://img.shields.io/github/workflow/status/MathiasKoch/at-rs/CI/master
-[crates-io]: https://crates.io/crates/at-rs
-[crates-io-badge]: https://img.shields.io/crates/v/at-rs.svg?maxAge=3600
-[crates-io-download]: https://crates.io/crates/at-rs
-[crates-io-download-badge]: https://img.shields.io/crates/d/at-rs.svg?maxAge=3600
+[workflow]: https://github.com/MathiasKoch/atat/actions?query=workflow%3ACI
+[workflow-badge]: https://img.shields.io/github/workflow/status/MathiasKoch/atat/CI/master
+[crates-io]: https://crates.io/crates/atat
+[crates-io-badge]: https://img.shields.io/crates/v/atat.svg?maxAge=3600
+[crates-io-download]: https://crates.io/crates/atat
+[crates-io-download-badge]: https://img.shields.io/crates/d/atat.svg?maxAge=3600
