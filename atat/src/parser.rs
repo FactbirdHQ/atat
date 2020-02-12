@@ -68,7 +68,6 @@ where
         match block!(self.rx.read()) {
             Ok(c) => {
                 if self.rx_buf.push(c).is_err() {
-
                     // Notify error response, and reset rx_buf
                     self.notify_response(Err(Error::Overflow));
                     self.rx_buf.buffer.clear();
@@ -119,8 +118,7 @@ where
                     }
                 }
             }
-            Err(_e) => {
-            }
+            Err(_e) => {}
         }
     }
 }

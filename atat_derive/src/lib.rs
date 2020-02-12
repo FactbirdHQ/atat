@@ -36,7 +36,6 @@ pub fn derive_atat_resp(input: TokenStream) -> TokenStream {
             //     .emit();
             // TokenStream::new()
             panic!("ATATResp can only be applied to structs!");
-
         }
     }
 }
