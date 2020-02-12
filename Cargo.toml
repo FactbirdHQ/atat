@@ -1,33 +1,7 @@
-[package]
-name = "at-rs"
-version = "0.0.7"
-authors = ["Mathias Koch <mk@blackbird.online>"]
-description = "AT Parser for serial based device crates"
-readme = "README.md"
-keywords = ["arm", "cortex-m", "AT", "no-std"]
-categories = ["embedded", "no-std"]
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/MathiasKoch/at-rs"
-edition = "2018"
+[workspace]
 
-[lib]
-name = "at_rs"
-
-[dependencies]
-embedded-hal = { version = "0.2.3" }
-heapless = "0.5.1"
-nb = { version = "0.1.2" }
-ufmt = "0.1.0"
-
-[dev-dependencies]
-cortex-m = "0.6.1"
-cortex-m-rt = { version = "0.6.11" }
-panic-halt = "0.2.0"
-stm32l4xx-hal = { version = "0.5.0", features = ["stm32l4x5", "rt"] }
-cortex-m-rtfm = "0.5.1"
-void = { version = "1.0.2", default-features = false }
-
-[target.'x86_64-unknown-linux-gnu'.dev-dependencies]
-log = {version = "0.4", default-features = false}
-env_logger = "0.7.1"
-embedded-hal-mock = "0.7.1"
+members = [
+    "atat",
+    "atat_derive",
+    "serde_at"
+]

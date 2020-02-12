@@ -1,0 +1,44 @@
+[package]
+name = "atat"
+version = "0.1.7-alpha.0"
+authors = ["Mathias Koch <mk@blackbird.online>"]
+description = "AT Parser for serial based device crates"
+readme = "../README.md"
+keywords = ["arm", "cortex-m", "AT", "no-std"]
+categories = ["embedded", "no-std"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/BlackbirdHQ/atat"
+edition = "2018"
+documentation = "https://docs.rs/atat"
+
+[lib]
+name = "atat"
+
+[dependencies]
+embedded-hal = { version = "0.2.3" }
+heapless = "0.5.3"
+nb = { version = "0.1.2" }
+ufmt = "0.1.0"
+atat_derive = { version = "^0.1.6", optional = true}
+# log = { version = "0.4", default-features = false, optional = true }
+
+[dev-dependencies]
+cortex-m = "0.6.2"
+cortex-m-rt = "0.6.12"
+panic-halt = "0.2.0"
+cortex-m-rtfm = "0.5.1"
+stm32l4xx-hal = { version = "0.5.0", features = ["stm32l4x5", "rt"] }
+void = { version = "1.0.2", default-features = false }
+
+[patch.crates-io]
+atat_derive = { path = "../atat_derive" }
+
+[target.'x86_64-unknown-linux-gnu'.dev-dependencies]
+# env_logger = "0.7.1"
+embedded-hal-mock = "0.7.1"
+
+[features]
+default = ["derive"]
+
+logging = []
+derive = ["atat_derive"]
