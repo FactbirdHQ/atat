@@ -4,6 +4,8 @@ name = "atat_derive"
 version = "0.1.1"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 edition = "2018"
+description = "Derive macro for atat"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 ufmt = "0.1.0"
