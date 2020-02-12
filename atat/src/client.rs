@@ -75,7 +75,7 @@ where
                 Ok(resp) => {
                     if let ClientState::AwaitingResponse = self.state {
                         self.state = ClientState::Idle;
-                        cmd.parse(&resp).map_err(|e| nb::Error::Other(e))
+                        cmd.parse(&resp).map_err(nb::Error::Other)
                     } else {
                         // URC
                         Err(nb::Error::WouldBlock)

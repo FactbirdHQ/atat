@@ -78,13 +78,6 @@ pub enum Error {
     __Extensible,
 }
 
-#[cfg(feature = "std")]
-impl ::std::error::Error for Error {
-    fn description(&self) -> &str {
-        ""
-    }
-}
-
 pub(crate) struct Deserializer<'b> {
     slice: &'b [u8],
     index: usize,
@@ -596,7 +589,8 @@ impl fmt::Display for Error {
                     "Expected to parse either a `true`, `false`, or a \
                      `null`."
                 }
-                Error::ExpectedSomeValue => "Expected this character to start an AT Command string.",
+                Error::ExpectedSomeValue =>
+                    "Expected this character to start an AT Command string.",
                 Error::InvalidNumber => "Invalid number.",
                 Error::InvalidType => "Invalid type",
                 Error::InvalidUnicodeCodePoint => "Invalid unicode code point.",
@@ -606,8 +600,10 @@ impl fmt::Display for Error {
                      the \
                      value."
                 }
-                Error::TrailingComma => "AT Command string has a comma after the last value in an array or map.",
-                Error::CustomError => "AT Command string does not match deserializer’s expected format.",
+                Error::TrailingComma =>
+                    "AT Command string has a comma after the last value in an array or map.",
+                Error::CustomError =>
+                    "AT Command string does not match deserializer’s expected format.",
                 #[cfg(feature = "custom-error-messages")]
                 Error::CustomErrorWithMessage(msg) => msg.as_str(),
                 _ => "Invalid AT Command string",

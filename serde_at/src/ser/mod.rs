@@ -34,13 +34,6 @@ impl From<u8> for Error {
     }
 }
 
-#[cfg(feature = "std")]
-impl ::std::error::Error for Error {
-    fn description(&self) -> &str {
-        ""
-    }
-}
-
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Buffer is full")
