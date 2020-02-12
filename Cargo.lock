@@ -377,7 +377,7 @@ dependencies = [
 
 [[package]]
 name = "serde_at"
-version = "0.1.7-alpha.0"
+version = "0.1.7"
 dependencies = [
  "heapless",
  "log",
