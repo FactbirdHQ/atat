@@ -455,7 +455,10 @@ fn generate_cmd_output(
 
             fn as_str(&self) -> ::heapless::String<Self::CommandLen> {
                 let s: ::heapless::String<Self::CommandLen> = ::heapless::String::from(#cmd);
-                ::serde_at::to_string(self, s).unwrap()
+                match ::serde_at::to_string(self, s) {
+                    Ok(s) => s,
+                    Err(_) => String::new()
+                }
             }
 
             fn parse(&self, resp: &str) -> core::result::Result<#response, ::atat::Error> {

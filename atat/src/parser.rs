@@ -22,10 +22,10 @@ where
     rx_buf: Buffer<RxBufferLen>,
     res_p: RespProducer,
     state: State,
-    // / Command line termination character S3 (Default = '\r' [013])
-    // line_term_char: char,
-    // / Response formatting character S4 (Default = '\n' [010])
-    // format_char: char,
+    /// Command line termination character S3 (Default = '\r' [013])
+    line_term_char: char,
+    /// Response formatting character S4 (Default = '\n' [010])
+    format_char: char,
 }
 
 impl<Rx, RxBufferLen> ATParser<Rx, RxBufferLen>
@@ -48,8 +48,8 @@ where
             state: State::Idle,
             rx_buf: Buffer::new(),
             res_p: queue,
-            // line_term_char: '\r',
-            // format_char: '\n',
+            line_term_char: '\r',
+            format_char: '\n',
         }
     }
 
@@ -84,7 +84,8 @@ where
                                 // self.rx_buf.buffer.trim();
 
                                 // if self.rx_buf.buffer.len() > 0 {
-                                //     self.notify_response(Ok(String::new()));
+                                //     let resp = self.rx_buf.take(ind.0);
+                                //     self.notify_response(Ok(resp));
                                 // }
 
                                 self.rx_buf.buffer.clear();
@@ -120,5 +121,43 @@ where
             }
             Err(_e) => {}
         }
+    }
+}
+
+mod test {
+
+    use super::*;
+    use heapless::{String, consts, spsc::Queue};
+
+    struct RxMock {
+        cnt: u8,
+        s: String<consts::U64>
+    }
+
+    impl RxMock {
+        fn new(s: String<consts::U64>) -> Self {
+            RxMock {
+                cnt: 0,
+                s
+            }
+        }
+    }
+
+    impl serial::Read<u8> for RxMock {
+        type Error = ();
+
+        fn read(&mut self) -> nb::Result<u8, Self::Error> {
+            self.cnt += 1;
+            Ok(self.s[self.cnt])
+        }
+
+    }
+
+    #[test]
+    fn test_sdnmg(){
+        let (c, p) = Queue::u8().split();
+        let parser = ATParser::new(RxMock::new(String::from("AT+TESST\r\n")), c);
+
+        parser.handle_irq();
     }
 }

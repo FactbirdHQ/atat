@@ -3,7 +3,6 @@ use serde::ser;
 use heapless::ArrayLength;
 
 use crate::ser::{Error, Result, Serializer};
-// use at_rs::ATATPosition;
 
 pub struct SerializeStruct<'a, B, C>
 where
@@ -11,7 +10,7 @@ where
     C: ArrayLength<u8>,
 {
     ser: &'a mut Serializer<B, C>,
-    arg_n: usize,
+    first: bool,
 }
 
 impl<'a, B, C> SerializeStruct<'a, B, C>
@@ -20,7 +19,7 @@ where
     C: ArrayLength<u8>,
 {
     pub(crate) fn new(ser: &'a mut Serializer<B, C>) -> Self {
-        SerializeStruct { ser, arg_n: 0 }
+        SerializeStruct { ser, first: true }
     }
 }
 
@@ -36,26 +35,14 @@ where
     where
         T: ser::Serialize,
     {
-        if self.arg_n == 0 {
+        if self.first {
             self.ser.buf.push(b'=')?;
         } else {
             self.ser.buf.push(b',')?;
         }
+        self.first = false;
 
-        // if let Some((k, v)) = self.saved.pop() {
-
-        // }
         value.serialize(&mut *self.ser)?;
-        self.arg_n += 1;
-
-        // let pos = value.get_pos(key);
-        // let pos = 0;
-        // if pos != self.arg_n {
-        //     // Push the value for later processing
-        //     self.saved.push((key, value));
-        // } else {
-
-        // }
         Ok(())
     }
 

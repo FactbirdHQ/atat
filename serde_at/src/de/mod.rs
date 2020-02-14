@@ -373,7 +373,6 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         let peek = self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
-        //println!("deserialize_str {:?}", peek as char);
 
         match peek {
             b'"' => {
@@ -412,14 +411,8 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        match self.parse_whitespace().ok_or(Error::EofWhileParsingValue)? {
-            b'n' => {
-                self.eat_char();
-                self.parse_ident(b"ull")?;
-                visitor.visit_none()
-            }
-            _ => visitor.visit_some(self),
-        }
+        self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
+        visitor.visit_some(self)
     }
 
     /// Unsupported. Use a more specific deserialize_* method
@@ -451,9 +444,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         self.eat_char();
-        let ret = visitor.visit_seq(SeqAccess::new(self))?;
-
-        Ok(ret)
+        Ok(visitor.visit_seq(SeqAccess::new(self))?)
     }
 
     fn deserialize_tuple<V>(self, _len: usize, _visitor: V) -> Result<V::Value>
@@ -517,7 +508,6 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        //println!("deserialize_identifier");
         self.deserialize_str(visitor)
     }
 
@@ -527,8 +517,6 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         match self.parse_whitespace().ok_or(Error::EofWhileParsingValue)? {
             b'"' => self.deserialize_str(visitor),
-            b'[' => self.deserialize_seq(visitor),
-            b'{' => self.deserialize_struct("ignored", &[], visitor),
             b',' | b'}' | b']' => Err(Error::ExpectedSomeValue),
             _ => loop {
                 match self.peek() {
