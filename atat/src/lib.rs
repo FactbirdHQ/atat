@@ -34,14 +34,68 @@ where
     Timeout(T),
 }
 
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct Config<T>
+where
+    T: CountDown,
+{
+    mode: Mode<T>,
+    line_term_char: char,
+    format_char: char,
+    at_echo_enabled: bool,
+}
+
+impl<T> Default for Config<T>
+where
+    T: CountDown,
+{
+    fn default() -> Config<T> {
+        Config {
+            mode: Mode::Blocking,
+            line_term_char: '\r',
+            format_char: '\n',
+            at_echo_enabled: true,
+        }
+    }
+}
+
+impl<T> Config<T>
+where
+    T: CountDown,
+{
+    pub fn new(mode: Mode<T>) -> Self {
+        Config {
+            mode,
+            ..Config::default()
+        }
+    }
+
+    pub fn with_line_term(mut self, c: char) -> Self {
+        self.line_term_char = c;
+        self
+    }
+
+    pub fn with_format_char(mut self, c: char) -> Self {
+        self.format_char = c;
+        self
+    }
+
+    pub fn with_at_echo(mut self, e: bool) -> Self {
+        self.at_echo_enabled = e;
+        self
+    }
+}
+
 type ResQueue = Queue<Result<String<consts::U256>, error::Error>, consts::U10, u8>;
-type ClientParser<Rx, Tx, T, RxBufferLen> =
-    (client::ATClient<Tx, T>, parser::ATParser<Rx, RxBufferLen>);
+type ClientParser<Rx, Tx, T, RxBufferLen> = (
+    client::ATClient<Tx, T>,
+    parser::ATParser<Rx, RxBufferLen>,
+);
 
 pub fn new<Rx, Tx, RxBufferLen, T>(
     queue: &'static mut ResQueue,
     serial: (Tx, Rx),
-    mode: Mode<T>,
+    config: Config<T>,
 ) -> ClientParser<Rx, Tx, T, RxBufferLen>
 where
     Tx: serial::Write<u8>,
@@ -50,8 +104,8 @@ where
     T: CountDown,
 {
     let (res_p, res_c) = queue.split();
-    let client = client::ATClient::new(serial.0, res_c, mode);
-    let parser = ATParser::new(serial.1, res_p);
+    let parser = ATParser::new(serial.1, res_p, &config);
+    let client = client::ATClient::new(serial.0, res_c, config);
 
     (client, parser)
 }

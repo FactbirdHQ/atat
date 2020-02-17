@@ -1,9 +1,10 @@
-use embedded_hal::serial;
+use embedded_hal::{serial, timer::CountDown};
 
 use heapless::{consts, spsc::Producer, ArrayLength, String};
 
 use crate::buffer::Buffer;
 use crate::error::{Error, Result};
+use crate::Config;
 
 type RespProducer = Producer<'static, Result<String<consts::U256>>, consts::U10, u8>;
 
@@ -26,6 +27,7 @@ where
     line_term_char: char,
     /// Response formatting character S4 (Default = '\n' [010])
     format_char: char,
+    echo_enabled: bool,
 }
 
 impl<Rx, RxBufferLen> ATParser<Rx, RxBufferLen>
@@ -33,7 +35,7 @@ where
     Rx: serial::Read<u8>,
     RxBufferLen: ArrayLength<u8>,
 {
-    pub fn new(mut rx: Rx, queue: RespProducer) -> Self {
+    pub fn new<T: CountDown>(mut rx: Rx, queue: RespProducer, config: &Config<T>) -> Self {
         while rx.read().is_ok() {
             // Fix for unit tests!
             if let Ok(c) = rx.read() {
@@ -48,8 +50,9 @@ where
             state: State::Idle,
             rx_buf: Buffer::new(),
             res_p: queue,
-            line_term_char: '\r',
-            format_char: '\n',
+            line_term_char: config.line_term_char,
+            format_char: config.format_char,
+            echo_enabled: config.at_echo_enabled,
         }
     }
 
@@ -74,11 +77,14 @@ where
                 } else {
                     match self.state {
                         State::Idle => {
-                            if self.rx_buf.buffer.starts_with("AT")
+                            if self.echo_enabled
+                                && self.rx_buf.buffer.starts_with("AT")
                                 && self.rx_buf.buffer.ends_with("\r\n")
                             {
                                 self.state = State::ReceivingResponse;
                                 self.rx_buf.buffer.clear();
+                            } else if !self.echo_enabled {
+                                unimplemented!("Disabling AT echo is currently unsupported");
                             } else if self.rx_buf.buffer.ends_with("\r\n") {
                                 // Trim
                                 // self.rx_buf.buffer.trim();
@@ -92,7 +98,7 @@ where
                             }
                         }
                         State::ReceivingResponse => {
-                            if c as char == '\n' {
+                            if c as char == self.format_char {
                                 let (ind, err) = if let Some(ind) =
                                     self.rx_buf.buffer.rmatch_indices("OK\r\n").next()
                                 {
@@ -105,6 +111,7 @@ where
                                     return;
                                 };
 
+                                // FIXME: Handle mutable borrow warning (mutable_borrow_reservation_conflict)
                                 let resp = self.rx_buf.take(ind.0);
 
                                 self.notify_response(match err {
@@ -121,43 +128,5 @@ where
             }
             Err(_e) => {}
         }
-    }
-}
-
-mod test {
-
-    use super::*;
-    use heapless::{String, consts, spsc::Queue};
-
-    struct RxMock {
-        cnt: u8,
-        s: String<consts::U64>
-    }
-
-    impl RxMock {
-        fn new(s: String<consts::U64>) -> Self {
-            RxMock {
-                cnt: 0,
-                s
-            }
-        }
-    }
-
-    impl serial::Read<u8> for RxMock {
-        type Error = ();
-
-        fn read(&mut self) -> nb::Result<u8, Self::Error> {
-            self.cnt += 1;
-            Ok(self.s[self.cnt])
-        }
-
-    }
-
-    #[test]
-    fn test_sdnmg(){
-        let (c, p) = Queue::u8().split();
-        let parser = ATParser::new(RxMock::new(String::from("AT+TESST\r\n")), c);
-
-        parser.handle_irq();
     }
 }

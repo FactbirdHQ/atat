@@ -94,12 +94,13 @@ fn generate_resp_output(name: &Ident, fields: Option<&FieldsNamed>) -> TokenStre
     let struct_name = format!("struct {}", name);
 
     let output = quote! {
-        impl ATATResp for #name {}
 
-        impl<'de> ::serde::Deserialize<'de> for #name {
-            fn deserialize<D>(deserializer: D) -> ::serde::export::Result<Self, D::Error>
+        impl atat::ATATResp for #name {}
+
+        impl<'de> serde::Deserialize<'de> for #name {
+            fn deserialize<D>(deserializer: D) -> serde::export::Result<Self, D::Error>
             where
-                D: ::serde::Deserializer<'de>,
+                D: serde::Deserializer<'de>,
             {
                 #[allow(non_camel_case_types)]
                 enum #enum_field {
@@ -107,25 +108,25 @@ fn generate_resp_output(name: &Ident, fields: Option<&FieldsNamed>) -> TokenStre
                     ignore,
                 }
                 struct #field_visitor;
-                impl<'de> ::serde::de::Visitor<'de> for #field_visitor {
+                impl<'de> serde::de::Visitor<'de> for #field_visitor {
                     type Value = #enum_field;
                     fn expecting(
                         &self,
-                        formatter: &mut ::serde::export::Formatter,
-                    ) -> ::serde::export::fmt::Result {
-                        ::serde::export::Formatter::write_str(formatter, "field identifier")
+                        formatter: &mut serde::export::Formatter,
+                    ) -> serde::export::fmt::Result {
+                        serde::export::Formatter::write_str(formatter, "field identifier")
                     }
                     fn visit_u64<E>(
                         self,
                         value: u64,
-                    ) -> ::serde::export::Result<Self::Value, E>
+                    ) -> serde::export::Result<Self::Value, E>
                     where
-                        E: ::serde::de::Error,
+                        E: serde::de::Error,
                     {
                         match value {
-                            #(#anon_field_ind64 => ::serde::export::Ok(#enum_field::#anon_field),)*
-                            _ => ::serde::export::Err(::serde::de::Error::invalid_value(
-                                ::serde::de::Unexpected::Unsigned(value),
+                            #(#anon_field_ind64 => serde::export::Ok(#enum_field::#anon_field),)*
+                            _ => serde::export::Err(::serde::de::Error::invalid_value(
+                                serde::de::Unexpected::Unsigned(value),
                                 &#invalid_val_err,
                             )),
                         }
@@ -133,81 +134,81 @@ fn generate_resp_output(name: &Ident, fields: Option<&FieldsNamed>) -> TokenStre
                     fn visit_str<E>(
                         self,
                         value: &str,
-                    ) -> ::serde::export::Result<Self::Value, E>
+                    ) -> serde::export::Result<Self::Value, E>
                     where
-                        E: ::serde::de::Error,
+                        E: serde::de::Error,
                     {
                         match value {
                             #(
-                                #field_names_str => ::serde::export::Ok(#enum_field::#anon_field),
+                                #field_names_str => serde::export::Ok(#enum_field::#anon_field),
                             )*
-                            _ => ::serde::export::Ok(#enum_field::ignore),
+                            _ => serde::export::Ok(#enum_field::ignore),
                         }
                     }
                     fn visit_bytes<E>(
                         self,
                         value: &[u8],
-                    ) -> ::serde::export::Result<Self::Value, E>
+                    ) -> serde::export::Result<Self::Value, E>
                     where
-                        E: ::serde::de::Error,
+                        E: serde::de::Error,
                     {
                         match value {
                             #(
-                                #field_names_bytestr => ::serde::export::Ok(#enum_field::#anon_field),
+                                #field_names_bytestr => serde::export::Ok(#enum_field::#anon_field),
                             )*
-                            _ => ::serde::export::Ok(#enum_field::ignore),
+                            _ => serde::export::Ok(#enum_field::ignore),
                         }
                     }
                 }
-                impl<'de> ::serde::Deserialize<'de> for #enum_field {
+                impl<'de> serde::Deserialize<'de> for #enum_field {
                     #[inline]
                     fn deserialize<D>(
                         deserializer: D,
-                    ) -> ::serde::export::Result<Self, D::Error>
+                    ) -> serde::export::Result<Self, D::Error>
                     where
-                        D: ::serde::Deserializer<'de>,
+                        D: serde::Deserializer<'de>,
                     {
-                        ::serde::Deserializer::deserialize_identifier(deserializer, #field_visitor)
+                        serde::Deserializer::deserialize_identifier(deserializer, #field_visitor)
                     }
                 }
                 struct #visitor<'de> {
-                    marker: ::serde::export::PhantomData<#name>,
-                    lifetime: ::serde::export::PhantomData<&'de ()>,
+                    marker: serde::export::PhantomData<#name>,
+                    lifetime: serde::export::PhantomData<&'de ()>,
                 }
-                impl<'de> ::serde::de::Visitor<'de> for #visitor<'de> {
+                impl<'de> serde::de::Visitor<'de> for #visitor<'de> {
                     type Value = #name;
                     fn expecting(
                         &self,
-                        formatter: &mut ::serde::export::Formatter,
-                    ) -> ::serde::export::fmt::Result {
-                        ::serde::export::Formatter::write_str(formatter, #struct_name)
+                        formatter: &mut serde::export::Formatter,
+                    ) -> serde::export::fmt::Result {
+                        serde::export::Formatter::write_str(formatter, #struct_name)
                     }
                     #[inline]
                     fn visit_seq<A>(
                         self,
                         mut seq: A,
-                    ) -> ::serde::export::Result<Self::Value, A::Error>
+                    ) -> serde::export::Result<Self::Value, A::Error>
                     where
-                        A: ::serde::de::SeqAccess<'de>,
+                        A: serde::de::SeqAccess<'de>,
                     {
                         #(
                             let #anon_field =
-                                match match ::serde::de::SeqAccess::next_element::<#field_types>(&mut seq) {
-                                    ::serde::export::Ok(val) => val,
-                                    ::serde::export::Err(err) => {
-                                        return ::serde::export::Err(err);
+                                match match serde::de::SeqAccess::next_element::<#field_types>(&mut seq) {
+                                    serde::export::Ok(val) => val,
+                                    serde::export::Err(err) => {
+                                        return serde::export::Err(err);
                                     }
                                 } {
-                                    ::serde::export::Some(value) => value,
-                                    ::serde::export::None => {
-                                        return ::serde::export::Err(::serde::de::Error::invalid_length(
+                                    serde::export::Some(value) => value,
+                                    serde::export::None => {
+                                        return serde::export::Err(::serde::de::Error::invalid_length(
                                             #anon_field_ind,
                                             &#invalid_len_err,
                                         ));
                                     }
                                 };
                         )*
-                        ::serde::export::Ok(#name {
+                        serde::export::Ok(#name {
                             #(
                                 #field_names: #anon_field
                             ),*
@@ -217,49 +218,49 @@ fn generate_resp_output(name: &Ident, fields: Option<&FieldsNamed>) -> TokenStre
                     fn visit_map<A>(
                         self,
                         mut map: A,
-                    ) -> ::serde::export::Result<Self::Value, A::Error>
+                    ) -> serde::export::Result<Self::Value, A::Error>
                     where
-                        A: ::serde::de::MapAccess<'de>,
+                        A: serde::de::MapAccess<'de>,
                     {
                         #(
-                            let mut #anon_field: ::serde::export::Option<#field_types> = ::serde::export::None;
+                            let mut #anon_field: serde::export::Option<#field_types> = serde::export::None;
                         )*
-                        while let ::serde::export::Some(key) =
-                            match ::serde::de::MapAccess::next_key::<#enum_field>(&mut map) {
-                                ::serde::export::Ok(val) => val,
-                                ::serde::export::Err(err) => {
-                                    return ::serde::export::Err(err);
+                        while let serde::export::Some(key) =
+                            match serde::de::MapAccess::next_key::<#enum_field>(&mut map) {
+                                serde::export::Ok(val) => val,
+                                serde::export::Err(err) => {
+                                    return serde::export::Err(err);
                                 }
                             }
                         {
                             match key {
                                 #(
                                     #enum_field::#anon_field => {
-                                        if ::serde::export::Option::is_some(&#anon_field) {
-                                            return ::serde::export::Err(
-                                                <A::Error as ::serde::de::Error>::duplicate_field(
+                                        if serde::export::Option::is_some(&#anon_field) {
+                                            return serde::export::Err(
+                                                <A::Error as serde::de::Error>::duplicate_field(
                                                     #field_names_str,
                                                 ),
                                             );
                                         }
-                                        #anon_field = ::serde::export::Some(
-                                            match ::serde::de::MapAccess::next_value::<#field_types>(&mut map) {
-                                                ::serde::export::Ok(val) => val,
-                                                ::serde::export::Err(err) => {
-                                                    return ::serde::export::Err(err);
+                                        #anon_field = serde::export::Some(
+                                            match serde::de::MapAccess::next_value::<#field_types>(&mut map) {
+                                                serde::export::Ok(val) => val,
+                                                serde::export::Err(err) => {
+                                                    return serde::export::Err(err);
                                                 }
                                             },
                                         );
                                     }
                                 )*
                                 _ => {
-                                    let _ = match ::serde::de::MapAccess::next_value::<
-                                        ::serde::de::IgnoredAny,
+                                    let _ = match serde::de::MapAccess::next_value::<
+                                        serde::de::IgnoredAny,
                                     >(&mut map)
                                     {
-                                        ::serde::export::Ok(val) => val,
-                                        ::serde::export::Err(err) => {
-                                            return ::serde::export::Err(err);
+                                        serde::export::Ok(val) => val,
+                                        serde::export::Err(err) => {
+                                            return serde::export::Err(err);
                                         }
                                     };
                                 }
@@ -267,18 +268,18 @@ fn generate_resp_output(name: &Ident, fields: Option<&FieldsNamed>) -> TokenStre
                         }
                         #(
                             let #anon_field = match #anon_field {
-                                ::serde::export::Some(#anon_field) => #anon_field,
-                                ::serde::export::None => {
-                                    match ::serde::private::de::missing_field(#field_names_str) {
-                                        ::serde::export::Ok(val) => val,
-                                        ::serde::export::Err(err) => {
-                                            return ::serde::export::Err(err);
+                                serde::export::Some(#anon_field) => #anon_field,
+                                serde::export::None => {
+                                    match serde::private::de::missing_field(#field_names_str) {
+                                        serde::export::Ok(val) => val,
+                                        serde::export::Err(err) => {
+                                            return serde::export::Err(err);
                                         }
                                     }
                                 }
                             };
                         )*
-                        ::serde::export::Ok(#name {
+                        serde::export::Ok(#name {
                             #(
                                 #field_names: #anon_field
                             ),*
@@ -286,13 +287,13 @@ fn generate_resp_output(name: &Ident, fields: Option<&FieldsNamed>) -> TokenStre
                     }
                 }
                 const FIELDS: &'static [&'static str] = &[#(#field_names_str),*];
-                ::serde::Deserializer::deserialize_struct(
+                serde::Deserializer::deserialize_struct(
                     deserializer,
                     #name_str,
                     FIELDS,
                     #visitor {
-                        marker: ::serde::export::PhantomData::<#name>,
-                        lifetime: ::serde::export::PhantomData,
+                        marker: serde::export::PhantomData::<#name>,
+                        lifetime: serde::export::PhantomData,
                     },
                 )
             }
@@ -449,20 +450,21 @@ fn generate_cmd_output(
     };
 
     let output = quote! {
-        impl ::atat::ATATCmd for #name {
-            type Response = #response;
-            type CommandLen = ::heapless::consts::U64;
 
-            fn as_str(&self) -> ::heapless::String<Self::CommandLen> {
-                let s: ::heapless::String<Self::CommandLen> = ::heapless::String::from(#cmd);
-                match ::serde_at::to_string(self, s) {
+        impl atat::ATATCmd for #name {
+            type Response = #response;
+            type CommandLen = heapless::consts::U64;
+
+            fn as_str(&self) -> heapless::String<Self::CommandLen> {
+                let s: heapless::String<Self::CommandLen> = heapless::String::from(#cmd);
+                match serde_at::to_string(self, s) {
                     Ok(s) => s,
                     Err(_) => String::new()
                 }
             }
 
-            fn parse(&self, resp: &str) -> core::result::Result<#response, ::atat::Error> {
-                ::serde_at::from_str::<#response>(resp).map_err(|e| ::atat::Error::InvalidResponse)
+            fn parse(&self, resp: &str) -> core::result::Result<#response, atat::Error> {
+                serde_at::from_str::<#response>(resp).map_err(|e| atat::Error::InvalidResponse)
             }
 
             #timeout
@@ -470,57 +472,57 @@ fn generate_cmd_output(
             #abortable
         }
 
-        impl ::serde::Serialize for #name {
+        impl serde::Serialize for #name {
             fn serialize<S>(
                 &self,
                 serializer: S,
-            ) -> ::serde::export::Result<S::Ok, S::Error>
+            ) -> serde::export::Result<S::Ok, S::Error>
             where
-                S: ::serde::Serializer,
+                S: serde::Serializer,
             {
-                let mut serde_state = match ::serde::Serializer::serialize_struct(
+                let mut serde_state = match serde::Serializer::serialize_struct(
                     serializer,
                     #name_str,
                     #len,
                 ) {
-                    ::serde::export::Ok(val) => val,
-                    ::serde::export::Err(err) => {
-                        return ::serde::export::Err(err);
+                    serde::export::Ok(val) => val,
+                    serde::export::Err(err) => {
+                        return serde::export::Err(err);
                     }
                 };
 
                 #(
-                    match ::serde::ser::SerializeStruct::serialize_field(
+                    match serde::ser::SerializeStruct::serialize_field(
                         &mut serde_state,
                         #field_names_str,
                         &self.#field_names,
                     ) {
-                        ::serde::export::Ok(val) => val,
-                        ::serde::export::Err(err) => {
-                            return ::serde::export::Err(err);
+                        serde::export::Ok(val) => val,
+                        serde::export::Err(err) => {
+                            return serde::export::Err(err);
                         }
                     };
                 )*
 
-                ::serde::ser::SerializeStruct::end(serde_state)
+                serde::ser::SerializeStruct::end(serde_state)
             }
         }
 
         #[cfg(feature = "use_ufmt")]
-        impl ::ufmt::uDebug for #name {
-            fn fmt<W>(&self, f: &mut ::ufmt::Formatter<'_, W>) -> core::result::Result<(), W::Error>
+        impl ufmt::uDebug for #name {
+            fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> core::result::Result<(), W::Error>
             where
-                W: ::ufmt::uWrite + ?Sized,
+                W: ufmt::uWrite + ?Sized,
             {
                 f.write_str(&self.as_str())
             }
         }
 
         #[cfg(feature = "use_ufmt")]
-        impl ::ufmt::uDisplay for #name {
-            fn fmt<W>(&self, f: &mut ::ufmt::Formatter<'_, W>) -> core::result::Result<(), W::Error>
+        impl ufmt::uDisplay for #name {
+            fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> core::result::Result<(), W::Error>
             where
-                W: ::ufmt::uWrite + ?Sized,
+                W: ufmt::uWrite + ?Sized,
             {
                 let c = self.as_str();
                 f.write_str(&c[0..c.len() - 2])

@@ -24,31 +24,17 @@ dependencies = [
 name = "atat"
 version = "0.1.8-alpha.0"
 dependencies = [
- "atat_derive 0.1.6",
+ "atat_derive",
  "cortex-m",
  "cortex-m-rt",
  "cortex-m-rtfm",
  "embedded-hal",
  "embedded-hal-mock",
  "heapless",
+ "log",
  "nb",
  "panic-halt",
  "stm32l4xx-hal",
- "ufmt",
- "void",
-]
-
-[[package]]
-name = "atat_derive"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b2e2a6fa489cc234e2a51f68758127430af78a39d7c3b6120823f0cab26a8b4"
-dependencies = [
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "serde_at 0.1.6",
- "syn",
  "ufmt",
 ]
 
@@ -59,7 +45,7 @@ dependencies = [
  "proc-macro-error",
  "proc-macro2",
  "quote",
- "serde_at 0.1.6",
+ "serde_at 0.1.7",
  "syn",
  "ufmt",
 ]
@@ -366,9 +352,9 @@ checksum = "414115f25f818d7dfccec8ee535d76949ae78584fc4f79a6f45a904bf8ab4449"
 
 [[package]]
 name = "serde_at"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b897f4136965bbbf910c0965e2f5df25705159cbede3913ead518e495a634197"
+checksum = "8a02c0576ea34a9efde4ee69c6ff049535b640b6964097ef60c516ad70ca3810"
 dependencies = [
  "heapless",
  "log",

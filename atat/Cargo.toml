@@ -19,16 +19,17 @@ embedded-hal = { version = "0.2.3" }
 heapless = "0.5.3"
 nb = { version = "0.1.2" }
 ufmt = "0.1.0"
-atat_derive = { version = "^0.1.6", optional = true}
-# log = { version = "0.4", default-features = false, optional = true }
+# dynstack = { version = "0.3.0", default-features = false }
+atat_derive = { path = "../atat_derive", optional = true }
+# atat_derive = { version = "^0.1.6", optional = true }
+log = { version = "0.4", default-features = false }
 
 [dev-dependencies]
 cortex-m = "0.6.2"
 cortex-m-rt = "0.6.12"
-panic-halt = "0.2.0"
 cortex-m-rtfm = "0.5.1"
+panic-halt = "0.2.0"
 stm32l4xx-hal = { version = "0.5.0", features = ["stm32l4x5", "rt"] }
-void = { version = "1.0.2", default-features = false }
 
 [patch.crates-io]
 atat_derive = { path = "../atat_derive" }

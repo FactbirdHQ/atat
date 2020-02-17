@@ -23,5 +23,5 @@ pub trait ATATCmd {
 pub trait ATATInterface {
     fn send<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response>;
 
-    fn check_response<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response>;
+    fn check_response<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<Option<A::Response>>;
 }

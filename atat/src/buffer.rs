@@ -26,7 +26,7 @@ where
         let mut result = String::new();
         let mut return_string: String<L> = String::new();
         return_string
-            .push_str(unsafe { self.buffer.get_unchecked(0..index) })
+            .push_str(unsafe { self.buffer.get_unchecked(0..index).trim() })
             .ok();
         result
             .push_str(unsafe { self.buffer.get_unchecked(index..self.buffer.len()) })

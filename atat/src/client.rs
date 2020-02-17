@@ -4,7 +4,11 @@ use embedded_hal::{serial, timer::CountDown};
 
 use crate::error::{Error, NBResult, Result};
 use crate::traits::{ATATCmd, ATATInterface};
-use crate::Mode;
+use crate::{Config, Mode};
+
+// use dynstack::{DynStack, dyn_push};
+
+use log::{info, error};
 
 type ResConsumer = Consumer<'static, Result<String<consts::U256>>, consts::U10, u8>;
 
@@ -24,6 +28,7 @@ where
     // last_response_time: T::Time,
     state: ClientState,
     mode: Mode<T>,
+    // handlers: DynStack<dyn Fn(&str)>,
 }
 
 impl<Tx, T> ATClient<Tx, T>
@@ -31,13 +36,27 @@ where
     Tx: serial::Write<u8>,
     T: CountDown,
 {
-    pub fn new(tx: Tx, queue: ResConsumer, mode: Mode<T>) -> Self {
+    pub fn new(tx: Tx, queue: ResConsumer, config: Config<T>) -> Self {
         Self {
             tx,
             res_c: queue,
             state: ClientState::Idle,
-            mode,
+            mode: config.mode,
+            // handlers: DynStack::<dyn Fn(&str)>::new(),
         }
+    }
+}
+impl<Tx, T> ATClient<Tx, T>
+where
+    Tx: serial::Write<u8>,
+    T: CountDown,
+{
+    pub fn register_urc_handler<F>(&mut self, handler: &'static F) -> core::result::Result<(), ()>
+    where
+        F: for<'a> Fn(&'a str)
+    {
+        // dyn_push!(self.handlers, handler);
+        Ok(())
     }
 }
 
@@ -56,39 +75,48 @@ where
             self.state = ClientState::AwaitingResponse;
         }
 
-        match self.mode {
-            Mode::Blocking => Ok(block!(self.check_response(cmd)).unwrap()),
-            Mode::NonBlocking => self.check_response(cmd),
+        let res = match self.mode {
+            Mode::Blocking => block!(self.check_response(cmd)).map_err(nb::Error::Other)?,
+            Mode::NonBlocking => self.check_response(cmd)?,
             Mode::Timeout(ref mut timer) => {
                 timer.start(cmd.max_timeout_ms());
-                Ok(block!(self.check_response(cmd)).unwrap())
+                block!(self.check_response(cmd)).map_err(nb::Error::Other)?
             }
+        };
+
+        match res {
+            Some(r) => Ok(r),
+            None => Err(nb::Error::WouldBlock),
         }
     }
 
-    fn check_response<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response> {
+    fn check_response<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<Option<A::Response>> {
         if let Some(result) = self.res_c.dequeue() {
-            match result {
+            return match result {
                 Ok(resp) => {
                     if let ClientState::AwaitingResponse = self.state {
                         self.state = ClientState::Idle;
-                        cmd.parse(&resp).map_err(nb::Error::Other)
+                        info!("{:?}\r", resp);
+                        Ok(Some(cmd.parse(&resp).map_err(|e| {
+                            error!("{:?}", e);
+                            nb::Error::Other(e)
+                        })?))
                     } else {
                         // URC
-                        Err(nb::Error::WouldBlock)
+                        // for handler in self.handlers.iter() {
+                        //     handler(&resp);
+                        // };
+                        Ok(None)
                     }
                 }
                 Err(e) => Err(nb::Error::Other(e)),
-            }
+            };
         } else if let Mode::Timeout(ref mut timer) = self.mode {
             if timer.wait().is_ok() {
                 self.state = ClientState::Idle;
-                Err(nb::Error::Other(Error::Timeout))
-            } else {
-                Err(nb::Error::WouldBlock)
+                return Err(nb::Error::Other(Error::Timeout));
             }
-        } else {
-            Err(nb::Error::WouldBlock)
         }
+        Err(nb::Error::WouldBlock)
     }
 }
