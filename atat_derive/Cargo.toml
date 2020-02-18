@@ -14,7 +14,7 @@ quote = "1.0"
 syn = {version = "1.0", features = ["extra-traits","full"]}
 proc-macro2 = "1.0"
 proc-macro-error = "0.4"
-serde_at = { version = "^0.1.6" }
+serde_at = { path = "../serde_at" }
 
 [patch.crates-io]
 serde_at = { path = "../serde_at" }

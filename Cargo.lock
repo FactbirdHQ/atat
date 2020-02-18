@@ -34,8 +34,12 @@ dependencies = [
  "log",
  "nb",
  "panic-halt",
+ "serde",
+ "serde_at",
+ "serde_repr",
  "stm32l4xx-hal",
  "ufmt",
+ "void",
 ]
 
 [[package]]
@@ -45,7 +49,7 @@ dependencies = [
  "proc-macro-error",
  "proc-macro2",
  "quote",
- "serde_at 0.1.7",
+ "serde_at",
  "syn",
  "ufmt",
 ]
@@ -199,6 +203,7 @@ dependencies = [
  "as-slice",
  "generic-array 0.13.2",
  "hash32",
+ "serde",
 ]
 
 [[package]]
@@ -233,9 +238,9 @@ checksum = "de96540e0ebde571dc55c73d60ef407c653844e6f9a1e2fdbd40c07b9252d812"
 
 [[package]]
 name = "proc-macro-error"
-version = "0.4.8"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "875077759af22fa20b610ad4471d8155b321c89c3f2785526c9839b099be4e0a"
+checksum = "052b3c9af39c7e5e94245f820530487d19eb285faedcb40e0c3275132293f242"
 dependencies = [
  "proc-macro-error-attr",
  "proc-macro2",
@@ -246,9 +251,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-error-attr"
-version = "0.4.8"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5717d9fa2664351a01ed73ba5ef6df09c01a521cb42cb65a061432a826f3c7a"
+checksum = "d175bef481c7902e63e3165627123fff3502f06ac043d3ef42d08c1246da9253"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -352,17 +357,6 @@ checksum = "414115f25f818d7dfccec8ee535d76949ae78584fc4f79a6f45a904bf8ab4449"
 
 [[package]]
 name = "serde_at"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a02c0576ea34a9efde4ee69c6ff049535b640b6964097ef60c516ad70ca3810"
-dependencies = [
- "heapless",
- "log",
- "serde",
-]
-
-[[package]]
-name = "serde_at"
 version = "0.1.8-alpha.0"
 dependencies = [
  "heapless",
@@ -376,6 +370,17 @@ name = "serde_derive"
 version = "1.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "128f9e303a5a29922045a830221b8f78ec74a5f544944f3d5984f8ec3895ef64"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "serde_repr"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd02c7587ec314570041b2754829f84d873ced14a96d1fd1823531e11db40573"
 dependencies = [
  "proc-macro2",
  "quote",
