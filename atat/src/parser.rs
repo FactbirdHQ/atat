@@ -70,8 +70,6 @@ where
     {
         match block!(self.rx.read()) {
             Ok(c) => {
-                #[cfg(test)]
-                {print!("{:?}", c as char)}
                 if self.rx_buf.push(c).is_err() {
                     // Notify error response, and reset rx_buf
                     self.notify_response(Err(Error::Overflow));
