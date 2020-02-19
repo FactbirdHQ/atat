@@ -8,7 +8,7 @@ use crate::{Config, Mode};
 
 // use dynstack::{DynStack, dyn_push};
 
-use log::{info, error};
+use log::{error, info};
 
 type ResConsumer = Consumer<'static, Result<String<consts::U256>>, consts::U10, u8>;
 
@@ -53,7 +53,7 @@ where
 {
     pub fn register_urc_handler<F>(&mut self, handler: &'static F) -> core::result::Result<(), ()>
     where
-        F: for<'a> Fn(&'a str)
+        F: for<'a> Fn(&'a str),
     {
         // dyn_push!(self.handlers, handler);
         Ok(())
@@ -124,26 +124,28 @@ where
 #[cfg_attr(tarpaulin, skip)]
 mod test {
     use super::*;
-    use nb;
-    use void::Void;
-    use heapless::{consts, spsc::Queue, String, Vec};
-    use crate::atat_derive::{ATATCmd, ATATResp};
     use crate as atat;
-    use atat::{traits::ATATInterface};
+    use crate::atat_derive::{ATATCmd, ATATResp};
+    use atat::traits::ATATInterface;
+    use heapless::{consts, spsc::Queue, String, Vec};
+    use nb;
     use serde;
-    use serde_repr::{Serialize_repr, Deserialize_repr};
+    use serde_repr::{Deserialize_repr, Serialize_repr};
+    use void::Void;
 
-    struct CdMock{
-        time : u32,
+    struct CdMock {
+        time: u32,
     }
 
-    impl CountDown for CdMock{
+    impl CountDown for CdMock {
         type Time = u32;
-        fn start<T>(&mut self, count : T)
-        where T: Into<Self::Time> {
+        fn start<T>(&mut self, count: T)
+        where
+            T: Into<Self::Time>,
+        {
             self.time = count.into();
         }
-        fn wait(&mut self) -> nb::Result<(), Void>{
+        fn wait(&mut self) -> nb::Result<(), Void> {
             Ok(())
         }
     }
@@ -216,7 +218,6 @@ mod test {
         pub rst: Option<ResetMode>,
     }
 
-
     #[derive(Clone, PartialEq, Serialize_repr, Deserialize_repr)]
     #[repr(u8)]
     pub enum Functionality {
@@ -240,7 +241,7 @@ mod test {
         #[at_arg(position = 1)]
         pub length: usize,
         #[at_arg(position = 2)]
-        pub data: Vec<u8, consts::U256>
+        pub data: Vec<u8, consts::U256>,
     }
 
     #[derive(Clone, ATATResp, PartialEq, Debug)]
@@ -250,7 +251,7 @@ mod test {
         #[at_arg(position = 1)]
         pub length: usize,
         #[at_arg(position = 2)]
-        pub data: String<consts::U64>
+        pub data: String<consts::U64>,
     }
 
     #[derive(Clone, ATATResp, PartialEq, Debug)]
@@ -260,92 +261,115 @@ mod test {
         #[at_arg(position = 2)]
         pub length: usize,
         #[at_arg(position = 0)]
-        pub data: String<consts::U64>
+        pub data: String<consts::U64>,
     }
 
     #[test]
     fn string_sent() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe {REQ_Q.split()};
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (mut p, c) = unsafe { REQ_Q.split() };
         let tx_mock = TxMock::new(String::new());
-        let mut at_cli : ATClient<TxMock, CdMock> = ATClient::new(tx_mock, c, Config::new(Mode::Blocking));
+        let mut at_cli: ATClient<TxMock, CdMock> =
+            ATClient::new(tx_mock, c, Config::new(Mode::Blocking));
 
-        let cmd = SetModuleFunctionality{fun : Functionality::APM, rst : Some(ResetMode::DontReset)};
-        
-        let resp : Result<String::<consts::U256>> = Ok(String::<consts::U256>::from(""));
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(""));
         p.enqueue(resp).unwrap();
 
         assert_eq!(at_cli.state, ClientState::Idle);
 
-        match at_cli.send(&cmd){
+        match at_cli.send(&cmd) {
             Ok(response) => {
                 assert_eq!(response, NoResonse);
-            },
-            _ => panic!("Panic send error in test.")
+            }
+            _ => panic!("Panic send error in test."),
         }
         assert_eq!(at_cli.state, ClientState::Idle);
 
-        assert_eq!(at_cli.tx.s, String::<consts::U32>::from("AT+CFUN=4,0\r\n"),"Wrong encoding of string");
+        assert_eq!(
+            at_cli.tx.s,
+            String::<consts::U32>::from("AT+CFUN=4,0\r\n"),
+            "Wrong encoding of string"
+        );
 
-        let resp : Result<String::<consts::U256>> = Ok(String::<consts::U256>::from(""));
+        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(""));
         p.enqueue(resp).unwrap();
-        
-        let cmd = Test2Cmd{fun : Functionality::DM, rst : Some(ResetMode::Reset)};
-        match at_cli.send(&cmd){
+
+        let cmd = Test2Cmd {
+            fun: Functionality::DM,
+            rst: Some(ResetMode::Reset),
+        };
+        match at_cli.send(&cmd) {
             Ok(response) => {
                 assert_eq!(response, NoResonse);
-            },
-            _ => panic!("Panic send error in test.")
+            }
+            _ => panic!("Panic send error in test."),
         }
 
-        assert_eq!(at_cli.tx.s, String::<consts::U32>::from("AT+CFUN=4,0\r\nAT+FUN=1,6\r\n"), "Reverse order string did not match");
-
+        assert_eq!(
+            at_cli.tx.s,
+            String::<consts::U32>::from("AT+CFUN=4,0\r\nAT+FUN=1,6\r\n"),
+            "Reverse order string did not match"
+        );
     }
-
 
     #[test]
     //#[ignore]
     fn countdown() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let c = unsafe {REQ_Q.split().1};
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let c = unsafe { REQ_Q.split().1 };
         let tx_mock = TxMock::new(String::new());
-        let mut at_cli : ATClient<TxMock, CdMock> = ATClient::new(tx_mock, c, Config::new(Mode::Timeout(CdMock{time : 0})));
+        let mut at_cli: ATClient<TxMock, CdMock> =
+            ATClient::new(tx_mock, c, Config::new(Mode::Timeout(CdMock { time: 0 })));
 
         assert_eq!(at_cli.state, ClientState::Idle);
 
-        let cmd = Test2Cmd{fun : Functionality::DM, rst : Some(ResetMode::Reset)};
-        match at_cli.send(&cmd){
-            Err(nb::Error::Other(error)) => {assert_eq!(error, Error::Timeout)},
-            _ => panic!("Panic send error in test.")
+        let cmd = Test2Cmd {
+            fun: Functionality::DM,
+            rst: Some(ResetMode::Reset),
+        };
+        match at_cli.send(&cmd) {
+            Err(nb::Error::Other(error)) => assert_eq!(error, Error::Timeout),
+            _ => panic!("Panic send error in test."),
         }
         //Todo: Test countdown is recived corretly
-        match at_cli.mode{
+        match at_cli.mode {
             Mode::Timeout(cd_mock) => {} // assert_eq!(cd_mock.time, 180000),
-            _ =>    panic!("Wrong AT mode")
+            _ => panic!("Wrong AT mode"),
         }
         assert_eq!(at_cli.state, ClientState::Idle);
-
     }
 
     #[test]
     fn blocking() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe {REQ_Q.split()};
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (mut p, c) = unsafe { REQ_Q.split() };
         let tx_mock = TxMock::new(String::new());
-        let mut at_cli : ATClient<TxMock, CdMock> = ATClient::new(tx_mock, c, Config::new(Mode::Blocking));
+        let mut at_cli: ATClient<TxMock, CdMock> =
+            ATClient::new(tx_mock, c, Config::new(Mode::Blocking));
 
-        let cmd = SetModuleFunctionality{fun : Functionality::APM, rst : Some(ResetMode::DontReset)};
-        
-        let resp : Result<String::<consts::U256>> = Ok(String::<consts::U256>::from(""));
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(""));
         p.enqueue(resp).unwrap();
 
         assert_eq!(at_cli.state, ClientState::Idle);
 
-        match at_cli.send(&cmd){
+        match at_cli.send(&cmd) {
             Ok(response) => {
                 assert_eq!(response, NoResonse);
-            },
-            _ => panic!("Panic send error in test.")
+            }
+            _ => panic!("Panic send error in test."),
         }
         assert_eq!(at_cli.state, ClientState::Idle);
         assert_eq!(at_cli.tx.s, String::<consts::U32>::from("AT+CFUN=4,0\r\n"));
@@ -353,156 +377,204 @@ mod test {
 
     #[test]
     fn non_blocking() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe {REQ_Q.split()};
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (mut p, c) = unsafe { REQ_Q.split() };
         let tx_mock = TxMock::new(String::new());
-        let mut at_cli : ATClient<TxMock, CdMock> = ATClient::new(tx_mock, c, Config::new(Mode::NonBlocking));
+        let mut at_cli: ATClient<TxMock, CdMock> =
+            ATClient::new(tx_mock, c, Config::new(Mode::NonBlocking));
 
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
 
-        let cmd = SetModuleFunctionality{fun : Functionality::APM, rst : Some(ResetMode::DontReset)};
-        
         assert_eq!(at_cli.state, ClientState::Idle);
 
-        match at_cli.send(&cmd){
+        match at_cli.send(&cmd) {
             Err(error) => assert_eq!(error, nb::Error::WouldBlock),
             _ => panic!("Panic send error in test"),
         }
 
         assert_eq!(at_cli.state, ClientState::AwaitingResponse);
 
-        match at_cli.check_response(&cmd){
+        match at_cli.check_response(&cmd) {
             Err(error) => assert_eq!(error, nb::Error::WouldBlock),
             _ => panic!("Send error in test"),
         }
 
-        let resp : Result<String::<consts::U256>> = Ok(String::<consts::U256>::from(""));
+        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(""));
         p.enqueue(resp).unwrap();
 
         assert_eq!(at_cli.state, ClientState::AwaitingResponse);
 
-        match at_cli.check_response(&cmd){
+        match at_cli.check_response(&cmd) {
             Ok(Some(response)) => {
                 assert_eq!(response, NoResonse);
-            },
-            _ => panic!("Panic send error in test.")
+            }
+            _ => panic!("Panic send error in test."),
         }
         assert_eq!(at_cli.state, ClientState::Idle);
-        
     }
-
 
     //Testing unsupported frature in form of vec deserialization
     #[test]
     #[ignore]
     fn response_vec() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe {REQ_Q.split()};
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (mut p, c) = unsafe { REQ_Q.split() };
         let tx_mock = TxMock::new(String::new());
-        let mut at_cli : ATClient<TxMock, CdMock> = ATClient::new(tx_mock, c, Config::new(Mode::Blocking));
+        let mut at_cli: ATClient<TxMock, CdMock> =
+            ATClient::new(tx_mock, c, Config::new(Mode::Blocking));
 
+        let cmd = TestRespVecCmd {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
 
-        let cmd = TestRespVecCmd{fun : Functionality::APM, rst : Some(ResetMode::DontReset)};
-        
-        let resp : Result<String::<consts::U256>> = Ok(String::<consts::U256>::from("+CUN: 22,16,\"0123456789012345\""));
+        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(
+            "+CUN: 22,16,\"0123456789012345\"",
+        ));
         p.enqueue(resp).unwrap();
 
-        let res_vec: Vec<u8, consts::U256> = "0123456789012345".as_bytes().iter().cloned().collect();
+        let res_vec: Vec<u8, consts::U256> =
+            "0123456789012345".as_bytes().iter().cloned().collect();
 
         assert_eq!(at_cli.state, ClientState::Idle);
 
-        match at_cli.send(&cmd){
+        match at_cli.send(&cmd) {
             Ok(response) => {
-                assert_eq!(response, TestResponseVec{socket : 22, length : 16, data : res_vec});
-            },
-            Err(error) => panic!("Panic send error in test: {:?}", error)
+                assert_eq!(
+                    response,
+                    TestResponseVec {
+                        socket: 22,
+                        length: 16,
+                        data: res_vec
+                    }
+                );
+            }
+            Err(error) => panic!("Panic send error in test: {:?}", error),
         }
         assert_eq!(at_cli.state, ClientState::Idle);
-
 
         assert_eq!(at_cli.tx.s, String::<consts::U32>::from("AT+CFUN=4,0\r\n"));
     }
     //Test response containing string
     #[test]
     fn response_string() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe {REQ_Q.split()};
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (mut p, c) = unsafe { REQ_Q.split() };
         let tx_mock = TxMock::new(String::new());
-        let mut at_cli : ATClient<TxMock, CdMock> = ATClient::new(tx_mock, c, Config::new(Mode::Blocking));
+        let mut at_cli: ATClient<TxMock, CdMock> =
+            ATClient::new(tx_mock, c, Config::new(Mode::Blocking));
 
         //String last
-        let cmd = TestRespStringCmd{fun : Functionality::APM, rst : Some(ResetMode::DontReset)};
-        
-        let resp : Result<String::<consts::U256>> = Ok(String::<consts::U256>::from("+CUN: 22,16,\"0123456789012345\""));
+        let cmd = TestRespStringCmd {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(
+            "+CUN: 22,16,\"0123456789012345\"",
+        ));
         p.enqueue(resp).unwrap();
 
         assert_eq!(at_cli.state, ClientState::Idle);
 
-        match at_cli.send(&cmd){
+        match at_cli.send(&cmd) {
             Ok(response) => {
-                assert_eq!(response, TestResponseString{socket : 22, length : 16, data : String::<consts::U64>::from("0123456789012345")});
-            },
-            Err(error) => panic!("Panic send error in test: {:?}", error)
+                assert_eq!(
+                    response,
+                    TestResponseString {
+                        socket: 22,
+                        length: 16,
+                        data: String::<consts::U64>::from("0123456789012345")
+                    }
+                );
+            }
+            Err(error) => panic!("Panic send error in test: {:?}", error),
         }
         assert_eq!(at_cli.state, ClientState::Idle);
 
-
         //Mixed order for string
-        let cmd = TestRespStringMixCmd{fun : Functionality::APM, rst : Some(ResetMode::DontReset)};
-        
-        let resp : Result<String::<consts::U256>> = Ok(String::<consts::U256>::from("+CUN: \"0123456789012345\",22,16"));
+        let cmd = TestRespStringMixCmd {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(
+            "+CUN: \"0123456789012345\",22,16",
+        ));
         p.enqueue(resp).unwrap();
 
-        match at_cli.send(&cmd){
+        match at_cli.send(&cmd) {
             Ok(response) => {
-                assert_eq!(response, TestResponseStringMixed{socket : 22, length : 16, data : String::<consts::U64>::from("0123456789012345")});
-            },
-            Err(error) => panic!("Panic send error in test: {:?}", error)
+                assert_eq!(
+                    response,
+                    TestResponseStringMixed {
+                        socket: 22,
+                        length: 16,
+                        data: String::<consts::U64>::from("0123456789012345")
+                    }
+                );
+            }
+            Err(error) => panic!("Panic send error in test: {:?}", error),
         }
         assert_eq!(at_cli.state, ClientState::Idle);
     }
 
     #[test]
     fn urc() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe {REQ_Q.split()};
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (mut p, c) = unsafe { REQ_Q.split() };
         let tx_mock = TxMock::new(String::new());
-        let mut at_cli : ATClient<TxMock, CdMock> = ATClient::new(tx_mock, c, Config::new(Mode::NonBlocking));
+        let mut at_cli: ATClient<TxMock, CdMock> =
+            ATClient::new(tx_mock, c, Config::new(Mode::NonBlocking));
 
-        let cmd = SetModuleFunctionality{fun : Functionality::APM, rst : Some(ResetMode::DontReset)};
-        let resp : Result<String::<consts::U256>> = Ok(String::<consts::U256>::from(""));
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(""));
         p.enqueue(resp).unwrap();
 
         assert_eq!(at_cli.state, ClientState::Idle);
 
-        match at_cli.check_response(&cmd){
-            Ok(None) => {},
+        match at_cli.check_response(&cmd) {
+            Ok(None) => {}
             _ => panic!("Send error in test"),
         }
 
         assert_eq!(at_cli.state, ClientState::Idle);
-                
     }
 
     #[test]
-    fn invalid_response(){
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe {REQ_Q.split()};
+    fn invalid_response() {
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (mut p, c) = unsafe { REQ_Q.split() };
         let tx_mock = TxMock::new(String::new());
-        let mut at_cli : ATClient<TxMock, CdMock> = ATClient::new(tx_mock, c, Config::new(Mode::Blocking));
+        let mut at_cli: ATClient<TxMock, CdMock> =
+            ATClient::new(tx_mock, c, Config::new(Mode::Blocking));
 
         //String last
-        let cmd = TestRespStringCmd{fun : Functionality::APM, rst : Some(ResetMode::DontReset)};
-        
-        let resp : Result<String::<consts::U256>> = Ok(String::<consts::U256>::from("+CUN: 22,16,22"));
+        let cmd = TestRespStringCmd {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from("+CUN: 22,16,22"));
         p.enqueue(resp).unwrap();
 
         assert_eq!(at_cli.state, ClientState::Idle);
 
-        match at_cli.send(&cmd){
+        match at_cli.send(&cmd) {
             Err(error) => assert_eq!(error, nb::Error::Other(Error::InvalidResponse)),
-            _ => panic!("Panic send error in test")
+            _ => panic!("Panic send error in test"),
         }
         assert_eq!(at_cli.state, ClientState::Idle);
-
     }
 }

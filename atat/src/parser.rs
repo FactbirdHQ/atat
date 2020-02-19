@@ -131,37 +131,37 @@ where
     }
 }
 
-
 #[cfg(test)]
 #[cfg_attr(tarpaulin, skip)]
 mod test {
     use super::*;
-    use nb;
-    use void::Void;
-    use heapless::{consts, spsc::Queue, String};
     use crate as atat;
     use atat::Mode;
+    use heapless::{consts, spsc::Queue, String};
+    use nb;
+    use void::Void;
 
-    struct CdMock{
-        time : u32,
+    struct CdMock {
+        time: u32,
     }
 
-    impl CountDown for CdMock{
+    impl CountDown for CdMock {
         type Time = u32;
-        fn start<T>(&mut self, count : T)
-        where T: Into<Self::Time> {
+        fn start<T>(&mut self, count: T)
+        where
+            T: Into<Self::Time>,
+        {
             self.time = count.into();
         }
-        fn wait(&mut self) -> nb::Result<(), Void>{
+        fn wait(&mut self) -> nb::Result<(), Void> {
             Ok(())
         }
     }
 
-
     struct RxMock {
         cnt: usize,
         s: String<consts::U512>,
-        cleared : bool
+        cleared: bool,
     }
 
     impl RxMock {
@@ -178,13 +178,12 @@ mod test {
         type Error = ();
 
         fn read(&mut self) -> nb::Result<u8, Self::Error> {
-
             if self.cleared {
-                if self.cnt >= self.s.len(){
+                if self.cnt >= self.s.len() {
                     Err(nb::Error::Other(()))
                 } else {
                     let r = Ok(self.s.clone().into_bytes()[self.cnt]);
-                    self.cnt+= 1;
+                    self.cnt += 1;
                     r
                 }
             } else {
@@ -192,17 +191,16 @@ mod test {
                 println!("Cleared");
                 Err(nb::Error::Other(()))
             }
-            
         }
     }
 
-
     #[test]
     fn no_response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (p, mut c) = unsafe {REQ_Q.split()};
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, mut c) = unsafe { REQ_Q.split() };
         let rx_mock = RxMock::new(String::from("AT+USORD=3,16\r\nOK\r\n"));
-        let conf = Config::new(Mode::Timeout(CdMock{time : 0}));
+        let conf = Config::new(Mode::Timeout(CdMock { time: 0 }));
         let mut at_pars: ATParser<RxMock, consts::U256> = ATParser::new(rx_mock, p, &conf);
 
         assert_eq!(at_pars.state, State::Idle);
@@ -230,10 +228,13 @@ mod test {
 
     #[test]
     fn response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (p, mut c) = unsafe {REQ_Q.split()};
-        let rx_mock = RxMock::new(String::from("AT+USORD=3,16\r\n+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n"));
-        let conf = Config::new(Mode::Timeout(CdMock{time : 0}));
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, mut c) = unsafe { REQ_Q.split() };
+        let rx_mock = RxMock::new(String::from(
+            "AT+USORD=3,16\r\n+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n",
+        ));
+        let conf = Config::new(Mode::Timeout(CdMock { time: 0 }));
         let mut at_pars: ATParser<RxMock, consts::U256> = ATParser::new(rx_mock, p, &conf);
 
         assert_eq!(at_pars.state, State::Idle);
@@ -241,7 +242,7 @@ mod test {
             at_pars.handle_irq();
         }
         assert_eq!(at_pars.state, State::ReceivingResponse);
-        
+
         for _ in 0.."+USORD: 3,16,\"16 bytes of data\"\r\n".len() {
             at_pars.handle_irq();
         }
@@ -255,7 +256,10 @@ mod test {
         if let Some(result) = c.dequeue() {
             match result {
                 Ok(resp) => {
-                    assert_eq!(resp, String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\""));
+                    assert_eq!(
+                        resp,
+                        String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"")
+                    );
                 }
                 Err(e) => panic!("Dequeue Some error: {:?}", e),
             };
@@ -266,14 +270,15 @@ mod test {
 
     #[test]
     fn ucr() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (p, _c) = unsafe {REQ_Q.split()};
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, _c) = unsafe { REQ_Q.split() };
         let rx_mock = RxMock::new(String::from("+UUSORD: 3,16,\"16 bytes of data\"\r\nOK\r\n"));
-        let conf = Config::new(Mode::Timeout(CdMock{time : 0}));
+        let conf = Config::new(Mode::Timeout(CdMock { time: 0 }));
         let mut at_pars: ATParser<RxMock, consts::U256> = ATParser::new(rx_mock, p, &conf);
 
         assert_eq!(at_pars.state, State::Idle);
-        
+
         for _ in 0.."+UUSORD: 3,16,\"16 bytes of data\"\r\n".len() {
             at_pars.handle_irq();
         }
@@ -283,14 +288,13 @@ mod test {
         }
         assert_eq!(at_pars.rx_buf.buffer, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
-
-        
     }
 
     #[test]
-    fn overflow(){
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (p, mut c) = unsafe {REQ_Q.split()};
+    fn overflow() {
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, mut c) = unsafe { REQ_Q.split() };
         let mut t = String::<consts::U512>::new();
 
         for _ in 0..266 {
@@ -298,13 +302,13 @@ mod test {
         }
 
         let rx_mock = RxMock::new(t);
-        let conf = Config::new(Mode::Timeout(CdMock{time : 0}));
+        let conf = Config::new(Mode::Timeout(CdMock { time: 0 }));
         let mut at_pars: ATParser<RxMock, consts::U256> = ATParser::new(rx_mock, p, &conf);
 
-        for _ in 0..266{
+        for _ in 0..266 {
             at_pars.handle_irq();
         }
-        
+
         if let Some(result) = c.dequeue() {
             match result {
                 Err(e) => assert_eq!(e, Error::Overflow),
@@ -319,31 +323,33 @@ mod test {
 
     #[test]
     fn read_error() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (p, _c) = unsafe {REQ_Q.split()};
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, _c) = unsafe { REQ_Q.split() };
         let rx_mock = RxMock::new(String::from("OK\r\n"));
-        let conf = Config::new(Mode::Timeout(CdMock{time : 0}));
+        let conf = Config::new(Mode::Timeout(CdMock { time: 0 }));
         let mut at_pars: ATParser<RxMock, consts::U256> = ATParser::new(rx_mock, p, &conf);
 
         assert_eq!(at_pars.state, State::Idle);
-        
+
         assert_eq!(at_pars.rx_buf.buffer, String::<consts::U256>::from(""));
-        for _ in 0.."OK\r\n".len()+1 {
+        for _ in 0.."OK\r\n".len() + 1 {
             at_pars.handle_irq();
         }
 
         at_pars.rx.s.push('s').ok();
         assert_eq!(at_pars.state, State::Idle);
-
-        
     }
 
     #[test]
     fn error_response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> = Queue(heapless::i::Queue::u8());
-        let (p, mut c) = unsafe {REQ_Q.split()};
-        let rx_mock = RxMock::new(String::from("AT+USORD=3,16\r\n+USORD: 3,16,\"16 bytes of data\"\r\nERROR\r\n"));
-        let conf = Config::new(Mode::Timeout(CdMock{time : 0}));
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, mut c) = unsafe { REQ_Q.split() };
+        let rx_mock = RxMock::new(String::from(
+            "AT+USORD=3,16\r\n+USORD: 3,16,\"16 bytes of data\"\r\nERROR\r\n",
+        ));
+        let conf = Config::new(Mode::Timeout(CdMock { time: 0 }));
         let mut at_pars: ATParser<RxMock, consts::U256> = ATParser::new(rx_mock, p, &conf);
 
         assert_eq!(at_pars.state, State::Idle);
@@ -351,7 +357,7 @@ mod test {
             at_pars.handle_irq();
         }
         assert_eq!(at_pars.state, State::ReceivingResponse);
-        
+
         for _ in 0.."+USORD: 3,16,\"16 bytes of data\"\r\n".len() {
             at_pars.handle_irq();
         }
@@ -375,5 +381,3 @@ mod test {
         }
     }
 }
-
-
