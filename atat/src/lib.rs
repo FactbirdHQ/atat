@@ -87,10 +87,8 @@ where
 }
 
 type ResQueue = Queue<Result<String<consts::U256>, error::Error>, consts::U10, u8>;
-type ClientParser<Rx, Tx, T, RxBufferLen> = (
-    client::ATClient<Tx, T>,
-    parser::ATParser<Rx, RxBufferLen>,
-);
+type ClientParser<Rx, Tx, T, RxBufferLen> =
+    (client::ATClient<Tx, T>, parser::ATParser<Rx, RxBufferLen>);
 
 pub fn new<Rx, Tx, RxBufferLen, T>(
     queue: &'static mut ResQueue,
