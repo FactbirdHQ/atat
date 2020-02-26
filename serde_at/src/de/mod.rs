@@ -272,8 +272,6 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         let peek = self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
-        //println!("deserialize_bool {:?}", peek);
-
         match peek {
             b't' => {
                 self.eat_char();
@@ -317,6 +315,13 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         deserialize_signed!(self, visitor, i64, visit_i64)
     }
 
+    fn deserialize_i128<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        deserialize_signed!(self, visitor, i128, visit_i128)
+    }
+
     fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -343,6 +348,13 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         deserialize_unsigned!(self, visitor, u64, visit_u64)
+    }
+
+    fn deserialize_u128<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        deserialize_unsigned!(self, visitor, u128, visit_u128)
     }
 
     fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value>
@@ -431,12 +443,11 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         unreachable!()
     }
 
-    /// Unsupported. We can’t parse newtypes because we don’t know the underlying type.
-    fn deserialize_newtype_struct<V>(self, _name: &'static str, _visitor: V) -> Result<V::Value>
+    fn deserialize_newtype_struct<V>(self, _name: &'static str, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        unreachable!()
+        visitor.visit_newtype_struct(self)
     }
 
     fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value>
@@ -626,6 +637,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use heapless::{consts, String, Vec};
     use serde_derive::Deserialize;
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -635,8 +647,26 @@ mod tests {
         p3: bool,
     }
 
+    #[derive(Clone, Debug, Deserialize, PartialEq)]
+    pub struct CCID {
+        pub ccid: u128,
+    }
+
+    #[derive(Clone, Debug, Deserialize, PartialEq)]
+    pub struct StringTest {
+        pub string: String<consts::U32>,
+    }
+
+    #[derive(Clone, Debug, Deserialize, PartialEq)]
+    pub struct VectorTest {
+        pub vector: Vec<u8, consts::U32>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Deserialize)]
+    struct Handle(pub usize);
+
     #[test]
-    fn array() {
+    fn simple_struct() {
         assert_eq!(
             crate::from_str("+CFG: 2,56,false"),
             Ok(CFG {
@@ -645,5 +675,29 @@ mod tests {
                 p3: false
             })
         );
+    }
+    #[test]
+    fn simple_string() {
+        assert_eq!(
+            crate::from_str("+CCID: \"89883030000005421166\""),
+            Ok(StringTest {
+                string: String::from("89883030000005421166")
+            })
+        );
+    }
+    #[test]
+    #[ignore]
+    fn simple_vec() {
+        let v: Vec<u8, consts::U32> = "89883030000005421166".as_bytes().iter().cloned().collect();
+
+        assert_eq!(
+            crate::from_str("+CCID: \"89883030000005421166\""),
+            Ok(VectorTest { vector: v })
+        );
+    }
+
+    #[test]
+    fn newtype_struct() {
+        assert_eq!(crate::from_str("+CCID: 15"), Ok(Handle(15)));
     }
 }
