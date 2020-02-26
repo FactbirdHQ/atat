@@ -179,9 +179,7 @@ mod test {
         //     Ok(())
         // }
 
-        fn delay(&mut self, _d: Duration) {
-
-        }
+        fn delay(&mut self, _d: Duration) {}
 
         fn get_current(&mut self) -> Self::U {
             self.time
@@ -330,11 +328,10 @@ mod test {
         pub code: u8,
     }
 
-
     #[derive(Clone, ATATUrc)]
     pub enum Urc {
         #[at_urc("+UMWI")]
-        MessageWaitingIndication(MessageWaitingIndication)
+        MessageWaitingIndication(MessageWaitingIndication),
     }
 
     #[test]
@@ -655,7 +652,9 @@ mod test {
         let mut client: ATClient<TxMock, CdMock> =
             ATClient::new(tx_mock, c, urc_c, timer, Config::new(Mode::NonBlocking));
 
-        urc_p.enqueue(String::<consts::U64>::from("+UMWI: 0, 1")).unwrap();
+        urc_p
+            .enqueue(String::<consts::U64>::from("+UMWI: 0, 1"))
+            .unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
 
