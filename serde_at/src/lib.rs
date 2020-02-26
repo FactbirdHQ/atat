@@ -7,6 +7,8 @@
 pub mod de;
 pub mod ser;
 
+pub use serde;
+
 #[doc(inline)]
 pub use self::de::{from_slice, from_str};
 #[doc(inline)]

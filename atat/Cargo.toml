@@ -14,15 +14,19 @@ documentation = "https://docs.rs/atat"
 [lib]
 name = "atat"
 
+[badges]
+maintenance = { status = "actively-developed" }
+
 [dependencies]
-embedded-hal = { version = "0.2.3" }
+embedded-hal = "0.2.3"
 heapless = "0.5.3"
-nb = { version = "0.1.2" }
+nb = "0.1.2"
 ufmt = "0.1.0"
 # dynstack = { version = "0.3.0", default-features = false }
 atat_derive = { path = "../atat_derive", optional = true }
 # atat_derive = { version = "^0.1.6", optional = true }
 log = { version = "0.4", default-features = false }
+ticklock = "0.0.8"
 
 [dev-dependencies]
 cortex-m = "0.6.2"

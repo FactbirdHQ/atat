@@ -1,7 +1,15 @@
 use crate::error::{NBResult, Result};
 use heapless::{ArrayLength, String};
 
+pub trait ATATErr {}
+
 pub trait ATATResp {}
+
+pub trait ATATUrc {
+    type Resp;
+
+    fn parse(resp: &str) -> Result<Self::Resp>;
+}
 
 pub trait ATATCmd {
     type Response: ATATResp;
@@ -23,5 +31,7 @@ pub trait ATATCmd {
 pub trait ATATInterface {
     fn send<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response>;
 
-    fn check_response<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<Option<A::Response>>;
+    fn check_urc<URC: ATATUrc>(&mut self) -> Option<URC::Resp>;
+
+    fn check_response<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response>;
 }

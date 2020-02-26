@@ -11,7 +11,7 @@ name = "serde_at"
 version = "0.1.8-alpha.0"
 
 [dependencies]
-heapless = "0.5.3"
+heapless = { version = "0.5.3", features = ["serde"] }
 log = "0.4.8"
 
 [dependencies.serde]

@@ -213,8 +213,9 @@ where
         Ok(())
     }
 
-    fn serialize_bytes(self, _v: &[u8]) -> Result<Self::Ok> {
-        unreachable!()
+    fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok> {
+        self.buf.extend_from_slice(v)?;
+        Ok(())
     }
 
     fn serialize_none(self) -> Result<Self::Ok> {
@@ -236,44 +237,43 @@ where
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok> {
         self.buf.extend_from_slice(b"AT")?;
         self.buf.extend_from_slice(&self.cmd.as_bytes())?;
-        self.buf.extend_from_slice(b"\r\n")?;
+        self.buf.push(b'\r')?;
         Ok(())
     }
 
     fn serialize_unit_variant(
         self,
         _name: &'static str,
-        _variant_index: u32,
-        variant: &'static str,
+        variant_index: u32,
+        _variant: &'static str,
     ) -> Result<Self::Ok> {
-        self.serialize_str(variant)
+        self.serialize_u32(variant_index)
     }
 
-    fn serialize_newtype_struct<T: ?Sized>(
-        self,
-        _name: &'static str,
-        _value: &T,
-    ) -> Result<Self::Ok>
+    fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, value: &T) -> Result<Self::Ok>
     where
         T: ser::Serialize,
     {
-        unreachable!()
+        value.serialize(self)
     }
 
     fn serialize_newtype_variant<T: ?Sized>(
         self,
         _name: &'static str,
-        _variant_index: u32,
+        variant_index: u32,
         _variant: &'static str,
-        _value: &T,
+        value: &T,
     ) -> Result<Self::Ok>
     where
         T: ser::Serialize,
     {
-        unreachable!()
+        self.serialize_u32(variant_index)?;
+        self.buf.push(b',')?;
+        value.serialize(self)
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
+        log::info!("Seq\r");
         unreachable!()
     }
 
@@ -444,5 +444,54 @@ impl ser::SerializeTuple for Unreachable {
 
     fn end(self) -> Result<Self::Ok> {
         unreachable!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use heapless::{consts, String};
+    use serde_derive::{Deserialize, Serialize};
+
+    #[derive(Clone, PartialEq, Serialize, Deserialize)]
+    pub enum PacketSwitchedParam {
+        /// • 0: Protocol type; the allowed values of <param_val> parameter are
+        // #[at_enum(0)]
+        ProtocolType(bool),
+        /// • 1: APN - <param_val> defines the APN text string, e.g. "apn.provider.com"; the
+        /// maximum length is 99. The factory-programmed value is an empty string.
+        APN(String<consts::U128>),
+        /// • 2: username - <param_val> is the user name text string for the authentication
+        /// phase. The factory-programmed value is an empty string.
+        Username(String<consts::U128>),
+        /// • 3: password - <param_val> is the password text string for the authentication phase.
+        /// Note: the AT+UPSD read command with param_tag = 3 is not allowed and the read
+        /// all command does not display it
+        Password(String<consts::U128>),
+
+        QoSDelay3G(u32),
+        CurrentProfileMap(u8),
+    }
+
+    #[derive(Clone, PartialEq, Serialize, Deserialize)]
+    struct Handle(pub usize);
+
+    #[test]
+    fn tuple_struct() {
+        let s: String<consts::U32> = to_string(
+            &PacketSwitchedParam::QoSDelay3G(15),
+            String::<consts::U32>::from(""),
+        )
+        .unwrap();
+
+        assert_eq!(s, String::<consts::U32>::from("4,15"));
+    }
+
+    #[test]
+    fn newtype_struct() {
+        let s: String<consts::U32> =
+            to_string(&Handle(15), String::<consts::U32>::from("")).unwrap();
+
+        assert_eq!(s, String::<consts::U32>::from("15"));
     }
 }
