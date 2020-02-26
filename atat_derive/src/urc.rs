@@ -78,7 +78,7 @@ fn generate_urc_output(
         impl #impl_generics atat::ATATUrc for #name #ty_generics #where_clause {
             type Resp = #name;
 
-            fn parse(resp: &str) -> Result<Self::Resp, atat::Error> {
+            fn parse(resp: &str) -> ::core::result::Result<Self::Resp, atat::Error> {
                 if let Some(cmd) = resp.splitn(2, ':').next() {
                     Ok(match cmd {
                         #(
