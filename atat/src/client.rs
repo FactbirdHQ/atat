@@ -34,13 +34,7 @@ where
     T: CountDown,
     T::Time: From<u32>,
 {
-    pub fn new(
-        tx: Tx,
-        res_c: ResConsumer,
-        urc_c: UrcConsumer,
-        timer: T,
-        config: Config,
-    ) -> Self {
+    pub fn new(tx: Tx, res_c: ResConsumer, urc_c: UrcConsumer, timer: T, config: Config) -> Self {
         Self {
             tx,
             res_c,
@@ -62,7 +56,7 @@ where
         if let ClientState::Idle = self.state {
             // compare the time of the last response or URC and ensure
             // at least `self.config.cmd_cooldown` ms have passed before sending a new command
-            while self.timer.wait().is_err() {};
+            while self.timer.wait().is_err() {}
             for c in cmd.as_str().as_bytes() {
                 block!(self.tx.write(*c)).ok();
             }
@@ -632,7 +626,9 @@ mod test {
         assert_eq!(client.state, ClientState::Idle);
 
         #[cfg(feature = "error-message")]
-        let expectation = nb::Error::Other(Error::InvalidResponseWithMessage(String::from("+CUN: 22,16,22")));
+        let expectation = nb::Error::Other(Error::InvalidResponseWithMessage(String::from(
+            "+CUN: 22,16,22",
+        )));
         #[cfg(not(feature = "error-message"))]
         let expectation = nb::Error::Other(Error::InvalidResponse);
 

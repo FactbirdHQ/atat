@@ -37,7 +37,7 @@ struct AtCmdAttr {
     resp: Ident,
     timeout_ms: Option<u32>,
     abortable: Option<bool>,
-    value_sep: bool
+    value_sep: bool,
 }
 
 fn get_cmd_response(attrs: &[Attribute]) -> Result<AtCmdAttr> {
@@ -58,11 +58,10 @@ fn get_cmd_response(attrs: &[Attribute]) -> Result<AtCmdAttr> {
         };
         // println!("{:?}", attr.tokens);
         let value_sep = match get_name_ident_lit(&attr.tokens, "value_sep") {
-            Ok(lit) => {
-                match lit.parse::<bool>() {
+            Ok(lit) => match lit.parse::<bool>() {
                 Ok(c) => c,
                 _ => true,
-            }},
+            },
             Err(_) => true,
         };
         Ok(AtCmdAttr {
@@ -70,7 +69,7 @@ fn get_cmd_response(attrs: &[Attribute]) -> Result<AtCmdAttr> {
             resp: get_ident(&attr.tokens)?,
             timeout_ms,
             abortable,
-            value_sep
+            value_sep,
         })
     } else {
         panic!("Failed to find non-optional at_cmd attribute!",)

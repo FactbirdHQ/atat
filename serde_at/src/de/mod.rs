@@ -143,9 +143,9 @@ impl<'a> Deserializer<'a> {
                     if (c as char).is_alphanumeric() {
                         self.eat_char()
                     } else {
-                        return Err(Error::EofWhileParsingString)
+                        return Err(Error::EofWhileParsingString);
                     }
-                },
+                }
                 None => {
                     let end = self.index;
                     return Ok(&self.slice[start..end]);

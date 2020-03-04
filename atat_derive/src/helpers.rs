@@ -36,7 +36,7 @@ pub fn get_name_ident_lit(tokens: &proc_macro2::TokenStream, needle: &str) -> Re
                 if i.to_string() == needle {
                     found = true;
                 } else if found {
-                    return Ok(i.to_string())
+                    return Ok(i.to_string());
                 }
             }
             TokenTree::Literal(lit) => {
@@ -77,8 +77,7 @@ pub fn get_field_names(fields: Option<&FieldsNamed>) -> (Vec<Ident>, Vec<Type>, 
                                 field.attrs.iter().find(|attr| attr.path.is_ident("at_arg"))
                             {
                                 match syn::parse_str::<syn::Lit>(
-                                    &get_name_ident_lit(&attr.tokens, "position")
-                                        .unwrap(),
+                                    &get_name_ident_lit(&attr.tokens, "position").unwrap(),
                                 )
                                 .unwrap()
                                 {
@@ -101,8 +100,7 @@ pub fn get_field_names(fields: Option<&FieldsNamed>) -> (Vec<Ident>, Vec<Type>, 
                                 field.attrs.iter().find(|attr| attr.path.is_ident("at_arg"))
                             {
                                 match syn::parse_str::<syn::Lit>(
-                                    &get_name_ident_lit(&attr.tokens, "position")
-                                        .unwrap(),
+                                    &get_name_ident_lit(&attr.tokens, "position").unwrap(),
                                 )
                                 .unwrap()
                                 {

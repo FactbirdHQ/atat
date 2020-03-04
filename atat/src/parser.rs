@@ -384,7 +384,9 @@ mod test {
         assert_eq!(at_pars.state, State::Idle);
 
         #[cfg(feature = "error-message")]
-        let expectation = Error::InvalidResponseWithMessage(String::from("+USORD: 3,16,\"16 bytes of data\"\r\nERROR\r\n"));
+        let expectation = Error::InvalidResponseWithMessage(String::from(
+            "+USORD: 3,16,\"16 bytes of data\"\r\nERROR\r\n",
+        ));
         #[cfg(not(feature = "error-message"))]
         let expectation = Error::InvalidResponse;
 
