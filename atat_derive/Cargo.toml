@@ -21,3 +21,7 @@ serde_at = { path = "../serde_at" }
 
 [lib]
 proc-macro = true
+
+[features]
+default = ["error-message"]
+error-message = []

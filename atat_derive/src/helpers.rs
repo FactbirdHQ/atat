@@ -28,19 +28,23 @@ pub fn get_ident(tokens: &proc_macro2::TokenStream) -> Result<Ident> {
     Err(Error::new(tokens.span(), "Cannot find ident type!"))
 }
 
-pub fn get_name_ident_lit(tokens: &proc_macro2::TokenStream, needle: &str) -> Result<Literal> {
+pub fn get_name_ident_lit(tokens: &proc_macro2::TokenStream, needle: &str) -> Result<String> {
     let mut found = false;
     for l in stream_from_tokens(tokens) {
         match l {
             TokenTree::Ident(i) => {
                 if i.to_string() == needle {
                     found = true;
+                } else if found {
+                    return Ok(i.to_string())
                 }
             }
             TokenTree::Literal(lit) => {
                 if found {
-                    return Ok(lit);
+                    // println!("found ident: [{:?}] {:?}", needle, lit.to_string());
+                    return Ok(lit.to_string());
                 } else {
+                    // println!("found ident: [{:?}] {:?}", needle, lit.to_string());
                     found = false;
                 }
             }
@@ -74,8 +78,7 @@ pub fn get_field_names(fields: Option<&FieldsNamed>) -> (Vec<Ident>, Vec<Type>, 
                             {
                                 match syn::parse_str::<syn::Lit>(
                                     &get_name_ident_lit(&attr.tokens, "position")
-                                        .unwrap()
-                                        .to_string(),
+                                        .unwrap(),
                                 )
                                 .unwrap()
                                 {
@@ -99,8 +102,7 @@ pub fn get_field_names(fields: Option<&FieldsNamed>) -> (Vec<Ident>, Vec<Type>, 
                             {
                                 match syn::parse_str::<syn::Lit>(
                                     &get_name_ident_lit(&attr.tokens, "position")
-                                        .unwrap()
-                                        .to_string(),
+                                        .unwrap(),
                                 )
                                 .unwrap()
                                 {

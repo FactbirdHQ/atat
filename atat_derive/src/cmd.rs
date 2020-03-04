@@ -37,29 +37,40 @@ struct AtCmdAttr {
     resp: Ident,
     timeout_ms: Option<u32>,
     abortable: Option<bool>,
+    value_sep: bool
 }
 
 fn get_cmd_response(attrs: &[Attribute]) -> Result<AtCmdAttr> {
     if let Some(attr) = attrs.iter().find(|attr| attr.path.is_ident("at_cmd")) {
         let timeout_ms = match get_name_ident_lit(&attr.tokens, "timeout_ms") {
-            Ok(lit) => match lit.to_string().parse::<u32>() {
+            Ok(lit) => match lit.parse::<u32>() {
                 Ok(t) => Some(t),
                 _ => None,
             },
             Err(_) => None,
         };
         let abortable = match get_name_ident_lit(&attr.tokens, "abortable") {
-            Ok(lit) => match lit.to_string().parse::<bool>() {
+            Ok(lit) => match lit.parse::<bool>() {
                 Ok(t) => Some(t),
                 _ => None,
             },
             Err(_) => None,
+        };
+        // println!("{:?}", attr.tokens);
+        let value_sep = match get_name_ident_lit(&attr.tokens, "value_sep") {
+            Ok(lit) => {
+                match lit.parse::<bool>() {
+                Ok(c) => c,
+                _ => true,
+            }},
+            Err(_) => true,
         };
         Ok(AtCmdAttr {
             cmd: get_lit(&attr.tokens)?,
             resp: get_ident(&attr.tokens)?,
             timeout_ms,
             abortable,
+            value_sep
         })
     } else {
         panic!("Failed to find non-optional at_cmd attribute!",)
@@ -100,6 +111,13 @@ fn generate_cmd_output(
         quote! {}
     };
 
+    let value_sep = &attr.value_sep;
+
+    #[cfg(feature = "error-message")]
+    let invalid_resp_err = quote! { atat::Error::InvalidResponseWithMessage(String::from(resp)) };
+    #[cfg(not(feature = "error-message"))]
+    let invalid_resp_err = quote! { atat::Error::InvalidResponse };
+
     TokenStream::from(quote! {
         #[automatically_derived]
         impl #impl_generics atat::ATATCmd for #name #ty_generics #where_clause {
@@ -108,7 +126,7 @@ fn generate_cmd_output(
 
             fn as_str(&self) -> heapless::String<Self::CommandLen> {
                 let s: heapless::String<Self::CommandLen> = heapless::String::from(#cmd);
-                match serde_at::to_string(self, s) {
+                match serde_at::to_string(self, s, #value_sep) {
                     Ok(s) => s,
                     Err(_) => String::new()
                 }
@@ -116,7 +134,7 @@ fn generate_cmd_output(
 
             fn parse(&self, resp: &str) -> core::result::Result<#response, atat::Error> {
                 serde_at::from_str::<#response>(resp).map_err(|e| {
-                    atat::Error::InvalidResponse
+                    #invalid_resp_err
                 })
             }
 

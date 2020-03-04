@@ -1,12 +1,10 @@
 use heapless::{consts, spsc::Consumer, String};
 
-use embedded_hal::serial;
+use embedded_hal::{serial, timer::CountDown};
 
 use crate::error::{Error, NBResult, Result};
 use crate::traits::{ATATCmd, ATATInterface, ATATUrc};
 use crate::{Config, Mode};
-use core::time::Duration;
-use ticklock::timer::{Timer, TimerInstant};
 
 type ResConsumer = Consumer<'static, Result<String<consts::U256>>, consts::U5, u8>;
 type UrcConsumer = Consumer<'static, String<consts::U64>, consts::U10, u8>;
@@ -20,28 +18,27 @@ enum ClientState {
 pub struct ATClient<Tx, T>
 where
     Tx: serial::Write<u8>,
-    T: Timer,
+    T: CountDown,
 {
     tx: Tx,
     res_c: ResConsumer,
     urc_c: UrcConsumer,
-    time_instant: Option<TimerInstant<T>>,
-    last_comm_time: u32,
     state: ClientState,
-    timer: Option<T>,
+    timer: T,
     config: Config,
 }
 
 impl<Tx, T> ATClient<Tx, T>
 where
     Tx: serial::Write<u8>,
-    T: Timer,
+    T: CountDown,
+    T::Time: From<u32>,
 {
     pub fn new(
         tx: Tx,
         res_c: ResConsumer,
         urc_c: UrcConsumer,
-        mut timer: T,
+        timer: T,
         config: Config,
     ) -> Self {
         Self {
@@ -49,10 +46,8 @@ where
             res_c,
             urc_c,
             state: ClientState::Idle,
-            last_comm_time: timer.get_current().into(),
             config,
-            timer: Some(timer),
-            time_instant: None,
+            timer,
         }
     }
 }
@@ -60,19 +55,14 @@ where
 impl<Tx, T> ATATInterface for ATClient<Tx, T>
 where
     Tx: serial::Write<u8>,
-    T: Timer,
+    T: CountDown,
+    T::Time: From<u32>,
 {
     fn send<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response> {
         if let ClientState::Idle = self.state {
-            if let Some(ref mut timer) = self.timer {
-                let delta: u32 = timer.get_current().into() - self.last_comm_time;
-                if delta < self.config.cmd_cooldown {
-                    timer.delay(Duration::from_millis(u64::from(
-                        self.config.cmd_cooldown - delta,
-                    )));
-                }
-                self.last_comm_time = timer.get_current().into();
-            }
+            // compare the time of the last response or URC and ensure
+            // at least `self.config.cmd_cooldown` ms have passed before sending a new command
+            while self.timer.wait().is_err() {};
             for c in cmd.as_str().as_bytes() {
                 block!(self.tx.write(*c)).ok();
             }
@@ -80,30 +70,19 @@ where
             self.state = ClientState::AwaitingResponse;
         }
 
-        let res = match self.config.mode {
+        match self.config.mode {
             Mode::Blocking => Ok(block!(self.check_response(cmd))?),
             Mode::NonBlocking => self.check_response(cmd),
             Mode::Timeout => {
-                if let Some(timer) = self.timer.take() {
-                    self.time_instant = Some(timer.start());
-                } else {
-                    log::error!("Timer already started!!!");
-                }
+                self.timer.start(cmd.max_timeout_ms());
                 Ok(block!(self.check_response(cmd))?)
             }
-        };
-        if let Some(ref mut timer) = self.timer {
-            self.last_comm_time = timer.get_current().into();
-        };
-
-        res
+        }
     }
 
     fn check_urc<URC: ATATUrc>(&mut self) -> Option<URC::Resp> {
         if let Some(ref resp) = self.urc_c.dequeue() {
-            if let Some(ref mut timer) = self.timer {
-                self.last_comm_time = timer.get_current().into();
-            };
+            self.timer.start(self.config.cmd_cooldown);
             match URC::parse(resp) {
                 Ok(r) => Some(r),
                 Err(_) => None,
@@ -118,9 +97,7 @@ where
             return match result {
                 Ok(ref resp) => {
                     if let ClientState::AwaitingResponse = self.state {
-                        if let Some(ti) = self.time_instant.take() {
-                            self.timer = Some(ti.stop());
-                        };
+                        self.timer.start(self.config.cmd_cooldown);
                         self.state = ClientState::Idle;
                         Ok(cmd.parse(resp).map_err(nb::Error::Other)?)
                     } else {
@@ -130,19 +107,7 @@ where
                 Err(e) => Err(nb::Error::Other(e)),
             };
         } else if let Mode::Timeout = self.config.mode {
-            let timed_out = if let Some(timer) = self.time_instant.as_mut() {
-                timer
-                    .wait(Duration::from_millis(cmd.max_timeout_ms().into()))
-                    .is_ok()
-            } else {
-                log::error!("TimeInstant already consumed!!");
-                true
-            };
-
-            if timed_out {
-                if let Some(ti) = self.time_instant.take() {
-                    self.timer = Some(ti.stop());
-                }
+            if self.timer.wait().is_ok() {
                 self.state = ClientState::Idle;
                 return Err(nb::Error::Other(Error::Timeout));
             }
@@ -160,49 +125,22 @@ mod test {
     use nb;
     use serde;
     use serde_repr::{Deserialize_repr, Serialize_repr};
-    use ticklock::timer::{Timer, TimerInstant};
+    use void::Void;
 
     struct CdMock {
         time: u32,
     }
 
-    impl Timer for CdMock {
-        type U = u32;
-
-        // fn start<T>(&mut self, count: T)
-        // where
-        //     T: Into<Self::Time>,
-        // {
-        //     self.time = count.into();
-        // }
-        // fn wait(&mut self) -> nb::Result<(), Void> {
-        //     Ok(())
-        // }
-
-        fn delay(&mut self, _d: Duration) {}
-
-        fn get_current(&mut self) -> Self::U {
-            self.time
+    impl CountDown for CdMock {
+        type Time = u32;
+        fn start<T>(&mut self, count: T)
+        where
+            T: Into<Self::Time>,
+        {
+            self.time = count.into();
         }
-
-        fn limit_value(&self) -> Self::U {
-            0
-        }
-
-        fn has_wrapped(&mut self) -> bool {
-            false
-        }
-
-        fn stop(self) -> Self {
-            self
-        }
-
-        fn start(self) -> TimerInstant<Self> {
-            TimerInstant::now(CdMock { time: 0 })
-        }
-
-        fn tick(&mut self) -> Duration {
-            Duration::from_millis(1)
+        fn wait(&mut self) -> nb::Result<(), Void> {
+            Ok(())
         }
     }
 
@@ -514,7 +452,7 @@ mod test {
         assert_eq!(client.state, ClientState::Idle);
     }
 
-    //Testing unsupported frature in form of vec deserialization
+    // Testing unsupported frature in form of vec deserialization
     #[test]
     #[ignore]
     fn response_vec() {
@@ -564,7 +502,7 @@ mod test {
 
         assert_eq!(client.tx.s, String::<consts::U32>::from("AT+CFUN=4,0\r\n"));
     }
-    //Test response containing string
+    // Test response containing string
     #[test]
     fn response_string() {
         static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
@@ -581,7 +519,7 @@ mod test {
         let mut client: ATClient<TxMock, CdMock> =
             ATClient::new(tx_mock, c, urc_c, timer, Config::new(Mode::Blocking));
 
-        //String last
+        // String last
         let cmd = TestRespStringCmd {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
@@ -609,7 +547,7 @@ mod test {
         }
         assert_eq!(client.state, ClientState::Idle);
 
-        //Mixed order for string
+        // Mixed order for string
         let cmd = TestRespStringMixCmd {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
@@ -682,7 +620,7 @@ mod test {
         let mut client: ATClient<TxMock, CdMock> =
             ATClient::new(tx_mock, c, urc_c, timer, Config::new(Mode::Blocking));
 
-        //String last
+        // String last
         let cmd = TestRespStringCmd {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
@@ -693,8 +631,13 @@ mod test {
 
         assert_eq!(client.state, ClientState::Idle);
 
+        #[cfg(feature = "error-message")]
+        let expectation = nb::Error::Other(Error::InvalidResponseWithMessage(String::from("+CUN: 22,16,22")));
+        #[cfg(not(feature = "error-message"))]
+        let expectation = nb::Error::Other(Error::InvalidResponse);
+
         match client.send(&cmd) {
-            Err(error) => assert_eq!(error, nb::Error::Other(Error::InvalidResponse)),
+            Err(error) => assert_eq!(error, expectation),
             _ => panic!("Panic send error in test"),
         }
         assert_eq!(client.state, ClientState::Idle);

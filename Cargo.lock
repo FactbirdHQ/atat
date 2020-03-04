@@ -38,8 +38,8 @@ dependencies = [
  "serde_at",
  "serde_repr",
  "stm32l4xx-hal",
- "ticklock",
  "ufmt",
+ "void",
 ]
 
 [[package]]
@@ -441,17 +441,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "ticklock"
-version = "0.0.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e808ff469d69642b6bb98f9a68373343e19828de545bfd4cbfd42e01113732b5"
-dependencies = [
- "cast",
- "nb",
- "void",
 ]
 
 [[package]]

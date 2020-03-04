@@ -47,6 +47,7 @@ where
 {
     buf: Vec<u8, B>,
     cmd: String<C>,
+    value_sep: bool,
 }
 
 impl<B, C> Serializer<B, C>
@@ -54,10 +55,11 @@ where
     B: heapless::ArrayLength<u8>,
     C: heapless::ArrayLength<u8>,
 {
-    fn new(cmd: String<C>) -> Self {
+    fn new(cmd: String<C>, value_sep: bool) -> Self {
         Serializer {
             buf: Vec::new(),
             cmd,
+            value_sep,
         }
     }
 }
@@ -325,25 +327,25 @@ where
 }
 
 /// Serializes the given data structure as a string
-pub fn to_string<B, C, T>(value: &T, cmd: String<C>) -> Result<String<B>>
+pub fn to_string<B, C, T>(value: &T, cmd: String<C>, value_sep: bool) -> Result<String<B>>
 where
     B: heapless::ArrayLength<u8>,
     C: heapless::ArrayLength<u8>,
     T: ser::Serialize + ?Sized,
 {
-    let mut ser = Serializer::new(cmd);
+    let mut ser = Serializer::new(cmd, value_sep);
     value.serialize(&mut ser)?;
     Ok(unsafe { String::from_utf8_unchecked(ser.buf) })
 }
 
 /// Serializes the given data structure as a byte vector
-pub fn to_vec<B, C, T>(value: &T, cmd: String<C>) -> Result<Vec<u8, B>>
+pub fn to_vec<B, C, T>(value: &T, cmd: String<C>, value_sep: bool) -> Result<Vec<u8, B>>
 where
     B: heapless::ArrayLength<u8>,
     C: heapless::ArrayLength<u8>,
     T: ser::Serialize + ?Sized,
 {
-    let mut ser = Serializer::new(cmd);
+    let mut ser = Serializer::new(cmd, value_sep);
     value.serialize(&mut ser)?;
     Ok(ser.buf)
 }
@@ -474,6 +476,27 @@ mod tests {
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
+    pub enum PinStatusCode {
+        /// • READY: MT is not pending for any password
+        #[serde(rename = "READY")]
+        Ready,
+        /// • SIM PIN: MT is waiting SIM PIN to be given
+        #[serde(rename = "SIM PIN")]
+        SimPin,
+        /// • SIM PUK: MT is waiting SIM PUK to be given
+        /// • SIM PIN2: MT is waiting SIM PIN2 to be given
+        /// • SIM PUK2: MT is waiting SIM PUK2 to be given
+        /// • PH-NET PIN: MT is waiting network personalization password to be given
+        /// • PH-NETSUB PIN: MT is waiting network subset personalization password to be
+        /// given
+        /// • PH-SP PIN: MT is waiting service provider personalization password to be given
+        /// • PH-CORP PIN: MT is waiting corporate personalization password to be given
+        /// • PH-SIM PIN: MT is waiting phone to SIM/UICC card password to be given
+        #[serde(rename = "PH-SIM PIN")]
+        PhSimPin,
+    }
+
+    #[derive(Clone, PartialEq, Serialize, Deserialize)]
     struct Handle(pub usize);
 
     #[test]
@@ -481,6 +504,7 @@ mod tests {
         let s: String<consts::U32> = to_string(
             &PacketSwitchedParam::QoSDelay3G(15),
             String::<consts::U32>::from(""),
+            true,
         )
         .unwrap();
 
@@ -490,7 +514,7 @@ mod tests {
     #[test]
     fn newtype_struct() {
         let s: String<consts::U32> =
-            to_string(&Handle(15), String::<consts::U32>::from("")).unwrap();
+            to_string(&Handle(15), String::<consts::U32>::from(""), true).unwrap();
 
         assert_eq!(s, String::<consts::U32>::from("15"));
     }

@@ -16,10 +16,10 @@ log = "0.4.8"
 
 [dependencies.serde]
 default-features = false
-version = "1.0.104"
+version = "^1"
 
 [dev-dependencies]
-serde_derive = "1.0.104"
+serde_derive = "^1"
 
 [features]
 custom-error-messages = []

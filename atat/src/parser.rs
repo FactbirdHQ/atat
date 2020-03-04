@@ -105,21 +105,25 @@ where
                     }
                     State::ReceivingResponse => {
                         if c as char == self.format_char {
-                            let (ind, err) = if let Some(ind) =
+                            let (index, err) = if let Some(index) =
                                 self.rx_buf.buffer.rmatch_indices("OK\r\n").next()
                             {
-                                (ind, None)
-                            } else if let Some(ind) =
+                                (index.0, None)
+                            } else if let Some(index) =
                                 self.rx_buf.buffer.rmatch_indices("ERROR\r\n").next()
                             {
-                                (ind, Some(Error::InvalidResponse))
+                                #[cfg(not(feature = "error-message"))]
+                                let err = Error::InvalidResponse;
+                                #[cfg(feature = "error-message")]
+                                let err =
+                                    Error::InvalidResponseWithMessage(self.rx_buf.buffer.clone());
+
+                                (index.0, Some(err))
                             } else {
                                 return;
                             };
 
-                            let index = ind.0;
                             let resp = self.rx_buf.take(index);
-
                             self.notify_response(match err {
                                 None => Ok(resp),
                                 Some(e) => Err(e),
@@ -379,9 +383,14 @@ mod test {
         assert_eq!(at_pars.rx_buf.buffer, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
 
+        #[cfg(feature = "error-message")]
+        let expectation = Error::InvalidResponseWithMessage(String::from("+USORD: 3,16,\"16 bytes of data\"\r\nERROR\r\n"));
+        #[cfg(not(feature = "error-message"))]
+        let expectation = Error::InvalidResponse;
+
         if let Some(result) = c.dequeue() {
             match result {
-                Err(e) => assert_eq!(e, Error::InvalidResponse),
+                Err(e) => assert_eq!(e, expectation),
                 Ok(resp) => {
                     panic!("Dequeue Ok: {:?}", resp);
                 }

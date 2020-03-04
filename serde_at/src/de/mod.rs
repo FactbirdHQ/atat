@@ -72,7 +72,7 @@ pub enum Error {
 
     /// Error with a custom message that was preserved.
     #[cfg(feature = "custom-error-messages")]
-    CustomErrorWithMessage(heapless::String<heapless::consts::U64>),
+    CustomErrorWithMessage(heapless::String<heapless::consts::U128>),
 
     #[doc(hidden)]
     __Extensible,
@@ -131,6 +131,25 @@ impl<'a> Deserializer<'a> {
                 }
                 Some(_) => self.eat_char(),
                 None => return Err(Error::EofWhileParsingString),
+            }
+        }
+    }
+
+    fn parse_bytes(&mut self) -> Result<&'a [u8]> {
+        let start = self.index;
+        loop {
+            match self.peek() {
+                Some(c) => {
+                    if (c as char).is_alphanumeric() {
+                        self.eat_char()
+                    } else {
+                        return Err(Error::EofWhileParsingString)
+                    }
+                },
+                None => {
+                    let end = self.index;
+                    return Ok(&self.slice[start..end]);
+                }
             }
         }
     }
@@ -391,7 +410,13 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
                 self.eat_char();
                 visitor.visit_borrowed_str(self.parse_str()?)
             }
-            _ => Err(Error::InvalidType),
+            _ => {
+                if (peek as char).is_alphabetic() {
+                    visitor.visit_bytes(self.parse_bytes()?)
+                } else {
+                    Err(Error::InvalidType)
+                }
+            }
         }
     }
 
@@ -509,10 +534,8 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        match self.parse_whitespace().ok_or(Error::EofWhileParsingValue)? {
-            b'"' => visitor.visit_enum(UnitVariantAccess::new(self)),
-            _ => Err(Error::ExpectedSomeValue),
-        }
+        self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
+        visitor.visit_enum(UnitVariantAccess::new(self))
     }
 
     fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value>

@@ -36,7 +36,9 @@ where
         T: ser::Serialize,
     {
         if self.first {
-            self.ser.buf.push(b'=')?;
+            if self.ser.value_sep {
+                self.ser.buf.push(b'=')?;
+            }
         } else {
             self.ser.buf.push(b',')?;
         }

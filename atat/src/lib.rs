@@ -2,8 +2,8 @@
 
 #[macro_use]
 extern crate nb;
-extern crate ticklock;
 extern crate ufmt;
+extern crate void;
 
 mod buffer;
 mod client;
@@ -19,9 +19,8 @@ pub use self::traits::{ATATCmd, ATATInterface, ATATResp, ATATUrc};
 #[cfg(feature = "derive")]
 pub use atat_derive;
 
-use embedded_hal::serial;
+use embedded_hal::{serial, timer::CountDown};
 use heapless::{consts, spsc::Queue, String};
-use ticklock::timer::Timer;
 
 pub mod prelude {
     pub use crate::{ATATCmd, ATATInterface, ATATResp, ATATUrc};
@@ -96,7 +95,8 @@ pub fn new<Rx, Tx, T>(serial: (Tx, Rx), timer: T, config: Config) -> ClientParse
 where
     Tx: serial::Write<u8>,
     Rx: serial::Read<u8>,
-    T: Timer,
+    T: CountDown,
+    T::Time: From<u32>,
 {
     static mut RES_QUEUE: ResQueue = Queue(heapless::i::Queue::u8());
     static mut URC_QUEUE: UrcQueue = Queue(heapless::i::Queue::u8());

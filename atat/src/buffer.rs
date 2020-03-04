@@ -1,4 +1,4 @@
-use heapless::{ArrayLength, String, Vec};
+use heapless::{ArrayLength, String};
 
 // Serial receive buffer
 #[derive(Default)]
@@ -43,34 +43,6 @@ where
                 .ok();
         }
         self.buffer = result;
-    }
-
-    pub fn remove_line<A: ArrayLength<u8>>(&mut self, line: &String<A>) {
-        let mut result = String::new();
-        let mut last_end = 0;
-        if let Some((start, part)) = self.buffer.match_indices(line.as_str()).next() {
-            result
-                .push_str(unsafe { self.buffer.get_unchecked(last_end..start) })
-                .ok();
-            last_end = start + part.len();
-        }
-        result
-            .push_str(unsafe { self.buffer.get_unchecked(last_end..self.buffer.len()) })
-            .ok();
-        self.buffer = result;
-    }
-
-    pub fn at_lines<S: ArrayLength<u8>, L: ArrayLength<String<S>>>(
-        &self,
-        term_char: char,
-        format_char: char,
-    ) -> Vec<String<S>, L> {
-        self.buffer
-            .split_terminator(term_char)
-            .map(|l| l.trim_matches(|c: char| c == format_char))
-            .map(String::from)
-            .filter(|p| !p.is_empty())
-            .collect()
     }
 
     pub fn push(&mut self, data: u8) -> Result<(), ()> {
