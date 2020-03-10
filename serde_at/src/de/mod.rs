@@ -708,7 +708,9 @@ mod tests {
     fn u128_test() {
         assert_eq!(
             crate::from_str("+CCID: 89883030000005421166"),
-            Ok(CCID { ccid: 89883030000005421166 })
+            Ok(CCID {
+                ccid: 89883030000005421166
+            })
         );
     }
 

@@ -1,6 +1,6 @@
 use crate::error::{NBResult, Result};
-use heapless::{ArrayLength, String};
 use crate::Mode;
+use heapless::{ArrayLength, String};
 
 pub trait ATATErr {}
 

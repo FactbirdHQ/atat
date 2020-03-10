@@ -1,8 +1,7 @@
 use heapless::{
     consts,
     spsc::{Consumer, Producer},
-    String,
-    ArrayLength,
+    ArrayLength, String,
 };
 
 use crate::error::{Error, Result};
@@ -69,8 +68,8 @@ impl IngressManager {
         log::info!("IT WRITES\r");
         for byte in data {
             match self.rb.push(*byte as char) {
-                Ok(_) => {},
-                Err(e) => panic!("Ring buffer overflow by {:?} bytes", e)
+                Ok(_) => {}
+                Err(e) => panic!("Ring buffer overflow by {:?} bytes", e),
             }
         }
     }
@@ -141,18 +140,13 @@ impl IngressManager {
                 }
             }
             State::ReceivingResponse => {
-                let (index, err) = if let Some(index) =
-                    self.rb.rmatch_indices("OK\r\n").next()
-                {
+                let (index, err) = if let Some(index) = self.rb.rmatch_indices("OK\r\n").next() {
                     (index.0, None)
-                } else if let Some(index) =
-                    self.rb.rmatch_indices("ERROR\r\n").next()
-                {
+                } else if let Some(index) = self.rb.rmatch_indices("ERROR\r\n").next() {
                     #[cfg(not(feature = "error-message"))]
                     let err = Error::InvalidResponse;
                     #[cfg(feature = "error-message")]
-                    let err =
-                        Error::InvalidResponseWithMessage(self.rb.clone());
+                    let err = Error::InvalidResponseWithMessage(self.rb.clone());
 
                     (index.0, Some(err))
                 } else {
