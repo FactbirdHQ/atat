@@ -56,7 +56,6 @@ fn get_cmd_response(attrs: &[Attribute]) -> Result<AtCmdAttr> {
             },
             Err(_) => None,
         };
-        // println!("{:?}", attr.tokens);
         let value_sep = match get_name_ident_lit(&attr.tokens, "value_sep") {
             Ok(lit) => match lit.parse::<bool>() {
                 Ok(c) => c,

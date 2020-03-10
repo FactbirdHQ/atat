@@ -1,5 +1,4 @@
 [workspace]
-
 members = [
     "atat",
     "atat_derive",

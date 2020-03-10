@@ -11,13 +11,10 @@ documentation = "https://docs.rs/atat_derive"
 [dependencies]
 ufmt = "0.1.0"
 quote = "1.0"
-syn = {version = "1.0", features = ["extra-traits","full"]}
+syn = { version = "1.0", features = ["extra-traits","full"] }
 proc-macro2 = "1.0"
 proc-macro-error = "0.4"
-serde_at = { path = "../serde_at" }
-
-[patch.crates-io]
-serde_at = { path = "../serde_at" }
+serde_at = { path = "../serde_at", version = "0.1.8-alpha.0" }
 
 [lib]
 proc-macro = true

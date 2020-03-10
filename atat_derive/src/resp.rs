@@ -46,6 +46,7 @@ fn generate_resp_output(
         .map(|(i, _)| (i, format_ident!("field{}", i)))
         .unzip();
     let anon_field_ind64: Vec<u64> = anon_field_ind.iter().map(|i| *i as u64).collect();
+    let anon_field_ind128: Vec<u128> = anon_field_ind.iter().map(|i| *i as u128).collect();
     let len = field_names.len();
     let visitor = format_ident!("{}Visitor", name_str);
     let field_visitor = format_ident!("{}FieldVisitor", name_str);
@@ -103,6 +104,22 @@ fn generate_resp_output(
                             #(#anon_field_ind64 => serde::export::Ok(#enum_field::#anon_field),)*
                             _ => serde::export::Err(::serde::de::Error::invalid_value(
                                 serde::de::Unexpected::Unsigned(value),
+                                &#invalid_val_err,
+                            )),
+                        }
+                    }
+
+                    fn visit_u128<E>(
+                        self,
+                        value: u128,
+                    ) -> serde::export::Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            #(#anon_field_ind128 => serde::export::Ok(#enum_field::#anon_field),)*
+                            _ => serde::export::Err(::serde::de::Error::invalid_value(
+                                serde::de::Unexpected::Other("u128"),
                                 &#invalid_val_err,
                             )),
                         }

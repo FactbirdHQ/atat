@@ -1,20 +1,19 @@
 #![cfg_attr(not(test), no_std)]
+#![feature(test)]
 
 #[macro_use]
 extern crate nb;
 extern crate ufmt;
 extern crate void;
 
-mod buffer;
 mod client;
 mod error;
-mod parser;
+mod ingress_manager;
 mod traits;
 
-pub use self::buffer::Buffer;
 pub use self::client::ATClient;
 pub use self::error::Error;
-pub use self::parser::ATParser;
+pub use self::ingress_manager::IngressManager;
 pub use self::traits::{ATATCmd, ATATInterface, ATATResp, ATATUrc};
 #[cfg(feature = "derive")]
 pub use atat_derive;
@@ -35,6 +34,15 @@ pub enum Mode {
     NonBlocking,
     /// The function call will wait only up the max timeout of each command to complete the operation.
     Timeout,
+}
+
+/// Whether the AT client should block while waiting responses or return early.
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum Command {
+    ClearBuffer,
+    SetLineTerm(char),
+    SetFormat(char),
+    SetEcho(bool),
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -89,21 +97,23 @@ impl Config {
 
 type ResQueue = Queue<Result<String<consts::U256>, error::Error>, consts::U5, u8>;
 type UrcQueue = Queue<String<consts::U64>, consts::U10, u8>;
-type ClientParser<Rx, Tx, T> = (client::ATClient<Tx, T>, parser::ATParser<Rx>);
+type ComQueue = Queue<Command, consts::U3, u8>;
+type ClientParser<Tx, T> = (client::ATClient<Tx, T>, IngressManager);
 
-pub fn new<Rx, Tx, T>(serial: (Tx, Rx), timer: T, config: Config) -> ClientParser<Rx, Tx, T>
+pub fn new<Tx, T>(serial_tx: Tx, timer: T, config: Config) -> ClientParser<Tx, T>
 where
     Tx: serial::Write<u8>,
-    Rx: serial::Read<u8>,
     T: CountDown,
     T::Time: From<u32>,
 {
     static mut RES_QUEUE: ResQueue = Queue(heapless::i::Queue::u8());
     static mut URC_QUEUE: UrcQueue = Queue(heapless::i::Queue::u8());
+    static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
     let (res_p, res_c) = unsafe { RES_QUEUE.split() };
     let (urc_p, urc_c) = unsafe { URC_QUEUE.split() };
-    let parser = ATParser::new(serial.1, res_p, urc_p, &config);
-    let client = client::ATClient::new(serial.0, res_c, urc_c, timer, config);
+    let (com_p, com_c) = unsafe { COM_QUEUE.split() };
+    let parser = IngressManager::new(res_p, urc_p, com_c, &config);
+    let client = client::ATClient::new(serial_tx, res_c, urc_c, com_p, timer, config);
 
     (client, parser)
 }

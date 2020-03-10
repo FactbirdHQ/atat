@@ -1,5 +1,6 @@
 use crate::error::{NBResult, Result};
 use heapless::{ArrayLength, String};
+use crate::Mode;
 
 pub trait ATATErr {}
 
@@ -34,4 +35,6 @@ pub trait ATATInterface {
     fn check_urc<URC: ATATUrc>(&mut self) -> Option<URC::Resp>;
 
     fn check_response<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response>;
+
+    fn get_mode(&self) -> Mode;
 }

@@ -41,10 +41,8 @@ pub fn get_name_ident_lit(tokens: &proc_macro2::TokenStream, needle: &str) -> Re
             }
             TokenTree::Literal(lit) => {
                 if found {
-                    // println!("found ident: [{:?}] {:?}", needle, lit.to_string());
                     return Ok(lit.to_string());
                 } else {
-                    // println!("found ident: [{:?}] {:?}", needle, lit.to_string());
                     found = false;
                 }
             }

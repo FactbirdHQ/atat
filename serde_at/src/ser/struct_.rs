@@ -49,7 +49,7 @@ where
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.ser.buf.push(b'\r')?;
+        self.ser.buf.extend_from_slice(b"\r\n")?;
         Ok(())
     }
 }

@@ -660,7 +660,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use heapless::{consts, String, Vec};
+    use heapless::{consts, String};
     use serde_derive::Deserialize;
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -678,11 +678,6 @@ mod tests {
     #[derive(Clone, Debug, Deserialize, PartialEq)]
     pub struct StringTest {
         pub string: String<consts::U32>,
-    }
-
-    #[derive(Clone, Debug, Deserialize, PartialEq)]
-    pub struct VectorTest {
-        pub vector: Vec<u8, consts::U32>,
     }
 
     #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -708,14 +703,12 @@ mod tests {
             })
         );
     }
-    #[test]
-    #[ignore]
-    fn simple_vec() {
-        let v: Vec<u8, consts::U32> = "89883030000005421166".as_bytes().iter().cloned().collect();
 
+    #[test]
+    fn u128_test() {
         assert_eq!(
-            crate::from_str("+CCID: \"89883030000005421166\""),
-            Ok(VectorTest { vector: v })
+            crate::from_str("+CCID: 89883030000005421166"),
+            Ok(CCID { ccid: 89883030000005421166 })
         );
     }
 

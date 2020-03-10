@@ -239,7 +239,7 @@ where
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok> {
         self.buf.extend_from_slice(b"AT")?;
         self.buf.extend_from_slice(&self.cmd.as_bytes())?;
-        self.buf.push(b'\r')?;
+        self.buf.extend_from_slice(b"\r\n")?;
         Ok(())
     }
 
@@ -275,7 +275,6 @@ where
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        log::info!("Seq\r");
         unreachable!()
     }
 

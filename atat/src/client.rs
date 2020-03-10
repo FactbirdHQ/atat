@@ -1,13 +1,18 @@
-use heapless::{consts, spsc::Consumer, String};
+use heapless::{
+    consts,
+    spsc::{Consumer, Producer},
+    String,
+};
 
 use embedded_hal::{serial, timer::CountDown};
 
 use crate::error::{Error, NBResult, Result};
 use crate::traits::{ATATCmd, ATATInterface, ATATUrc};
-use crate::{Config, Mode};
+use crate::{Command, Config, Mode};
 
 type ResConsumer = Consumer<'static, Result<String<consts::U256>>, consts::U5, u8>;
 type UrcConsumer = Consumer<'static, String<consts::U64>, consts::U10, u8>;
+type ComProducer = Producer<'static, Command, consts::U3, u8>;
 
 #[derive(Debug, PartialEq)]
 enum ClientState {
@@ -23,6 +28,7 @@ where
     tx: Tx,
     res_c: ResConsumer,
     urc_c: UrcConsumer,
+    com_p: ComProducer,
     state: ClientState,
     timer: T,
     config: Config,
@@ -34,11 +40,19 @@ where
     T: CountDown,
     T::Time: From<u32>,
 {
-    pub fn new(tx: Tx, res_c: ResConsumer, urc_c: UrcConsumer, timer: T, config: Config) -> Self {
+    pub fn new(
+        tx: Tx,
+        res_c: ResConsumer,
+        urc_c: UrcConsumer,
+        com_p: ComProducer,
+        timer: T,
+        config: Config,
+    ) -> Self {
         Self {
             tx,
             res_c,
             urc_c,
+            com_p,
             state: ClientState::Idle,
             config,
             timer,
@@ -53,25 +67,26 @@ where
     T::Time: From<u32>,
 {
     fn send<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response> {
-        if let ClientState::Idle = self.state {
+        // if let ClientState::Idle = self.state {
             // compare the time of the last response or URC and ensure
             // at least `self.config.cmd_cooldown` ms have passed before sending a new command
-            while self.timer.wait().is_err() {}
+            // block!(self.timer.wait()).ok();
             for c in cmd.as_str().as_bytes() {
                 block!(self.tx.write(*c)).ok();
             }
             block!(self.tx.flush()).ok();
-            self.state = ClientState::AwaitingResponse;
-        }
+            // self.state = ClientState::AwaitingResponse;
+        // }
 
-        match self.config.mode {
-            Mode::Blocking => Ok(block!(self.check_response(cmd))?),
-            Mode::NonBlocking => self.check_response(cmd),
-            Mode::Timeout => {
-                self.timer.start(cmd.max_timeout_ms());
-                Ok(block!(self.check_response(cmd))?)
-            }
-        }
+        // match self.config.mode {
+        //     Mode::Blocking => Ok(block!(self.check_response(cmd))?),
+        //     Mode::NonBlocking => self.check_response(cmd),
+        //     Mode::Timeout => {
+        //         self.timer.start(cmd.max_timeout_ms());
+        //         Ok(block!(self.check_response(cmd))?)
+        //     }
+        // }
+        Err(nb::Error::WouldBlock)
     }
 
     fn check_urc<URC: ATATUrc>(&mut self) -> Option<URC::Resp> {
@@ -103,12 +118,21 @@ where
         } else if let Mode::Timeout = self.config.mode {
             if self.timer.wait().is_ok() {
                 self.state = ClientState::Idle;
+                // Tell the parser to clear the buffer due to timeout
+                if self.com_p.enqueue(Command::ClearBuffer).is_err() {
+                    // log::error!("Failed to signal parser to clear buffer on timeout!\r");
+                }
                 return Err(nb::Error::Other(Error::Timeout));
             }
         }
         Err(nb::Error::WouldBlock)
     }
+
+    fn get_mode(&self) -> Mode {
+        self.config.mode
+    }
 }
+
 #[cfg(test)]
 #[cfg_attr(tarpaulin, skip)]
 mod test {
@@ -274,12 +298,14 @@ mod test {
         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
             Queue(heapless::i::Queue::u8());
         let (_urc_p, urc_c) = unsafe { URC_Q.split() };
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (com_p, _com_c) = unsafe { COM_Q.split() };
 
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
         let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, timer, Config::new(Mode::Blocking));
+            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
@@ -301,7 +327,7 @@ mod test {
 
         assert_eq!(
             client.tx.s,
-            String::<consts::U32>::from("AT+CFUN=4,0\r"),
+            String::<consts::U32>::from("AT+CFUN=4,0\r\n"),
             "Wrong encoding of string"
         );
 
@@ -321,7 +347,7 @@ mod test {
 
         assert_eq!(
             client.tx.s,
-            String::<consts::U32>::from("AT+CFUN=4,0\rAT+FUN=1,6\r"),
+            String::<consts::U32>::from("AT+CFUN=4,0\r\nAT+FUN=1,6\r\n"),
             "Reverse order string did not match"
         );
     }
@@ -336,12 +362,14 @@ mod test {
         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
             Queue(heapless::i::Queue::u8());
         let (_urc_p, urc_c) = unsafe { URC_Q.split() };
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (com_p, _com_c) = unsafe { COM_Q.split() };
 
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
         let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, timer, Config::new(Mode::Timeout));
+            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Timeout));
 
         assert_eq!(client.state, ClientState::Idle);
 
@@ -371,11 +399,14 @@ mod test {
             Queue(heapless::i::Queue::u8());
         let (_urc_p, urc_c) = unsafe { URC_Q.split() };
 
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (com_p, _com_c) = unsafe { COM_Q.split() };
+
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
         let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, timer, Config::new(Mode::Blocking));
+            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
@@ -394,7 +425,7 @@ mod test {
             _ => panic!("Panic send error in test."),
         }
         assert_eq!(client.state, ClientState::Idle);
-        assert_eq!(client.tx.s, String::<consts::U32>::from("AT+CFUN=4,0\r"));
+        assert_eq!(client.tx.s, String::<consts::U32>::from("AT+CFUN=4,0\r\n"));
     }
 
     #[test]
@@ -407,11 +438,20 @@ mod test {
             Queue(heapless::i::Queue::u8());
         let (_urc_p, urc_c) = unsafe { URC_Q.split() };
 
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (com_p, _com_c) = unsafe { COM_Q.split() };
+
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
-        let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, timer, Config::new(Mode::NonBlocking));
+        let mut client: ATClient<TxMock, CdMock> = ATClient::new(
+            tx_mock,
+            c,
+            urc_c,
+            com_p,
+            timer,
+            Config::new(Mode::NonBlocking),
+        );
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
@@ -458,11 +498,14 @@ mod test {
             Queue(heapless::i::Queue::u8());
         let (_urc_p, urc_c) = unsafe { URC_Q.split() };
 
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (com_p, _com_c) = unsafe { COM_Q.split() };
+
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
         let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, timer, Config::new(Mode::Blocking));
+            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
 
         let cmd = TestRespVecCmd {
             fun: Functionality::APM,
@@ -507,11 +550,14 @@ mod test {
             Queue(heapless::i::Queue::u8());
         let (_urc_p, urc_c) = unsafe { URC_Q.split() };
 
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (com_p, _com_c) = unsafe { COM_Q.split() };
+
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
         let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, timer, Config::new(Mode::Blocking));
+            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
 
         // String last
         let cmd = TestRespStringCmd {
@@ -578,11 +624,20 @@ mod test {
             Queue(heapless::i::Queue::u8());
         let (mut urc_p, urc_c) = unsafe { URC_Q.split() };
 
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (com_p, _com_c) = unsafe { COM_Q.split() };
+
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
-        let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, timer, Config::new(Mode::NonBlocking));
+        let mut client: ATClient<TxMock, CdMock> = ATClient::new(
+            tx_mock,
+            c,
+            urc_c,
+            com_p,
+            timer,
+            Config::new(Mode::NonBlocking),
+        );
 
         urc_p
             .enqueue(String::<consts::U64>::from("+UMWI: 0, 1"))
@@ -608,11 +663,14 @@ mod test {
             Queue(heapless::i::Queue::u8());
         let (_urc_p, urc_c) = unsafe { URC_Q.split() };
 
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (com_p, _com_c) = unsafe { COM_Q.split() };
+
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
         let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, timer, Config::new(Mode::Blocking));
+            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
 
         // String last
         let cmd = TestRespStringCmd {
