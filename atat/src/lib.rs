@@ -1,5 +1,5 @@
 #![cfg_attr(not(test), no_std)]
-#![feature(test)]
+// #![feature(test)]
 
 #[macro_use]
 extern crate nb;
@@ -15,6 +15,7 @@ pub use self::client::ATClient;
 pub use self::error::Error;
 pub use self::ingress_manager::IngressManager;
 pub use self::traits::{ATATCmd, ATATInterface, ATATResp, ATATUrc};
+
 #[cfg(feature = "derive")]
 pub use atat_derive;
 
