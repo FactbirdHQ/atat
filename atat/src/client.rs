@@ -67,7 +67,7 @@ where
     T::Time: From<u32>,
 {
     fn send<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response> {
-        // if let ClientState::Idle = self.state {
+        if let ClientState::Idle = self.state {
             // compare the time of the last response or URC and ensure
             // at least `self.config.cmd_cooldown` ms have passed before sending a new command
             // block!(self.timer.wait()).ok();
@@ -75,18 +75,17 @@ where
                 block!(self.tx.write(*c)).ok();
             }
             block!(self.tx.flush()).ok();
-            // self.state = ClientState::AwaitingResponse;
-        // }
+            self.state = ClientState::AwaitingResponse;
+        }
 
-        // match self.config.mode {
-        //     Mode::Blocking => Ok(block!(self.check_response(cmd))?),
-        //     Mode::NonBlocking => self.check_response(cmd),
-        //     Mode::Timeout => {
-        //         self.timer.start(cmd.max_timeout_ms());
-        //         Ok(block!(self.check_response(cmd))?)
-        //     }
-        // }
-        Err(nb::Error::WouldBlock)
+        match self.config.mode {
+            Mode::Blocking => Ok(block!(self.check_response(cmd))?),
+            Mode::NonBlocking => self.check_response(cmd),
+            Mode::Timeout => {
+                self.timer.start(cmd.max_timeout_ms());
+                Ok(block!(self.check_response(cmd))?)
+            }
+        }
     }
 
     fn check_urc<URC: ATATUrc>(&mut self) -> Option<URC::Resp> {
