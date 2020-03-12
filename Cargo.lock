@@ -408,8 +408,7 @@ dependencies = [
 [[package]]
 name = "stm32l4xx-hal"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c0df38ebde0ddf030b782cf685d17e26dcba10ae5562649e43a28f4d69eea2"
+source = "git+https://github.com/stm32-rs/stm32l4xx-hal#a0069673886199c2974990eff54d73ce315a5e74"
 dependencies = [
  "as-slice",
  "cast",

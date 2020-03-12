@@ -34,7 +34,8 @@ cortex-m = "0.6.2"
 cortex-m-rt = "0.6.12"
 cortex-m-rtfm = "0.5.1"
 panic-halt = "0.2.0"
-stm32l4xx-hal = { version = "0.5.0", features = ["stm32l4x5", "rt"] }
+stm32l4xx-hal = { git = "https://github.com/stm32-rs/stm32l4xx-hal", features = ["stm32l4x5", "rt"] }
+# stm32l4xx-hal = { version = "0.5.0", features = ["stm32l4x5", "rt"] }
 
 [target.'x86_64-unknown-linux-gnu'.dev-dependencies]
 embedded-hal-mock = "0.7.1"

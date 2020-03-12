@@ -115,6 +115,7 @@ impl IngressManager {
     }
 
     pub fn parse_at(&mut self) {
+        self.handle_com();
         match self.state {
             State::Idle => {
                 if self.echo_enabled && self.buf.starts_with("AT") {

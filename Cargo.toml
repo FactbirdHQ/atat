@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "atat",
+    "serde_at",
     "atat_derive",
-    "serde_at"
+    "atat",
 ]
