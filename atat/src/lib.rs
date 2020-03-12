@@ -114,7 +114,7 @@ where
     let (urc_p, urc_c) = unsafe { URC_QUEUE.split() };
     let (com_p, com_c) = unsafe { COM_QUEUE.split() };
     let parser = IngressManager::new(res_p, urc_p, com_c, &config);
-    let client = client::ATClient::new(serial_tx, res_c, urc_c, com_p, timer, config);
+    let client = ATClient::new(serial_tx, res_c, urc_c, com_p, timer, config);
 
     (client, parser)
 }
