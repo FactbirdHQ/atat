@@ -12,6 +12,8 @@ type ResProducer = Producer<'static, Result<String<consts::U256>>, consts::U5, u
 type UrcProducer = Producer<'static, String<consts::U64>, consts::U10, u8>;
 type ComConsumer = Consumer<'static, Command, consts::U3, u8>;
 
+/// State of the IngressManager, used to destiguish URC's from solicited
+/// responses
 #[derive(Clone, PartialEq, Debug)]
 pub enum State {
     Idle,
@@ -19,7 +21,7 @@ pub enum State {
 }
 
 pub struct IngressManager {
-    rb: String<consts::U256>,
+    buf: String<consts::U256>,
     res_p: ResProducer,
     urc_p: UrcProducer,
     com_c: ComConsumer,
@@ -38,18 +40,9 @@ impl IngressManager {
         com_c: ComConsumer,
         config: &Config,
     ) -> Self {
-        // while rx.read().is_ok() {
-        //     // Fix for unit tests!
-        //     if let Ok(c) = rx.read() {
-        //         if c == 0xFF {
-        //             break;
-        //         }
-        //     }
-        // }
-
         Self {
             state: State::Idle,
-            rb: String::new(),
+            buf: String::new(),
             res_p,
             urc_p,
             com_c,
@@ -59,31 +52,28 @@ impl IngressManager {
         }
     }
 
-    /// Write data into the internal ring buffer
+    /// Write data into the internal buffer
     /// raw bytes being the core type allows the ingress manager to
-    /// be abstracted over the communication medium,
-    /// in theory if we setup usb serial, we could have two ingress managers
-    /// working in harmony
+    /// be abstracted over the communication medium.
     pub fn write(&mut self, data: &[u8]) {
-        log::info!("IT WRITES\r");
         for byte in data {
-            match self.rb.push(*byte as char) {
+            match self.buf.push(*byte as char) {
                 Ok(_) => {}
-                Err(e) => panic!("Ring buffer overflow by {:?} bytes", e),
+                Err(_) => self.notify_response(Err(Error::Overflow)),
             }
         }
     }
 
-    fn take_buffer<L: ArrayLength<u8>>(&mut self, index: usize) -> String<L> {
+    fn take_trim_substring<L: ArrayLength<u8>>(&mut self, index: usize) -> String<L> {
         let mut result = String::new();
         let mut return_string: String<L> = String::new();
         return_string
-            .push_str(unsafe { self.rb.get_unchecked(0..index).trim() })
+            .push_str(unsafe { self.buf.get_unchecked(0..index).trim() })
             .ok();
         result
-            .push_str(unsafe { self.rb.get_unchecked(index..self.rb.len()) })
+            .push_str(unsafe { self.buf.get_unchecked(index..self.buf.len()) })
             .ok();
-        self.rb = result;
+        self.buf = result;
         return_string
     }
 
@@ -103,12 +93,13 @@ impl IngressManager {
         }
     }
 
+    /// Handle receiving internal config commands from the client.
     fn handle_com(&mut self) {
         if let Some(com) = self.com_c.dequeue() {
             match com {
                 Command::ClearBuffer => {
                     self.state = State::Idle;
-                    self.rb.clear()
+                    self.buf.clear()
                 }
                 Command::SetEcho(e) => {
                     self.echo_enabled = e;
@@ -126,356 +117,282 @@ impl IngressManager {
     pub fn parse_at(&mut self) {
         match self.state {
             State::Idle => {
-                if self.echo_enabled && self.rb.starts_with("AT") {
-                    self.state = State::ReceivingResponse;
-                    self.rb.clear();
+                if self.echo_enabled && self.buf.starts_with("AT") {
+                    if let Some((index, _)) = self.buf.match_indices("\r\n").next() {
+                        self.state = State::ReceivingResponse;
+                        self.take_trim_substring::<consts::U64>(index + 2);
+                    }
                 } else if !self.echo_enabled {
                     unimplemented!("Disabling AT echo is currently unsupported");
-                } else if self.rb.starts_with("+") {
-                    let resp = self.take_buffer(self.rb.len());
+                } else if self.buf.starts_with("+") {
+                    let resp = self.take_trim_substring(self.buf.len());
                     self.notify_urc(resp);
-                    self.rb.clear();
+                    self.buf.clear();
                 } else {
-                    self.rb.clear();
+                    self.buf.clear();
                 }
             }
             State::ReceivingResponse => {
-                let (index, err) = if let Some(index) = self.rb.rmatch_indices("OK\r\n").next() {
+                // TODO: Use `self.format_char` and `self.line_term_char` in these rmatches
+                let (index, err) = if let Some(index) = self.buf.rmatch_indices("OK\r\n").next() {
                     (index.0, None)
-                } else if let Some(index) = self.rb.rmatch_indices("ERROR\r\n").next() {
+                } else if let Some(index) = self.buf.rmatch_indices("ERROR\r\n").next() {
                     #[cfg(not(feature = "error-message"))]
                     let err = Error::InvalidResponse;
                     #[cfg(feature = "error-message")]
-                    let err = Error::InvalidResponseWithMessage(self.rb.clone());
+                    let err = Error::InvalidResponseWithMessage(self.buf.clone());
 
                     (index.0, Some(err))
                 } else {
                     return;
                 };
 
-                let resp = self.take_buffer(index);
+                let resp = self.take_trim_substring(index);
                 self.notify_response(match err {
                     None => Ok(resp),
                     Some(e) => Err(e),
                 });
 
                 self.state = State::Idle;
-                self.rb.clear();
+                self.buf.clear();
             }
         }
     }
-
-    // pub fn handle_irq(&mut self) -> bool {
-    //     if let Ok(c) = block!(self.rx.read()) {
-    //         self.handle_com();
-    //         if self.rb.push(c as char).is_err() {
-    //             // Notify error response, and reset rb
-    //             self.notify_response(Err(Error::Overflow));
-    //             self.rb.clear();
-    //         } else {
-    //             if c as char == self.format_char {
-    //                 return true
-    //             }
-    //         }
-    //     }
-    //     false
-    // }
 }
 
-// #[cfg(test)]
-// #[cfg_attr(tarpaulin, skip)]
-// mod test {
-//     extern crate test;
+#[cfg(test)]
+#[cfg_attr(tarpaulin, skip)]
+mod test {
+    // extern crate test;
 
-//     use super::*;
-//     use crate as atat;
-//     use test::Bencher;
-//     use atat::Mode;
-//     use heapless::{consts, spsc::Queue, String};
-//     use nb;
+    use super::*;
+    use crate as atat;
+    // use test::Bencher;
+    use atat::Mode;
+    use embedded_hal::serial::{self, Read};
+    use heapless::{consts, spsc::Queue, String};
 
-//     struct RxMock {
-//         cnt: usize,
-//         s: String<consts::U512>,
-//         cleared: bool,
-//     }
+    #[test]
+    fn no_response() {
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, mut c) = unsafe { REQ_Q.split() };
+        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (_com_p, com_c) = unsafe { COM_Q.split() };
 
-//     impl RxMock {
-//         fn new(s: String<consts::U512>) -> Self {
-//             RxMock {
-//                 cnt: 0,
-//                 s,
-//                 cleared: false,
-//             }
-//         }
-//     }
+        let conf = Config::new(Mode::Timeout);
+        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
 
-//     impl serial::Read<u8> for RxMock {
-//         type Error = ();
+        assert_eq!(at_pars.state, State::Idle);
+        at_pars.write("AT+USORD=3,16\r\n".as_bytes());
+        at_pars.parse_at();
 
-//         fn read(&mut self) -> nb::Result<u8, Self::Error> {
-//             if self.cleared {
-//                 if self.cnt >= self.s.len() {
-//                     Err(nb::Error::Other(()))
-//                 } else {
-//                     let r = Ok(self.s.clone().into_bytes()[self.cnt]);
-//                     self.cnt += 1;
-//                     r
-//                 }
-//             } else {
-//                 self.cleared = true;
-//                 println!("Cleared");
-//                 Err(nb::Error::Other(()))
-//             }
-//         }
-//     }
+        assert_eq!(at_pars.state, State::ReceivingResponse);
 
-//     #[test]
-//     fn no_response() {
-//         static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (p, mut c) = unsafe { REQ_Q.split() };
-//         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-//         static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-//         let (_com_p, com_c) = unsafe { COM_Q.split() };
+        at_pars.write("OK\r\n".as_bytes());
+        at_pars.parse_at();
+        assert_eq!(at_pars.state, State::Idle);
 
-//         let rx_mock = RxMock::new(String::from("AT+USORD=3,16\r\nOK\r\n"));
-//         let conf = Config::new(Mode::Timeout);
-//         let mut at_pars: IngressManager<RxMock> = IngressManager::new(rx_mock, p, urc_p, com_c, &conf);
+        if let Some(result) = c.dequeue() {
+            match result {
+                Ok(resp) => {
+                    assert_eq!(resp, String::<consts::U256>::from(""));
+                }
+                Err(e) => panic!("Dequeue Some error: {:?}", e),
+            };
+        } else {
+            panic!("Dequeue None.")
+        }
+    }
 
-//         assert_eq!(at_pars.state, State::Idle);
-//         for _ in 0.."AT+USORD=3,16\r\n".len() {
-//             at_pars.handle_irq();
-//         }
-//         assert_eq!(at_pars.state, State::ReceivingResponse);
+    #[test]
+    fn response() {
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, mut c) = unsafe { REQ_Q.split() };
+        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (_com_p, com_c) = unsafe { COM_Q.split() };
 
-//         for _ in 0.."OK\r\n".len() {
-//             at_pars.handle_irq();
-//         }
-//         assert_eq!(at_pars.state, State::Idle);
+        let conf = Config::new(Mode::Timeout);
+        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
 
-//         if let Some(result) = c.dequeue() {
-//             match result {
-//                 Ok(resp) => {
-//                     assert_eq!(resp, String::<consts::U256>::from(""));
-//                 }
-//                 Err(e) => panic!("Dequeue Some error: {:?}", e),
-//             };
-//         } else {
-//             panic!("Dequeue None.")
-//         }
-//     }
+        assert_eq!(at_pars.state, State::Idle);
+        at_pars.write("AT+USORD=3,16\r\n".as_bytes());
+        at_pars.parse_at();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
 
-//     #[test]
-//     fn response() {
-//         static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (p, mut c) = unsafe { REQ_Q.split() };
-//         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-//         static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-//         let (_com_p, com_c) = unsafe { COM_Q.split() };
+        at_pars.write("+USORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
+        at_pars.parse_at();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
 
-//         let rx_mock = RxMock::new(String::from(
-//             "AT+USORD=3,16\r\n+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n",
-//         ));
-//         let conf = Config::new(Mode::Timeout);
-//         let mut at_pars: IngressManager<RxMock> = IngressManager::new(rx_mock, p, urc_p, com_c, &conf);
+        at_pars.write("OK\r\n".as_bytes());
+        at_pars.parse_at();
+        assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
+        assert_eq!(at_pars.state, State::Idle);
 
-//         assert_eq!(at_pars.state, State::Idle);
-//         for _ in 0.."AT+USORD=3,16\r\n".len() {
-//             at_pars.handle_irq();
-//         }
-//         assert_eq!(at_pars.state, State::ReceivingResponse);
+        if let Some(result) = c.dequeue() {
+            match result {
+                Ok(resp) => {
+                    assert_eq!(
+                        resp,
+                        String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"")
+                    );
+                }
+                Err(e) => panic!("Dequeue Some error: {:?}", e),
+            };
+        } else {
+            panic!("Dequeue None.")
+        }
+    }
 
-//         for _ in 0.."+USORD: 3,16,\"16 bytes of data\"\r\n".len() {
-//             at_pars.handle_irq();
-//         }
+    #[test]
+    fn urc() {
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, _c) = unsafe { REQ_Q.split() };
+        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (_com_p, com_c) = unsafe { COM_Q.split() };
 
-//         for _ in 0.."OK\r\n".len() {
-//             at_pars.handle_irq();
-//         }
-//         assert_eq!(at_pars.rb, String::<consts::U256>::from(""));
-//         assert_eq!(at_pars.state, State::Idle);
+        let conf = Config::new(Mode::Timeout);
+        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
 
-//         if let Some(result) = c.dequeue() {
-//             match result {
-//                 Ok(resp) => {
-//                     assert_eq!(
-//                         resp,
-//                         String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"")
-//                     );
-//                 }
-//                 Err(e) => panic!("Dequeue Some error: {:?}", e),
-//             };
-//         } else {
-//             panic!("Dequeue None.")
-//         }
-//     }
+        assert_eq!(at_pars.state, State::Idle);
 
-//     #[test]
-//     fn urc() {
-//         static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (p, _c) = unsafe { REQ_Q.split() };
-//         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-//         static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-//         let (_com_p, com_c) = unsafe { COM_Q.split() };
+        at_pars.write("+UUSORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
+        at_pars.parse_at();
+        assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
+        assert_eq!(at_pars.state, State::Idle);
+    }
 
-//         let rx_mock = RxMock::new(String::from("+UUSORD: 3,16,\"16 bytes of data\"\r\n"));
-//         let conf = Config::new(Mode::Timeout);
-//         let mut at_pars: IngressManager<RxMock> = IngressManager::new(rx_mock, p, urc_p, com_c, &conf);
+    #[test]
+    fn overflow() {
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, mut c) = unsafe { REQ_Q.split() };
+        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (_com_p, com_c) = unsafe { COM_Q.split() };
 
-//         assert_eq!(at_pars.state, State::Idle);
 
-//         for _ in 0.."+UUSORD: 3,16,\"16 bytes of data\"\r\n".len() {
-//             at_pars.handle_irq();
-//         }
-//         assert_eq!(at_pars.rb, String::<consts::U256>::from(""));
-//         assert_eq!(at_pars.state, State::Idle);
-//     }
+        let conf = Config::new(Mode::Timeout);
+        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
 
-//     #[test]
-//     fn overflow() {
-//         static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (p, mut c) = unsafe { REQ_Q.split() };
-//         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-//         static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-//         let (_com_p, com_c) = unsafe { COM_Q.split() };
+        for _ in 0..266 {
+            at_pars.write(b"s");
+        }
+        at_pars.parse_at();
 
-//         let mut t = String::<consts::U512>::new();
+        if let Some(result) = c.dequeue() {
+            match result {
+                Err(e) => assert_eq!(e, Error::Overflow),
+                Ok(resp) => {
+                    panic!("Dequeue Ok: {:?}", resp);
+                }
+            };
+        } else {
+            panic!("Dequeue None.")
+        }
+    }
 
-//         for _ in 0..266 {
-//             t.push('s').ok();
-//         }
+    #[test]
+    fn read_error() {
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, _c) = unsafe { REQ_Q.split() };
+        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (_com_p, com_c) = unsafe { COM_Q.split() };
 
-//         let rx_mock = RxMock::new(t);
-//         let conf = Config::new(Mode::Timeout);
-//         let mut at_pars: IngressManager<RxMock> = IngressManager::new(rx_mock, p, urc_p, com_c, &conf);
+        let conf = Config::new(Mode::Timeout);
+        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
 
-//         for _ in 0..266 {
-//             at_pars.handle_irq();
-//         }
+        assert_eq!(at_pars.state, State::Idle);
 
-//         if let Some(result) = c.dequeue() {
-//             match result {
-//                 Err(e) => assert_eq!(e, Error::Overflow),
-//                 Ok(resp) => {
-//                     panic!("Dequeue Ok: {:?}", resp);
-//                 }
-//             };
-//         } else {
-//             panic!("Dequeue None.")
-//         }
-//     }
+        assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
+        at_pars.write("OK\r\n".as_bytes());
+        at_pars.parse_at();
 
-//     #[test]
-//     fn read_error() {
-//         static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (p, _c) = unsafe { REQ_Q.split() };
-//         let rx_mock = RxMock::new(String::from("OK\r\n"));
-//         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-//         static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-//         let (_com_p, com_c) = unsafe { COM_Q.split() };
+        assert_eq!(at_pars.state, State::Idle);
+    }
 
-//         let conf = Config::new(Mode::Timeout);
-//         let mut at_pars: IngressManager<RxMock> = IngressManager::new(rx_mock, p, urc_p, com_c, &conf);
+    #[test]
+    fn error_response() {
+        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, mut c) = unsafe { REQ_Q.split() };
 
-//         assert_eq!(at_pars.state, State::Idle);
+        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (_com_p, com_c) = unsafe { COM_Q.split() };
 
-//         assert_eq!(at_pars.rb, String::<consts::U256>::from(""));
-//         for _ in 0.."OK\r\n".len() + 1 {
-//             at_pars.handle_irq();
-//         }
+        let conf = Config::new(Mode::Timeout);
+        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
 
-//         at_pars.rx.s.push('s').ok();
-//         assert_eq!(at_pars.state, State::Idle);
-//     }
+        assert_eq!(at_pars.state, State::Idle);
+        at_pars.write("AT+USORD=3,16\r\n".as_bytes());
+        at_pars.parse_at();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
 
-//     #[test]
-//     fn error_response() {
-//         static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (p, mut c) = unsafe { REQ_Q.split() };
+        at_pars.write("+USORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
+        at_pars.parse_at();
 
-//         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-//         static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-//         let (_com_p, com_c) = unsafe { COM_Q.split() };
+        at_pars.write("ERROR\r\n".as_bytes());
+        at_pars.parse_at();
 
-//         let rx_mock = RxMock::new(String::from(
-//             "AT+USORD=3,16\r\n+USORD: 3,16,\"16 bytes of data\"\r\nERROR\r\n",
-//         ));
-//         let conf = Config::new(Mode::Timeout);
-//         let mut at_pars: IngressManager<RxMock> = IngressManager::new(rx_mock, p, urc_p, com_c, &conf);
+        assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
+        assert_eq!(at_pars.state, State::Idle);
 
-//         assert_eq!(at_pars.state, State::Idle);
-//         for _ in 0.."AT+USORD=3,16\r\n".len() {
-//             at_pars.handle_irq();
-//         }
-//         assert_eq!(at_pars.state, State::ReceivingResponse);
+        #[cfg(feature = "error-message")]
+        let expectation = Error::InvalidResponseWithMessage(String::from(
+            "+USORD: 3,16,\"16 bytes of data\"\r\nERROR\r\n",
+        ));
+        #[cfg(not(feature = "error-message"))]
+        let expectation = Error::InvalidResponse;
 
-//         for _ in 0.."+USORD: 3,16,\"16 bytes of data\"\r\n".len() {
-//             at_pars.handle_irq();
-//         }
+        if let Some(result) = c.dequeue() {
+            match result {
+                Err(e) => assert_eq!(e, expectation),
+                Ok(resp) => {
+                    panic!("Dequeue Ok: {:?}", resp);
+                }
+            };
+        } else {
+            panic!("Dequeue None.")
+        }
+    }
 
-//         for _ in 0.."ERROR\r\n".len() {
-//             at_pars.handle_irq();
-//         }
+    // #[bench]
+    // fn response_bench(b: &mut Bencher) {
+    //     static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+    //         Queue(heapless::i::Queue::u8());
+    //     let (p, _c) = unsafe { REQ_Q.split() };
+    //     static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
+    //         Queue(heapless::i::Queue::u8());
+    //     let (urc_p, _urc_c) = unsafe { URC_Q.split() };
+    //     static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+    //     let (_com_p, com_c) = unsafe { COM_Q.split() };
 
-//         assert_eq!(at_pars.rb, String::<consts::U256>::from(""));
-//         assert_eq!(at_pars.state, State::Idle);
+    //     let conf = Config::new(Mode::Timeout);
+    //     let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
 
-//         #[cfg(feature = "error-message")]
-//         let expectation = Error::InvalidResponseWithMessage(String::from(
-//             "+USORD: 3,16,\"16 bytes of data\"\r\nERROR\r\n",
-//         ));
-//         #[cfg(not(feature = "error-message"))]
-//         let expectation = Error::InvalidResponse;
-
-//         if let Some(result) = c.dequeue() {
-//             match result {
-//                 Err(e) => assert_eq!(e, expectation),
-//                 Ok(resp) => {
-//                     panic!("Dequeue Ok: {:?}", resp);
-//                 }
-//             };
-//         } else {
-//             panic!("Dequeue None.")
-//         }
-//     }
-
-//     #[bench]
-//     fn response_bench(b: &mut Bencher) {
-//         static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (p, _c) = unsafe { REQ_Q.split() };
-//         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-//             Queue(heapless::i::Queue::u8());
-//         let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-//         static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-//         let (_com_p, com_c) = unsafe { COM_Q.split() };
-
-//         let rx_mock = RxMock::new(String::from("AT+USORD=3,16\r\nOK\r\n"));
-//         let conf = Config::new(Mode::Timeout);
-//         let mut at_pars: IngressManager<RxMock> = IngressManager::new(rx_mock, p, urc_p, com_c, &conf);
-
-//         b.iter(|| {
-//             for _ in 0.."AT+USORD=3,16\r\nOK\r\n".len() {
-//                 at_pars.handle_irq();
-//             }
-//         });
-//     }
-// }
+    //     b.iter(|| {
+    //                 at_pars.write("AT+USORD=3,16\r\nOK\r\n".as_bytes());
+    //         at_pars.parse_at();
+    //     });
+    // }
+}

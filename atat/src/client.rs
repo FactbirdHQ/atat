@@ -20,6 +20,11 @@ enum ClientState {
     AwaitingResponse,
 }
 
+/// Client responsible for handling send, receive and timeout from the
+/// userfacing side. The client is decoupled from the ingress-manager through
+/// some spsc queue consumers, where any received responses can be dequeued. The
+/// Client also has an spsc producer, to allow signaling commands like
+/// 'clearBuffer' to the ingress-manager.
 pub struct ATClient<Tx, T>
 where
     Tx: serial::Write<u8>,
@@ -68,9 +73,10 @@ where
 {
     fn send<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response> {
         if let ClientState::Idle = self.state {
-            // compare the time of the last response or URC and ensure
-            // at least `self.config.cmd_cooldown` ms have passed before sending a new command
-            // block!(self.timer.wait()).ok();
+            // compare the time of the last response or URC and ensure at least
+            // `self.config.cmd_cooldown` ms have passed before sending a new
+            // command
+            block!(self.timer.wait()).ok();
             for c in cmd.as_str().as_bytes() {
                 block!(self.tx.write(*c)).ok();
             }
