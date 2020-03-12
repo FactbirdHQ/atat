@@ -22,11 +22,11 @@ jobs:
         with:
           command: build
           args: --target thumbv7m-none-eabi
-      # - name: Ensure that examples compile on ARMv7
-      #   uses: actions-rs/cargo@v1
-      #   with:
-      #     command: build
-      #     args: --examples --target thumbv7m-none-eabi
+      - name: Ensure that examples compile on ARMv7
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --examples --target thumbv7m-none-eabi
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
