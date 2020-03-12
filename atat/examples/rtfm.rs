@@ -26,6 +26,7 @@ use rtfm::{
     cyccnt::{Duration, Instant, U32Ext},
     export::wfi,
 };
+use atat::prelude::*;
 
 use heapless::{consts, spsc::Queue, String};
 
@@ -76,12 +77,11 @@ const APP: () = {
         serial.listen(Rxne);
 
         let (tx, rx) = serial.split();
-        let (client, ingress) = atat::new(tx, timer, atat::Config::new(atat::Mode::NonBlocking));
-
-        // let (mut cmd_p, _) = at_client.release();
+        let (mut client, ingress) = atat::new(tx, timer, atat::Config::new(atat::Mode::Timeout));
 
         ctx.spawn.at_loop().unwrap();
-        // cmd_p.enqueue(Command::AT).unwrap();
+
+        let response = client.send(&common::AT).unwrap();
 
         init::LateResources { ingress, rx }
     }
