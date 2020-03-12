@@ -125,7 +125,7 @@ impl IngressManager {
                     }
                 } else if !self.echo_enabled {
                     unimplemented!("Disabling AT echo is currently unsupported");
-                } else if self.buf.starts_with("+") {
+                } else if self.buf.starts_with('+') {
                     let resp = self.take_trim_substring(self.buf.len());
                     self.notify_urc(resp);
                     self.buf.clear();
