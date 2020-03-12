@@ -21,12 +21,12 @@ use hal::{
     timer::{Event, Timer},
 };
 
+use atat::prelude::*;
 use rtfm::{
     app,
     cyccnt::{Duration, Instant, U32Ext},
     export::wfi,
 };
-use atat::prelude::*;
 
 use heapless::{consts, spsc::Queue, String};
 

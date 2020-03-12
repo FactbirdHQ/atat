@@ -285,7 +285,6 @@ mod test {
         static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
         let (_com_p, com_c) = unsafe { COM_Q.split() };
 
-
         let conf = Config::new(Mode::Timeout);
         let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
 
