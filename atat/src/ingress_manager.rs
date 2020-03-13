@@ -40,7 +40,7 @@ fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     }
 }
 
-/// State of the IngressManager, used to destiguish URC's from solicited
+/// State of the IngressManager, used to distiguish URCs from solicited
 /// responses
 #[derive(Clone, PartialEq, Debug)]
 pub enum State {
@@ -84,6 +84,8 @@ impl IngressManager {
     /// raw bytes being the core type allows the ingress manager to
     /// be abstracted over the communication medium.
     pub fn write(&mut self, data: &[u8]) {
+        #[cfg(feature = "logging")]
+        log::trace!("Ingress: Receiving {} bytes", data.len());
         for byte in data {
             match self.buf.push(*byte as char) {
                 Ok(_) => {}
@@ -137,9 +139,8 @@ impl IngressManager {
             // TODO: Custom trim_start, that trims based on line_term_char and format_char
             self.buf = String::from(self.buf.trim_start());
         }
-        if self.buf.len() > 0 {
-            log::trace!("{:?} - [{:?}]\r", self.state, self.buf);
-        }
+        #[cfg(feature = "logging")]
+        log::trace!("Ingress: Parsing / {:?} / {:?}", self.state, self.buf);
         match self.state {
             State::Idle => {
                 if self.echo_enabled && self.buf.starts_with("AT") {
@@ -152,6 +153,8 @@ impl IngressManager {
                         false,
                     ) {
                         self.state = State::ReceivingResponse;
+                        #[cfg(feature = "logging")]
+                        log::trace!("Ingress: Switching to state ReceivingResponse");
                     }
                 } else if !self.echo_enabled {
                     unimplemented!("Disabling AT echo is currently unsupported");
@@ -197,6 +200,8 @@ impl IngressManager {
                 };
 
                 self.notify_response(resp);
+                #[cfg(feature = "logging")]
+                log::trace!("Ingress: Switching to state Idle");
                 self.state = State::Idle;
             }
         }
