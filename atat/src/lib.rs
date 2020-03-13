@@ -101,6 +101,14 @@ type UrcQueue = Queue<String<consts::U64>, consts::U10, u8>;
 type ComQueue = Queue<Command, consts::U3, u8>;
 type ClientParser<Tx, T> = (client::ATClient<Tx, T>, IngressManager);
 
+/// Create a new ATAT client instance.
+///
+/// The `serial_tx` type must implement the embedded_hal
+/// [`serial::Write<u8>`][serialwrite] trait while the timer must implement the
+/// [`timer::CountDown`][timercountdown] trait.
+///
+/// [serialwrite]: ../embedded_hal/serial/trait.Write.html
+/// [timercountdown]: ../embedded_hal/timer/trait.CountDown.html
 pub fn new<Tx, T>(serial_tx: Tx, timer: T, config: Config) -> ClientParser<Tx, T>
 where
     Tx: serial::Write<u8>,
