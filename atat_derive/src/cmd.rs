@@ -111,11 +111,6 @@ fn generate_cmd_output(
 
     let value_sep = &attr.value_sep;
 
-    #[cfg(feature = "error-message")]
-    let invalid_resp_err = quote! { atat::Error::InvalidResponseWithMessage(String::from(resp)) };
-    #[cfg(not(feature = "error-message"))]
-    let invalid_resp_err = quote! { atat::Error::InvalidResponse };
-
     TokenStream::from(quote! {
         #[automatically_derived]
         impl #impl_generics atat::ATATCmd for #name #ty_generics #where_clause {
@@ -132,7 +127,7 @@ fn generate_cmd_output(
 
             fn parse(&self, resp: &str) -> core::result::Result<#response, atat::Error> {
                 serde_at::from_str::<#response>(resp).map_err(|e| {
-                    #invalid_resp_err
+                    atat::Error::InvalidResponse
                 })
             }
 

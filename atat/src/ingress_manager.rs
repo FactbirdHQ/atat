@@ -12,6 +12,34 @@ type ResProducer = Producer<'static, Result<String<consts::U256>>, consts::U5, u
 type UrcProducer = Producer<'static, String<consts::U64>, consts::U10, u8>;
 type ComConsumer = Consumer<'static, Command, consts::U3, u8>;
 
+fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
+    buf: &mut String<I>,
+    s: &str,
+    line_term_char: u8,
+    format_char: u8,
+    trim_response: bool,
+) -> Option<String<L>> {
+    match buf.match_indices(s).next() {
+        Some((mut index, _)) => {
+            index += s.len();
+            while match buf.get(index..=index) {
+                Some(c) => c.as_bytes()[0] == line_term_char || c.as_bytes()[0] == format_char,
+                _ => false,
+            } {
+                index += 1;
+            }
+
+            let return_string = {
+                let part = unsafe { buf.get_unchecked(0..index) };
+                String::from(if trim_response { part.trim() } else { part })
+            };
+            *buf = String::from(unsafe { buf.get_unchecked(index..buf.len()) });
+            Some(return_string)
+        }
+        None => None,
+    }
+}
+
 /// State of the IngressManager, used to destiguish URC's from solicited
 /// responses
 #[derive(Clone, PartialEq, Debug)]
@@ -27,9 +55,9 @@ pub struct IngressManager {
     com_c: ComConsumer,
     state: State,
     /// Command line termination character S3 (Default = '\r' [013])
-    line_term_char: char,
+    line_term_char: u8,
     /// Response formatting character S4 (Default = '\n' [010])
-    format_char: char,
+    format_char: u8,
     echo_enabled: bool,
 }
 
@@ -62,19 +90,6 @@ impl IngressManager {
                 Err(_) => self.notify_response(Err(Error::Overflow)),
             }
         }
-    }
-
-    fn take_trim_substring<L: ArrayLength<u8>>(&mut self, index: usize) -> String<L> {
-        let mut result = String::new();
-        let mut return_string: String<L> = String::new();
-        return_string
-            .push_str(unsafe { self.buf.get_unchecked(0..index).trim() })
-            .ok();
-        result
-            .push_str(unsafe { self.buf.get_unchecked(index..self.buf.len()) })
-            .ok();
-        self.buf = result;
-        return_string
     }
 
     fn notify_response(&mut self, resp: Result<String<consts::U256>>) {
@@ -116,66 +131,73 @@ impl IngressManager {
 
     pub fn parse_at(&mut self) {
         self.handle_com();
-        log::info!("{:?} - [{:?}]\r", self.state, self.buf);
+        if self.buf.starts_with(self.line_term_char as char)
+            || self.buf.starts_with(self.format_char as char)
+        {
+            // TODO: Custom trim_start, that trims based on line_term_char and format_char
+            self.buf = String::from(self.buf.trim_start());
+        }
+        if self.buf.len() > 0 {
+            log::trace!("{:?} - [{:?}]\r", self.state, self.buf);
+        }
         match self.state {
             State::Idle => {
                 if self.echo_enabled && self.buf.starts_with("AT") {
-                    if let Some((mut index, _)) = self.buf.match_indices(self.line_term_char).next()
-                    {
+                    if let Some(_) = get_line::<consts::U64, _>(
+                        &mut self.buf,
+                        // FIXME: Use `self.line_term_char` here
+                        "\r",
+                        self.line_term_char,
+                        self.format_char,
+                        false,
+                    ) {
                         self.state = State::ReceivingResponse;
-                        let mut tmp = [0; 1];
-                        while match self.buf.get(index..=index) {
-                            Some(c) => {
-                                c == self.line_term_char.encode_utf8(&mut tmp)
-                                    || c == self.format_char.encode_utf8(&mut tmp)
-                            }
-                            _ => false,
-                        } {
-                            index += 1;
-                        }
-                        self.take_trim_substring::<consts::U64>(index);
                     }
                 } else if !self.echo_enabled {
                     unimplemented!("Disabling AT echo is currently unsupported");
                 } else if self.buf.starts_with('+') {
-                    // Handle multiple urcs in same run!
-                    let resp = self.take_trim_substring(self.buf.len());
-                    self.notify_urc(resp);
-                    self.buf.clear();
+                    if let Some(line) = get_line(
+                        &mut self.buf,
+                        // FIXME: Use `self.line_term_char` here
+                        "\r",
+                        self.line_term_char,
+                        self.format_char,
+                        false,
+                    ) {
+                        self.notify_urc(line);
+                    }
                 } else {
                     self.buf.clear();
                 }
             }
             State::ReceivingResponse => {
-                if self.buf.starts_with(self.line_term_char)
-                    || self.buf.starts_with(self.format_char)
+                let resp = if let Some(mut line) = get_line::<consts::U64, _>(
+                    &mut self.buf,
+                    "OK",
+                    self.line_term_char,
+                    self.format_char,
+                    true,
+                ) {
+                    Ok(
+                        get_line(&mut line, "\r", self.line_term_char, self.format_char, true)
+                            .unwrap_or_else(|| String::new()),
+                    )
+                } else if get_line::<consts::U64, _>(
+                    &mut self.buf,
+                    "ERROR",
+                    self.line_term_char,
+                    self.format_char,
+                    false,
+                )
+                .is_some()
                 {
-                    // TODO: Custom trim_start, that trims based on line_term_char and format_char
-                    self.buf = String::from(self.buf.trim_start());
-                }
-
-                // TODO: Use `self.format_char` and `self.line_term_char` in these rmatches
-                let (index, err) = if let Some(index) = self.buf.rmatch_indices("OK\r\n").next() {
-                    (index.0, None)
-                } else if let Some(index) = self.buf.rmatch_indices("ERROR\r\n").next() {
-                    #[cfg(not(feature = "error-message"))]
-                    let err = Error::InvalidResponse;
-                    #[cfg(feature = "error-message")]
-                    let err = Error::InvalidResponseWithMessage(self.buf.clone());
-
-                    (index.0, Some(err))
+                    Err(Error::InvalidResponse)
                 } else {
                     return;
                 };
 
-                let resp = self.take_trim_substring(index);
-                self.notify_response(match err {
-                    None => Ok(resp),
-                    Some(e) => Err(e),
-                });
-
+                self.notify_response(resp);
                 self.state = State::Idle;
-                self.buf.clear();
             }
         }
     }
@@ -185,12 +207,11 @@ impl IngressManager {
 #[cfg_attr(tarpaulin, skip)]
 mod test {
     // extern crate test;
+    // use test::Bencher;
 
     use super::*;
     use crate as atat;
-    // use test::Bencher;
     use atat::Mode;
-    use embedded_hal::serial::{self, Read};
     use heapless::{consts, spsc::Queue, String};
 
     #[test]
@@ -250,9 +271,17 @@ mod test {
 
         at_pars.write("+USORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
         at_pars.parse_at();
-        assert_eq!(at_pars.state, State::ReceivingResponse);
+
+        assert_eq!(
+            at_pars.buf,
+            String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"\r\n")
+        );
 
         at_pars.write("OK\r\n".as_bytes());
+        assert_eq!(
+            at_pars.buf,
+            String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n")
+        );
         at_pars.parse_at();
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
@@ -370,23 +399,17 @@ mod test {
 
         at_pars.write("+USORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
         at_pars.parse_at();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
 
         at_pars.write("ERROR\r\n".as_bytes());
         at_pars.parse_at();
 
-        assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
-
-        #[cfg(feature = "error-message")]
-        let expectation = Error::InvalidResponseWithMessage(String::from(
-            "+USORD: 3,16,\"16 bytes of data\"\r\nERROR\r\n",
-        ));
-        #[cfg(not(feature = "error-message"))]
-        let expectation = Error::InvalidResponse;
+        assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
 
         if let Some(result) = c.dequeue() {
             match result {
-                Err(e) => assert_eq!(e, expectation),
+                Err(e) => assert_eq!(e, Error::InvalidResponse),
                 Ok(resp) => {
                     panic!("Dequeue Ok: {:?}", resp);
                 }

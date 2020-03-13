@@ -13,9 +13,6 @@ pub enum Error {
     /// Invalid response from module
     InvalidResponse,
 
-    #[cfg(feature = "error-message")]
-    InvalidResponseWithMessage(heapless::String<heapless::consts::U256>),
-
     ResponseError,
 
     Aborted,
