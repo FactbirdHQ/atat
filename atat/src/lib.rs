@@ -1,3 +1,177 @@
+//! A helper crate to abstract away the state management and string parsing of
+//! AT command communication.
+//!
+//! It works by creating structs for each AT command, that each implements
+//! [`AtatCmd`]. With corresponding response structs that each implements
+//! [`AtatResp`].
+//!
+//! This can be simplified alot using the [`atat_derive`] crate!
+//!
+//!
+//! [`atat_derive`]: https://crates.io/crates/atat_derive
+//!
+//! # Examples
+//! ### Command and response example without atat_derive:
+//! ```
+//! pub struct SetGreetingText<'a> {
+//!     pub text: &'a str,
+//! }
+//!
+//! pub struct GetGreetingText;
+//!
+//! pub struct NoResponse;
+//!
+//! pub struct GreetingText {
+//!     pub text: String<consts::U64>
+//! };
+//!
+//! impl<'a> AtatCmd for SetGreetingText<'a> {
+//!     type CommandLen = consts::U64;
+//!     type Response = NoResponse;
+//!
+//!     fn as_str(&self) -> String<Self::CommandLen> {
+//!         let buf: String<Self::CommandLen> = String::new();
+//!         write!(buf, "AT+CSGT={}", self.text);
+//!         buf
+//!     }
+//!
+//!     fn parse(&self, resp: &str) -> Result<Self::Response> {
+//!         NoResponse
+//!     }
+//! }
+//!
+//! impl AtatCmd for GetGreetingText<'a> {
+//!     type CommandLen = consts::U8;
+//!     type Response = GreetingText;
+//!
+//!     fn as_str(&self) -> String<Self::CommandLen> {
+//!         String::from("AT+CSGT?")
+//!     }
+//!
+//!     fn parse(&self, resp: &str) -> Result<Self::Response> {
+//!         // Parse resp into `GreetingText`
+//!         GreetingText { text: String::from(resp) }
+//!     }
+//! }
+//! ```
+//!
+//! ### Same example with atat_derive:
+//! ```
+//! #[derive(Clone, AtatCmd)]
+//! #[at_cmd("+CSGT", NoResponse)]
+//! pub struct SetGreetingText<'a> {
+//!     #[at_arg(position = 0)]
+//!     pub text: &'a str,
+//! }
+//!
+//! #[derive(Clone, AtatCmd)]
+//! #[at_cmd("+CSGT?", GreetingText)]
+//! pub struct GetGreetingText;
+//!
+//! #[derive(Clone, AtatResp)]
+//! pub struct NoResponse;
+//!
+//! #[derive(Clone, AtatResp)]
+//! pub struct GreetingText {
+//!     #[at_arg(position = 0)]
+//!     pub text: String<consts::U64>
+//! };
+//!
+//! ```
+//!
+//! ### Basic usage example (More available in examples folder):
+//! ```
+//! mod common;
+//!
+//! use cortex_m::asm;
+//! use hal::{
+//!     gpio::{
+//!         gpioa::{PA2, PA3},
+//!         Alternate, Floating, Input, AF7,
+//!     },
+//!     pac::{interrupt, Peripherals, USART2},
+//!     prelude::*,
+//!     serial::{Config, Event::Rxne, Rx, Serial},
+//!     timer::{Event, Timer},
+//! };
+//!
+//! use atat::prelude::*;
+//!
+//! use heapless::{consts, spsc::Queue, String};
+//!
+//! use crate::rt::entry;
+//! static mut INGRESS: Option<atat::IngressManager> = None;
+//! static mut RX: Option<Rx<USART2>> = None;
+//!
+//! #[entry]
+//! fn main() -> ! {
+//!     let p = Peripherals::take().unwrap();
+//!
+//!     let mut flash = p.FLASH.constrain();
+//!     let mut rcc = p.RCC.constrain();
+//!     let mut pwr = p.PWR.constrain(&mut rcc.apb1r1);
+//!
+//!     let mut gpioa = p.GPIOA.split(&mut rcc.ahb2);
+//!
+//!     let clocks = rcc.cfgr.freeze(&mut flash.acr, &mut pwr);
+//!
+//!     let tx = gpioa.pa2.into_af7(&mut gpioa.moder, &mut gpioa.afrl);
+//!     let rx = gpioa.pa3.into_af7(&mut gpioa.moder, &mut gpioa.afrl);
+//!
+//!     let mut timer = Timer::tim7(p.TIM7, 1.hz(), clocks, &mut rcc.apb1r1);
+//!     let at_timer = Timer::tim6(p.TIM6, 100.hz(), clocks, &mut rcc.apb1r1);
+//!
+//!     let mut serial = Serial::usart2(
+//!         p.USART2,
+//!         (tx, rx),
+//!         Config::default().baudrate(115_200.bps()),
+//!         clocks,
+//!         &mut rcc.apb1r1,
+//!     );
+//!
+//!     serial.listen(Rxne);
+//!
+//!     let (tx, rx) = serial.split();
+//!     let (mut client, ingress) = atat::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout));
+//!
+//!     unsafe { INGRESS = Some(ingress) };
+//!     unsafe { RX = Some(rx) };
+//!
+//!     // configure NVIC interrupts
+//!     unsafe { cortex_m::peripheral::NVIC::unmask(hal::stm32::Interrupt::TIM7) };
+//!     timer.listen(Event::TimeOut);
+//!
+//!     // if all goes well you should reach this breakpoint
+//!     asm::bkpt();
+//!
+//!     loop {
+//!         asm::wfi();
+//!
+//!         match client.send(&common::AT) {
+//!             Ok(response) => {
+//!                 // Do something with response here
+//!             }
+//!             Err(e) => {}
+//!         }
+//!     }
+//! }
+//!
+//! #[interrupt]
+//! fn TIM7() {
+//!     let ingress = unsafe { INGRESS.as_mut().unwrap() };
+//!     ingress.parse_at();
+//! }
+//!
+//! #[interrupt]
+//! fn USART2() {
+//!     let ingress = unsafe { INGRESS.as_mut().unwrap() };
+//!     let rx = unsafe { RX.as_mut().unwrap() };
+//!     if let Ok(d) = nb::block!(rx.read()) {
+//!         ingress.write(&[d]);
+//!     }
+//! }
+//! ```
+
 #![cfg_attr(not(test), no_std)]
 // #![feature(test)]
 
@@ -11,10 +185,10 @@ mod error;
 mod ingress_manager;
 mod traits;
 
-pub use self::client::ATClient;
+pub use self::client::Client;
 pub use self::error::Error;
 pub use self::ingress_manager::IngressManager;
-pub use self::traits::{ATATCmd, ATATInterface, ATATResp, ATATUrc};
+pub use self::traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 
 #[cfg(feature = "derive")]
 pub use atat_derive;
@@ -23,7 +197,7 @@ use embedded_hal::{serial, timer::CountDown};
 use heapless::{consts, spsc::Queue, String};
 
 pub mod prelude {
-    pub use crate::{ATATCmd, ATATInterface, ATATResp, ATATUrc};
+    pub use crate::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 }
 
 /// Whether the AT client should block while waiting responses or return early.
@@ -37,15 +211,26 @@ pub enum Mode {
     Timeout,
 }
 
-/// Whether the AT client should block while waiting responses or return early.
+/// Commands that can be sent from the client to the ingress manager, for
+/// configuration after initial setup. This is also used for stuff like clearing
+/// the receive buffer on command timeouts.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Command {
+    /// Clear the rx buffer, usually as a result of a command timeout
     ClearBuffer,
+    /// Change the line termination character, must be called af setting `ATS3=`
     SetLineTerm(u8),
+    /// Change the format character, must be called af setting `ATS4=`
     SetFormat(u8),
+    /// Enable or disable AT echo, must be called after setting `ATE`
     SetEcho(bool),
 }
 
+/// Configuration of both the ingress manager, and the AT client. Some of these
+/// parameters can be changed on the fly, through issuing a [`Command`] from the
+/// client.
+///
+/// [`Command`]: #Command
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct Config {
     mode: Mode,
@@ -99,9 +284,9 @@ impl Config {
 type ResQueue = Queue<Result<String<consts::U256>, error::Error>, consts::U5, u8>;
 type UrcQueue = Queue<String<consts::U64>, consts::U10, u8>;
 type ComQueue = Queue<Command, consts::U3, u8>;
-type ClientParser<Tx, T> = (client::ATClient<Tx, T>, IngressManager);
+type ClientParser<Tx, T> = (Client<Tx, T>, IngressManager);
 
-/// Create a new ATAT client instance.
+/// Create a new Atat client instance.
 ///
 /// The `serial_tx` type must implement the embedded_hal
 /// [`serial::Write<u8>`][serialwrite] trait while the timer must implement the
@@ -122,7 +307,7 @@ where
     let (urc_p, urc_c) = unsafe { URC_QUEUE.split() };
     let (com_p, com_c) = unsafe { COM_QUEUE.split() };
     let parser = IngressManager::new(res_p, urc_p, com_c, &config);
-    let client = ATClient::new(serial_tx, res_c, urc_c, com_p, timer, config);
+    let client = Client::new(serial_tx, res_c, urc_c, com_p, timer, config);
 
     (client, parser)
 }

@@ -25,10 +25,10 @@ pub fn atat_resp(item: DeriveInput) -> TokenStream {
         _ => {
             // item.span()
             //     .unstable()
-            //     .error("ATATResp can only be applied to structs!")
+            //     .error("AtatResp can only be applied to structs!")
             //     .emit();
             // TokenStream::new()
-            panic!("ATATResp can only be applied to structs!");
+            panic!("AtatResp can only be applied to structs!");
         }
     }
 }
@@ -71,7 +71,7 @@ fn generate_resp_output(
 
     TokenStream::from(quote! {
         #[automatically_derived]
-        impl #impl_generics atat::ATATResp for #name #ty_generics #where_clause {}
+        impl #impl_generics atat::AtatResp for #name #ty_generics #where_clause {}
 
         #[automatically_derived]
         impl #serde_impl_generics serde::Deserialize<'de> for #name #ty_generics #where_clause {

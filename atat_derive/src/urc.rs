@@ -15,20 +15,20 @@ struct AtUrcAttr {
 
 fn get_type(variant: &Variant) -> Type {
     if variant.fields.len() > 1 {
-        panic!("ATATUrc does not support more than one field per variant");
+        panic!("AtatUrc does not support more than one field per variant");
     }
     match variant.fields {
         Fields::Unnamed(ref f) => f
             .unnamed
             .first()
             .expect(
-                "ATATUrc does not support unit variants, \
+                "AtatUrc does not support unit variants, \
                 please add unnamed field to a struct, \
-                implementing ATATResp",
+                implementing AtatResp",
             )
             .ty
             .clone(),
-        _ => panic!("ATATUrc does not support named fields in variants"),
+        _ => panic!("AtatUrc does not support named fields in variants"),
     }
 }
 
@@ -46,7 +46,7 @@ pub fn atat_urc(item: DeriveInput) -> TokenStream {
             generate_urc_output(&item.ident, &item.generics, &urc_attrs)
         }
         _ => {
-            panic!("ATATUrc can only be applied to enums!");
+            panic!("AtatUrc can only be applied to enums!");
         }
     }
 }
@@ -75,7 +75,7 @@ fn generate_urc_output(
 
     TokenStream::from(quote! {
         #[automatically_derived]
-        impl #impl_generics atat::ATATUrc for #name #ty_generics #where_clause {
+        impl #impl_generics atat::AtatUrc for #name #ty_generics #where_clause {
             type Resp = #name;
 
             fn parse(resp: &str) -> ::core::result::Result<Self::Resp, atat::Error> {

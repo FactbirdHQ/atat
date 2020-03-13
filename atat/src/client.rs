@@ -7,7 +7,7 @@ use heapless::{
 use embedded_hal::{serial, timer::CountDown};
 
 use crate::error::{Error, NBResult, Result};
-use crate::traits::{ATATCmd, ATATInterface, ATATUrc};
+use crate::traits::{AtatCmd, AtatClient, AtatUrc};
 use crate::{Command, Config, Mode};
 
 type ResConsumer = Consumer<'static, Result<String<consts::U256>>, consts::U5, u8>;
@@ -25,7 +25,7 @@ enum ClientState {
 /// some spsc queue consumers, where any received responses can be dequeued. The
 /// Client also has an spsc producer, to allow signaling commands like
 /// 'clearBuffer' to the ingress-manager.
-pub struct ATClient<Tx, T>
+pub struct Client<Tx, T>
 where
     Tx: serial::Write<u8>,
     T: CountDown,
@@ -39,7 +39,7 @@ where
     config: Config,
 }
 
-impl<Tx, T> ATClient<Tx, T>
+impl<Tx, T> Client<Tx, T>
 where
     Tx: serial::Write<u8>,
     T: CountDown,
@@ -65,19 +65,19 @@ where
     }
 }
 
-impl<Tx, T> ATATInterface for ATClient<Tx, T>
+impl<Tx, T> AtatClient for Client<Tx, T>
 where
     Tx: serial::Write<u8>,
     T: CountDown,
     T::Time: From<u32>,
 {
-    fn send<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response> {
+    fn send<A: AtatCmd>(&mut self, cmd: &A) -> NBResult<A::Response> {
         if let ClientState::Idle = self.state {
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
             block!(self.timer.wait()).ok();
-            for c in cmd.as_str().as_bytes() {
+            for c in cmd.as_string().as_bytes() {
                 block!(self.tx.write(*c)).ok();
             }
             block!(self.tx.flush()).ok();
@@ -94,7 +94,7 @@ where
         }
     }
 
-    fn check_urc<URC: ATATUrc>(&mut self) -> Option<URC::Resp> {
+    fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Resp> {
         if let Some(ref resp) = self.urc_c.dequeue() {
             self.timer.start(self.config.cmd_cooldown);
             match URC::parse(resp) {
@@ -106,7 +106,7 @@ where
         }
     }
 
-    fn check_response<A: ATATCmd>(&mut self, cmd: &A) -> NBResult<A::Response> {
+    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> NBResult<A::Response> {
         if let Some(result) = self.res_c.dequeue() {
             return match result {
                 Ok(ref resp) => {
@@ -125,6 +125,7 @@ where
                 self.state = ClientState::Idle;
                 // Tell the parser to clear the buffer due to timeout
                 if self.com_p.enqueue(Command::ClearBuffer).is_err() {
+                    // TODO: Consider how to act in this situation.
                     // log::error!("Failed to signal parser to clear buffer on timeout!\r");
                 }
                 return Err(nb::Error::Other(Error::Timeout));
@@ -143,7 +144,7 @@ where
 mod test {
     use super::*;
     use crate as atat;
-    use crate::atat_derive::{ATATCmd, ATATResp, ATATUrc};
+    use crate::atat_derive::{AtatCmd, AtatResp, AtatUrc};
     use heapless::{consts, spsc::Queue, String, Vec};
     use nb;
     use serde;
@@ -193,7 +194,7 @@ mod test {
         }
     }
 
-    #[derive(Clone, ATATCmd)]
+    #[derive(Clone, AtatCmd)]
     #[at_cmd("+CFUN", NoResonse, timeout_ms = 180000)]
     pub struct SetModuleFunctionality {
         #[at_arg(position = 0)]
@@ -202,7 +203,7 @@ mod test {
         pub rst: Option<ResetMode>,
     }
 
-    #[derive(Clone, ATATCmd)]
+    #[derive(Clone, AtatCmd)]
     #[at_cmd("+FUN", NoResonse, timeout_ms = 180000)]
     pub struct Test2Cmd {
         #[at_arg(position = 1)]
@@ -210,7 +211,7 @@ mod test {
         #[at_arg(position = 0)]
         pub rst: Option<ResetMode>,
     }
-    #[derive(Clone, ATATCmd)]
+    #[derive(Clone, AtatCmd)]
     #[at_cmd("+CUN", TestResponseVec, timeout_ms = 180000)]
     pub struct TestRespVecCmd {
         #[at_arg(position = 0)]
@@ -218,7 +219,7 @@ mod test {
         #[at_arg(position = 1)]
         pub rst: Option<ResetMode>,
     }
-    #[derive(Clone, ATATCmd)]
+    #[derive(Clone, AtatCmd)]
     #[at_cmd("+CUN", TestResponseString, timeout_ms = 180000)]
     pub struct TestRespStringCmd {
         #[at_arg(position = 0)]
@@ -226,7 +227,7 @@ mod test {
         #[at_arg(position = 1)]
         pub rst: Option<ResetMode>,
     }
-    #[derive(Clone, ATATCmd)]
+    #[derive(Clone, AtatCmd)]
     #[at_cmd("+CUN", TestResponseStringMixed, timeout_ms = 180000)]
     pub struct TestRespStringMixCmd {
         #[at_arg(position = 1)]
@@ -249,9 +250,9 @@ mod test {
         DontReset = 0,
         Reset = 1,
     }
-    #[derive(Clone, ATATResp, PartialEq, Debug)]
+    #[derive(Clone, AtatResp, PartialEq, Debug)]
     pub struct NoResonse;
-    #[derive(Clone, ATATResp, PartialEq, Debug)]
+    #[derive(Clone, AtatResp, PartialEq, Debug)]
     pub struct TestResponseVec {
         #[at_arg(position = 0)]
         pub socket: u8,
@@ -261,7 +262,7 @@ mod test {
         pub data: Vec<u8, consts::U256>,
     }
 
-    #[derive(Clone, ATATResp, PartialEq, Debug)]
+    #[derive(Clone, AtatResp, PartialEq, Debug)]
     pub struct TestResponseString {
         #[at_arg(position = 0)]
         pub socket: u8,
@@ -271,7 +272,7 @@ mod test {
         pub data: String<consts::U64>,
     }
 
-    #[derive(Clone, ATATResp, PartialEq, Debug)]
+    #[derive(Clone, AtatResp, PartialEq, Debug)]
     pub struct TestResponseStringMixed {
         #[at_arg(position = 1)]
         pub socket: u8,
@@ -281,7 +282,7 @@ mod test {
         pub data: String<consts::U64>,
     }
 
-    #[derive(Clone, ATATResp)]
+    #[derive(Clone, AtatResp)]
     pub struct MessageWaitingIndication {
         #[at_arg(position = 0)]
         pub status: u8,
@@ -289,7 +290,7 @@ mod test {
         pub code: u8,
     }
 
-    #[derive(Clone, ATATUrc)]
+    #[derive(Clone, AtatUrc)]
     pub enum Urc {
         #[at_urc("+UMWI")]
         MessageWaitingIndication(MessageWaitingIndication),
@@ -309,8 +310,8 @@ mod test {
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
-        let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
+        let mut client: Client<TxMock, CdMock> =
+            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
@@ -373,8 +374,8 @@ mod test {
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
-        let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Timeout));
+        let mut client: Client<TxMock, CdMock> =
+            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Timeout));
 
         assert_eq!(client.state, ClientState::Idle);
 
@@ -410,8 +411,8 @@ mod test {
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
-        let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
+        let mut client: Client<TxMock, CdMock> =
+            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
@@ -449,7 +450,7 @@ mod test {
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
-        let mut client: ATClient<TxMock, CdMock> = ATClient::new(
+        let mut client: Client<TxMock, CdMock> = Client::new(
             tx_mock,
             c,
             urc_c,
@@ -509,8 +510,8 @@ mod test {
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
-        let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
+        let mut client: Client<TxMock, CdMock> =
+            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
 
         let cmd = TestRespVecCmd {
             fun: Functionality::APM,
@@ -561,8 +562,8 @@ mod test {
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
-        let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
+        let mut client: Client<TxMock, CdMock> =
+            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
 
         // String last
         let cmd = TestRespStringCmd {
@@ -635,7 +636,7 @@ mod test {
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
-        let mut client: ATClient<TxMock, CdMock> = ATClient::new(
+        let mut client: Client<TxMock, CdMock> = Client::new(
             tx_mock,
             c,
             urc_c,
@@ -674,8 +675,8 @@ mod test {
         let timer = CdMock { time: 0 };
 
         let tx_mock = TxMock::new(String::new());
-        let mut client: ATClient<TxMock, CdMock> =
-            ATClient::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
+        let mut client: Client<TxMock, CdMock> =
+            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
 
         // String last
         let cmd = TestRespStringCmd {

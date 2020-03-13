@@ -1,7 +1,7 @@
 //! Responses for Internet protocol transport layer Commands
 use super::types;
-use atat::atat_derive::{ATATResp, ATATUrc};
-use atat::{ATATResp, ATATUrc};
+use atat::atat_derive::{AtatResp, AtatUrc};
+use atat::{AtatResp, AtatUrc};
 
 /// 11.29 Message waiting indication +UMWI
 /// Provides information regarding the Message Waiting Indication (MWI) third level method (3GPP defined in
@@ -10,7 +10,7 @@ use atat::{ATATResp, ATATUrc};
 /// MWI is based on specific EFs not present in all SIM cards. In case these EFs are not present, the information
 /// text response is an error result code ("+CME ERROR: operation not allowed" if +CMEE is set to 2) and no URCs
 /// will be displayed.
-#[derive(Clone, ATATResp)]
+#[derive(Clone, AtatResp)]
 pub struct MessageWaitingIndication {
     #[at_arg(position = 0)]
     pub status: u8,

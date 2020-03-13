@@ -1,21 +1,21 @@
 pub mod general;
 
-use atat::{atat_derive::ATATUrc, ATATUrc};
+use atat::{atat_derive::AtatUrc, AtatUrc};
 
 use atat::{
-    atat_derive::{ATATCmd, ATATResp},
-    ATATCmd, ATATResp,
+    atat_derive::{AtatCmd, AtatResp},
+    AtatCmd, AtatResp,
 };
 use heapless::String;
 
-#[derive(Clone, ATATResp)]
+#[derive(Clone, AtatResp)]
 pub struct NoResponse;
 
-#[derive(Clone, ATATCmd)]
+#[derive(Clone, AtatCmd)]
 #[at_cmd("", NoResponse, timeout_ms = 1000)]
 pub struct AT;
 
-#[derive(Clone, ATATUrc)]
+#[derive(Clone, AtatUrc)]
 pub enum Urc {
     #[at_urc("+UMWI")]
     MessageWaitingIndication(general::urc::MessageWaitingIndication),

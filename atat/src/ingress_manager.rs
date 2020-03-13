@@ -54,9 +54,9 @@ pub struct IngressManager {
     urc_p: UrcProducer,
     com_c: ComConsumer,
     state: State,
-    /// Command line termination character S3 (Default = '\r' [013])
+    /// Command line termination character S3 (Default = '\r' ASCII: \[013\])
     line_term_char: u8,
-    /// Response formatting character S4 (Default = '\n' [010])
+    /// Response formatting character S4 (Default = '\n' ASCII: \[010\])
     format_char: u8,
     echo_enabled: bool,
 }

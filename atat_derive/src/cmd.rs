@@ -26,7 +26,7 @@ pub fn atat_cmd(item: DeriveInput) -> TokenStream {
             }
         }
         _ => {
-            panic!("ATATCmd can only be applied to structs!");
+            panic!("AtatCmd can only be applied to structs!");
         }
     }
 }
@@ -113,11 +113,11 @@ fn generate_cmd_output(
 
     TokenStream::from(quote! {
         #[automatically_derived]
-        impl #impl_generics atat::ATATCmd for #name #ty_generics #where_clause {
+        impl #impl_generics atat::AtatCmd for #name #ty_generics #where_clause {
             type Response = #response;
             type CommandLen = heapless::consts::U64;
 
-            fn as_str(&self) -> heapless::String<Self::CommandLen> {
+            fn as_string(&self) -> heapless::String<Self::CommandLen> {
                 let s: heapless::String<Self::CommandLen> = heapless::String::from(#cmd);
                 match serde_at::to_string(self, s, #value_sep) {
                     Ok(s) => s,
