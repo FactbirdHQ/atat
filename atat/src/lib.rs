@@ -174,7 +174,6 @@
 //! - **`logging`** *(disabled by default)* — Prints all incoming and outgoing
 //!   data bytes on the serial line.
 
-
 #![cfg_attr(not(test), no_std)]
 // #![feature(test)]
 
