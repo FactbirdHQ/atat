@@ -1,26 +1,44 @@
-use crate::error::{NBResult, Result};
+use crate::error::Error;
 use crate::Mode;
 use heapless::{ArrayLength, String};
 
 pub trait AtatErr {}
 
 /// This trait needs to be implemented for every response type.
+///
+/// Example:
+/// ```
+/// use atat::prelude::*;
+///
+/// pub struct GreetingText {
+///     pub text: heapless::String<heapless::consts::U64>
+/// }
+///
+/// impl AtatResp for GreetingText {}
+/// ```
 pub trait AtatResp {}
 
 pub trait AtatUrc {
-    type Resp;
+    /// The type of the response. Usually the enum this trait is implemented on.
+    type Response;
 
-    fn parse(resp: &str) -> Result<Self::Resp>;
+    /// Parse the string response into a `Self::Response` instance.
+    fn parse(resp: &str) -> Result<Self::Response, Error>;
 }
 
 /// This trait needs to be implemented for every command type.
+///
 /// It can also be derived by the [`atat_derive`] crate.
 ///
 /// [`atat_derive`]: https://crates.io/crates/atat_derive
 ///
-/// Example implementation:
+/// Example:
 /// ```
 /// use atat::prelude::*;
+///
+/// pub struct SetGreetingText<'a> {
+///     pub text: &'a str
+/// }
 ///
 /// impl<'a> AtatCmd for SetGreetingText<'a> {
 ///     type CommandLen = heapless::consts::U64;
@@ -54,7 +72,7 @@ pub trait AtatCmd {
     fn as_string(&self) -> String<Self::CommandLen>;
 
     /// Parse the string response into a `Self::Response` instance.
-    fn parse(&self, resp: &str) -> Result<Self::Response>;
+    fn parse(&self, resp: &str) -> Result<Self::Response, Error>;
 
     /// Whether or not this command can be aborted.
     fn can_abort(&self) -> bool {
@@ -69,6 +87,7 @@ pub trait AtatCmd {
 
 pub trait AtatClient {
     /// Send an AT command.
+    ///
     /// `cmd` must implement [`AtatCmd`].
     ///
     /// This function will block until a response is received, if in Timeout or
@@ -79,12 +98,12 @@ pub trait AtatClient {
     /// This function will also make sure that atleast `self.config.cmd_cooldown`
     /// has passed since the last response or URC has been received, to allow
     /// the slave AT device time to deliver URC's.
-    fn send<A: AtatCmd>(&mut self, cmd: &A) -> NBResult<A::Response>;
+    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error>;
 
     /// Checks if there are any URC's (Unsolicited Response Code) in
     /// queue from the ingress manager.
     ///
-    /// Example usage:
+    /// Example:
     /// ```
     /// /// use atat::prelude::*;
     ///
@@ -108,7 +127,7 @@ pub trait AtatClient {
     ///     }
     /// }
     /// ```
-    fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Resp>;
+    fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Response>;
 
     /// Check if there are any responses enqueued from the ingress manager.
     ///
@@ -118,7 +137,7 @@ pub trait AtatClient {
     /// This function is usually only called through [`send`].
     ///
     /// [`send`]: #method.send
-    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> NBResult<A::Response>;
+    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error>;
 
     /// Get the configured mode of the client.
     ///

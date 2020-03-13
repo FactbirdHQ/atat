@@ -7,9 +7,6 @@
 //!
 //! This can be simplified alot using the [`atat_derive`] crate!
 //!
-//!
-//! [`atat_derive`]: https://crates.io/crates/atat_derive
-//!
 //! # Examples
 //! ### Command and response example without atat_derive:
 //! ```
@@ -171,6 +168,12 @@
 //!     }
 //! }
 //! ```
+//! # Optional features
+//!
+//! - **`derive`** *(enabled by default)* — Enables and re-exports [`atat_derive`].
+//! - **`logging`** *(disabled by default)* — Prints all incoming and outgoing
+//!   data bytes on the serial line.
+
 
 #![cfg_attr(not(test), no_std)]
 // #![feature(test)]
@@ -197,7 +200,13 @@ use embedded_hal::{serial, timer::CountDown};
 use heapless::{consts, spsc::Queue, String};
 
 pub mod prelude {
-    pub use crate::{AtatClient, AtatCmd, AtatResp, AtatUrc};
+    //! The prelude is a collection of all the traits in this crate
+    //!
+    //! The traits have been renamed to avoid collisions with other items when performing a glob import.
+    pub use crate::AtatClient as _atat_AtatClient;
+    pub use crate::AtatCmd as _atat_AtatCmd;
+    pub use crate::AtatResp as _atat_AtatResp;
+    pub use crate::AtatUrc as _atat_AtatUrc;
 }
 
 /// Whether the AT client should block while waiting responses or return early.

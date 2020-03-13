@@ -127,7 +127,7 @@ fn generate_cmd_output(
 
             fn parse(&self, resp: &str) -> core::result::Result<#response, atat::Error> {
                 serde_at::from_str::<#response>(resp).map_err(|e| {
-                    atat::Error::InvalidResponse
+                    atat::Error::ParseString
                 })
             }
 

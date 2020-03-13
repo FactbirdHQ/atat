@@ -6,11 +6,11 @@ use heapless::{
 
 use embedded_hal::{serial, timer::CountDown};
 
-use crate::error::{Error, NBResult, Result};
-use crate::traits::{AtatCmd, AtatClient, AtatUrc};
+use crate::error::Error;
+use crate::traits::{AtatClient, AtatCmd, AtatUrc};
 use crate::{Command, Config, Mode};
 
-type ResConsumer = Consumer<'static, Result<String<consts::U256>>, consts::U5, u8>;
+type ResConsumer = Consumer<'static, Result<String<consts::U256>, Error>, consts::U5, u8>;
 type UrcConsumer = Consumer<'static, String<consts::U64>, consts::U10, u8>;
 type ComProducer = Producer<'static, Command, consts::U3, u8>;
 
@@ -71,16 +71,16 @@ where
     T: CountDown,
     T::Time: From<u32>,
 {
-    fn send<A: AtatCmd>(&mut self, cmd: &A) -> NBResult<A::Response> {
+    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {
         if let ClientState::Idle = self.state {
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
             block!(self.timer.wait()).ok();
             for c in cmd.as_string().as_bytes() {
-                block!(self.tx.write(*c)).ok();
+                block!(self.tx.write(*c)).map_err(|_e| Error::Write)?;
             }
-            block!(self.tx.flush()).ok();
+            block!(self.tx.flush()).map_err(|_e| Error::Write)?;
             self.state = ClientState::AwaitingResponse;
         }
 
@@ -94,7 +94,7 @@ where
         }
     }
 
-    fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Resp> {
+    fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Response> {
         if let Some(ref resp) = self.urc_c.dequeue() {
             self.timer.start(self.config.cmd_cooldown);
             match URC::parse(resp) {
@@ -106,7 +106,7 @@ where
         }
     }
 
-    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> NBResult<A::Response> {
+    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {
         if let Some(result) = self.res_c.dequeue() {
             return match result {
                 Ok(ref resp) => {
@@ -298,7 +298,7 @@ mod test {
 
     #[test]
     fn string_sent() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (mut p, c) = unsafe { REQ_Q.split() };
         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
@@ -318,7 +318,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(""));
+        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(""));
         p.enqueue(resp).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
@@ -337,7 +337,7 @@ mod test {
             "Wrong encoding of string"
         );
 
-        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(""));
+        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(""));
         p.enqueue(resp).unwrap();
 
         let cmd = Test2Cmd {
@@ -361,7 +361,7 @@ mod test {
     #[test]
     #[ignore]
     fn countdown() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let c = unsafe { REQ_Q.split().1 };
 
@@ -397,7 +397,7 @@ mod test {
 
     #[test]
     fn blocking() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (mut p, c) = unsafe { REQ_Q.split() };
 
@@ -419,7 +419,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(""));
+        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(""));
         p.enqueue(resp).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
@@ -436,7 +436,7 @@ mod test {
 
     #[test]
     fn non_blocking() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (mut p, c) = unsafe { REQ_Q.split() };
 
@@ -478,7 +478,7 @@ mod test {
             _ => panic!("Send error in test"),
         }
 
-        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(""));
+        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(""));
         p.enqueue(resp).unwrap();
 
         assert_eq!(client.state, ClientState::AwaitingResponse);
@@ -496,7 +496,7 @@ mod test {
     #[test]
     #[ignore]
     fn response_vec() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (mut p, c) = unsafe { REQ_Q.split() };
 
@@ -518,7 +518,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(
+        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(
             "+CUN: 22,16,\"0123456789012345\"",
         ));
         p.enqueue(resp).unwrap();
@@ -548,7 +548,7 @@ mod test {
     // Test response containing string
     #[test]
     fn response_string() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (mut p, c) = unsafe { REQ_Q.split() };
 
@@ -571,7 +571,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(
+        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(
             "+CUN: 22,16,\"0123456789012345\"",
         ));
         p.enqueue(resp).unwrap();
@@ -599,7 +599,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from(
+        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(
             "+CUN: \"0123456789012345\",22,16",
         ));
         p.enqueue(resp).unwrap();
@@ -622,7 +622,7 @@ mod test {
 
     #[test]
     fn urc() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (_p, c) = unsafe { REQ_Q.split() };
 
@@ -661,7 +661,7 @@ mod test {
 
     #[test]
     fn invalid_response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (mut p, c) = unsafe { REQ_Q.split() };
 
@@ -684,13 +684,14 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>> = Ok(String::<consts::U256>::from("+CUN: 22,16,22"));
+        let resp: Result<String<consts::U256>, Error> =
+            Ok(String::<consts::U256>::from("+CUN: 22,16,22"));
         p.enqueue(resp).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
 
         match client.send(&cmd) {
-            Err(error) => assert_eq!(error, nb::Error::Other(Error::InvalidResponse)),
+            Err(error) => assert_eq!(error, nb::Error::Other(Error::ParseString)),
             _ => panic!("Panic send error in test"),
         }
         assert_eq!(client.state, ClientState::Idle);

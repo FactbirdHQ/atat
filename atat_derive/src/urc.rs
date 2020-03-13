@@ -76,14 +76,14 @@ fn generate_urc_output(
     TokenStream::from(quote! {
         #[automatically_derived]
         impl #impl_generics atat::AtatUrc for #name #ty_generics #where_clause {
-            type Resp = #name;
+            type Response = #name;
 
-            fn parse(resp: &str) -> ::core::result::Result<Self::Resp, atat::Error> {
+            fn parse(resp: &str) -> ::core::result::Result<Self::Response, atat::Error> {
                 if let Some(cmd) = resp.splitn(2, ':').next() {
                     Ok(match cmd {
                         #(
                             #cmds => #name::#variant_names(serde_at::from_str::<#variant_field_types>(resp).map_err(|e| {
-                                atat::Error::InvalidResponse
+                                atat::Error::ParseString
                             })?),
                         )*
                         _ => return Err(atat::Error::InvalidResponse)

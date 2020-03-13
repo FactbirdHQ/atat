@@ -4,11 +4,11 @@ use heapless::{
     ArrayLength, String,
 };
 
-use crate::error::{Error, Result};
+use crate::error::Error;
 use crate::Command;
 use crate::Config;
 
-type ResProducer = Producer<'static, Result<String<consts::U256>>, consts::U5, u8>;
+type ResProducer = Producer<'static, Result<String<consts::U256>, Error>, consts::U5, u8>;
 type UrcProducer = Producer<'static, String<consts::U64>, consts::U10, u8>;
 type ComConsumer = Consumer<'static, Command, consts::U3, u8>;
 
@@ -92,7 +92,7 @@ impl IngressManager {
         }
     }
 
-    fn notify_response(&mut self, resp: Result<String<consts::U256>>) {
+    fn notify_response(&mut self, resp: Result<String<consts::U256>, Error>) {
         if self.res_p.ready() {
             self.res_p.enqueue(resp).ok();
         } else {
@@ -216,7 +216,7 @@ mod test {
 
     #[test]
     fn no_response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (p, mut c) = unsafe { REQ_Q.split() };
         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
@@ -252,7 +252,7 @@ mod test {
 
     #[test]
     fn response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (p, mut c) = unsafe { REQ_Q.split() };
         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
@@ -303,7 +303,7 @@ mod test {
 
     #[test]
     fn urc() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (p, _c) = unsafe { REQ_Q.split() };
         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
@@ -325,7 +325,7 @@ mod test {
 
     #[test]
     fn overflow() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (p, mut c) = unsafe { REQ_Q.split() };
         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
@@ -356,7 +356,7 @@ mod test {
 
     #[test]
     fn read_error() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (p, _c) = unsafe { REQ_Q.split() };
         static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
@@ -379,7 +379,7 @@ mod test {
 
     #[test]
     fn error_response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
             Queue(heapless::i::Queue::u8());
         let (p, mut c) = unsafe { REQ_Q.split() };
 
@@ -421,7 +421,7 @@ mod test {
 
     // #[bench]
     // fn response_bench(b: &mut Bencher) {
-    //     static mut REQ_Q: Queue<Result<String<consts::U256>>, consts::U5, u8> =
+    //     static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
     //         Queue(heapless::i::Queue::u8());
     //     let (p, _c) = unsafe { REQ_Q.split() };
     //     static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =

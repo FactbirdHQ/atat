@@ -1,26 +1,18 @@
-#[derive(Debug, PartialEq)]
+/// Errors returned by, or used within the crate
+#[derive(Clone, Debug, PartialEq)]
 pub enum Error {
     /// Serial read error
     Read,
-
     /// Serial write error
     Write,
-
-    Busy,
-
+    /// Timed out while waiting for a response
     Timeout,
-
     /// Invalid response from module
     InvalidResponse,
-
-    ResponseError,
-
+    /// Command was aborted
     Aborted,
-
+    /// Buffer overflow
     Overflow,
-
+    /// Failed to parse received response
     ParseString,
 }
-
-pub type Result<T> = core::result::Result<T, Error>;
-pub type NBResult<T> = nb::Result<T, Error>;
