@@ -18,7 +18,3 @@ serde_at = { path = "../serde_at", version = "0.1.8-alpha.0" }
 
 [lib]
 proc-macro = true
-
-[features]
-default = ["error-message"]
-error-message = []

@@ -1,6 +1,6 @@
 on:
   push:
-    branches:    
+    branches:
         - master         # Push events on master branch
 
 name: CodeCoverage
@@ -27,4 +27,4 @@ jobs:
       - name: Test Code Coverage
         uses: actions-rs/tarpaulin@v0.1
         with:
-          args: '-- -test-threads 1'
+          args: '--ignore-tests -- -test-threads 1'

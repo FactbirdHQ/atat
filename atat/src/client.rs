@@ -688,15 +688,8 @@ mod test {
 
         assert_eq!(client.state, ClientState::Idle);
 
-        #[cfg(feature = "error-message")]
-        let expectation = nb::Error::Other(Error::InvalidResponseWithMessage(String::from(
-            "+CUN: 22,16,22",
-        )));
-        #[cfg(not(feature = "error-message"))]
-        let expectation = nb::Error::Other(Error::InvalidResponse);
-
         match client.send(&cmd) {
-            Err(error) => assert_eq!(error, expectation),
+            Err(error) => assert_eq!(error, nb::Error::Other(Error::InvalidResponse)),
             _ => panic!("Panic send error in test"),
         }
         assert_eq!(client.state, ClientState::Idle);

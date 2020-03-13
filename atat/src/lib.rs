@@ -41,16 +41,16 @@ pub enum Mode {
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Command {
     ClearBuffer,
-    SetLineTerm(char),
-    SetFormat(char),
+    SetLineTerm(u8),
+    SetFormat(u8),
     SetEcho(bool),
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct Config {
     mode: Mode,
-    line_term_char: char,
-    format_char: char,
+    line_term_char: u8,
+    format_char: u8,
     at_echo_enabled: bool,
     cmd_cooldown: u32,
 }
@@ -59,8 +59,8 @@ impl Default for Config {
     fn default() -> Config {
         Config {
             mode: Mode::Blocking,
-            line_term_char: '\r',
-            format_char: '\n',
+            line_term_char: '\r' as u8,
+            format_char: '\n' as u8,
             at_echo_enabled: true,
             cmd_cooldown: 20,
         }
@@ -75,12 +75,12 @@ impl Config {
         }
     }
 
-    pub fn with_line_term(mut self, c: char) -> Self {
+    pub fn with_line_term(mut self, c: u8) -> Self {
         self.line_term_char = c;
         self
     }
 
-    pub fn with_format_char(mut self, c: char) -> Self {
+    pub fn with_format_char(mut self, c: u8) -> Self {
         self.format_char = c;
         self
     }

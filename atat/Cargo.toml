@@ -41,8 +41,6 @@ stm32l4xx-hal = { git = "https://github.com/stm32-rs/stm32l4xx-hal", features = 
 embedded-hal-mock = "0.7.1"
 
 [features]
-default = ["derive", "error-message"]
+default = ["derive"]
 
-logging = []
-error-message = ["atat_derive/error-message"]
 derive = ["atat_derive"]
