@@ -21,6 +21,7 @@ fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
 ) -> Option<String<L>> {
     match buf.match_indices(s).next() {
         Some((mut index, _)) => {
+            index += s.len();
             while match buf.get(index..=index) {
                 Some(c) => c.as_bytes()[0] == line_term_char || c.as_bytes()[0] == format_char,
                 _ => false,
@@ -172,21 +173,18 @@ impl IngressManager {
             State::ReceivingResponse => {
                 let resp = if let Some(mut line) = get_line::<consts::U64, _>(
                     &mut self.buf,
-                    // FIXME: Use `self.format_char` and `self.line_term_char` here
-                    "OK\r\n",
+                    "OK",
                     self.line_term_char,
                     self.format_char,
-                    false,
+                    true,
                 ) {
                     Ok(
-                        // FIXME: Use `self.line_term_char` here
                         get_line(&mut line, "\r", self.line_term_char, self.format_char, true)
                             .unwrap_or_else(|| String::new()),
                     )
                 } else if get_line::<consts::U64, _>(
                     &mut self.buf,
-                    // FIXME: Use `self.format_char` and `self.line_term_char` here
-                    "ERROR\r\n",
+                    "ERROR",
                     self.line_term_char,
                     self.format_char,
                     false,
@@ -273,9 +271,17 @@ mod test {
 
         at_pars.write("+USORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
         at_pars.parse_at();
-        assert_eq!(at_pars.state, State::ReceivingResponse);
+
+        assert_eq!(
+            at_pars.buf,
+            String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"\r\n")
+        );
 
         at_pars.write("OK\r\n".as_bytes());
+        assert_eq!(
+            at_pars.buf,
+            String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n")
+        );
         at_pars.parse_at();
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
@@ -393,12 +399,13 @@ mod test {
 
         at_pars.write("+USORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
         at_pars.parse_at();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
 
         at_pars.write("ERROR\r\n".as_bytes());
         at_pars.parse_at();
 
-        assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
+        assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
 
         if let Some(result) = c.dequeue() {
             match result {
