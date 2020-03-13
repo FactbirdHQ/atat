@@ -116,16 +116,29 @@ impl IngressManager {
 
     pub fn parse_at(&mut self) {
         self.handle_com();
+        log::info!("{:?} - [{:?}]\r", self.state, self.buf);
         match self.state {
             State::Idle => {
                 if self.echo_enabled && self.buf.starts_with("AT") {
-                    if let Some((index, _)) = self.buf.match_indices("\r\n").next() {
+                    if let Some((mut index, _)) = self.buf.match_indices(self.line_term_char).next()
+                    {
                         self.state = State::ReceivingResponse;
-                        self.take_trim_substring::<consts::U64>(index + 2);
+                        let mut tmp = [0; 1];
+                        while match self.buf.get(index..=index) {
+                            Some(c) => {
+                                c == self.line_term_char.encode_utf8(&mut tmp)
+                                    || c == self.format_char.encode_utf8(&mut tmp)
+                            }
+                            _ => false,
+                        } {
+                            index += 1;
+                        }
+                        self.take_trim_substring::<consts::U64>(index);
                     }
                 } else if !self.echo_enabled {
                     unimplemented!("Disabling AT echo is currently unsupported");
                 } else if self.buf.starts_with('+') {
+                    // Handle multiple urcs in same run!
                     let resp = self.take_trim_substring(self.buf.len());
                     self.notify_urc(resp);
                     self.buf.clear();
@@ -134,6 +147,13 @@ impl IngressManager {
                 }
             }
             State::ReceivingResponse => {
+                if self.buf.starts_with(self.line_term_char)
+                    || self.buf.starts_with(self.format_char)
+                {
+                    // TODO: Custom trim_start, that trims based on line_term_char and format_char
+                    self.buf = String::from(self.buf.trim_start());
+                }
+
                 // TODO: Use `self.format_char` and `self.line_term_char` in these rmatches
                 let (index, err) = if let Some(index) = self.buf.rmatch_indices("OK\r\n").next() {
                     (index.0, None)
