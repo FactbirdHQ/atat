@@ -180,7 +180,7 @@ fn generate_cmd_output(
             where
                 W: ufmt::uWrite + ?Sized,
             {
-                f.write_str(&self.as_str())
+                f.write_str(&self.as_string())
             }
         }
 
@@ -191,7 +191,7 @@ fn generate_cmd_output(
             where
                 W: ufmt::uWrite + ?Sized,
             {
-                let c = self.as_str();
+                let c = self.as_string();
                 f.write_str(&c[0..c.len() - 2])
             }
         }

@@ -95,15 +95,12 @@ where
     }
 
     fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Response> {
-        if let Some(ref resp) = self.urc_c.dequeue() {
-            self.timer.start(self.config.cmd_cooldown);
-            match URC::parse(resp) {
-                Ok(r) => Some(r),
-                Err(_) => None,
-            }
-        } else {
-            None
+        if !self.urc_c.ready() {
+            return None;
         }
+
+        self.timer.start(self.config.cmd_cooldown);
+        URC::parse(unsafe { &self.urc_c.dequeue_unchecked() }).ok()
     }
 
     fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {
