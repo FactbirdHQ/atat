@@ -229,22 +229,27 @@ mod test {
     use atat::Mode;
     use heapless::{consts, spsc::Queue, String};
 
+    macro_rules! setup {
+        ($config:expr) => {{
+            static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
+                Queue(heapless::i::Queue::u8());
+            let (p, c) = unsafe { REQ_Q.split() };
+            static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
+                Queue(heapless::i::Queue::u8());
+            let (urc_p, _urc_c) = unsafe { URC_Q.split() };
+            static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+            let (_com_p, com_c) = unsafe { COM_Q.split() };
+            (IngressManager::new(p, urc_p, com_c, &$config), c)
+        }};
+    }
+
     #[test]
     fn no_response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (p, mut c) = unsafe { REQ_Q.split() };
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (_com_p, com_c) = unsafe { COM_Q.split() };
-
         let conf = Config::new(Mode::Timeout);
-        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
+        let (mut at_pars, mut c) = setup!(conf);
 
         assert_eq!(at_pars.state, State::Idle);
-        at_pars.write("AT+USORD=3,16\r\n".as_bytes());
+        at_pars.write("AT\r\r\n\r\n".as_bytes());
         at_pars.digest();
 
         assert_eq!(at_pars.state, State::ReceivingResponse);
@@ -253,31 +258,18 @@ mod test {
         at_pars.digest();
         assert_eq!(at_pars.state, State::Idle);
 
-        if let Some(result) = c.dequeue() {
-            match result {
-                Ok(resp) => {
-                    assert_eq!(resp, String::<consts::U256>::from(""));
-                }
-                Err(e) => panic!("Dequeue Some error: {:?}", e),
-            };
-        } else {
-            panic!("Dequeue None.")
-        }
+        match c.dequeue().unwrap() {
+            Ok(resp) => {
+                assert_eq!(resp, String::<consts::U256>::from(""));
+            }
+            Err(e) => panic!("Dequeue Some error: {:?}", e),
+        };
     }
 
     #[test]
     fn response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (p, mut c) = unsafe { REQ_Q.split() };
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (_com_p, com_c) = unsafe { COM_Q.split() };
-
         let conf = Config::new(Mode::Timeout);
-        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
+        let (mut at_pars, mut c) = setup!(conf);
 
         assert_eq!(at_pars.state, State::Idle);
         at_pars.write("AT+USORD=3,16\r\n".as_bytes());
@@ -301,34 +293,21 @@ mod test {
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
 
-        if let Some(result) = c.dequeue() {
-            match result {
-                Ok(resp) => {
-                    assert_eq!(
-                        resp,
-                        String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"")
-                    );
-                }
-                Err(e) => panic!("Dequeue Some error: {:?}", e),
-            };
-        } else {
-            panic!("Dequeue None.")
-        }
+        match c.dequeue().unwrap() {
+            Ok(resp) => {
+                assert_eq!(
+                    resp,
+                    String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"")
+                );
+            }
+            Err(e) => panic!("Dequeue Some error: {:?}", e),
+        };
     }
 
     #[test]
     fn multi_line_response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (p, mut c) = unsafe { REQ_Q.split() };
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (_com_p, com_c) = unsafe { COM_Q.split() };
-
         let conf = Config::new(Mode::Timeout);
-        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
+        let (mut at_pars, mut c) = setup!(conf);
 
         assert_eq!(at_pars.state, State::Idle);
         at_pars.write("AT+GMR\r\r\n".as_bytes());
@@ -341,34 +320,21 @@ mod test {
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
 
-        if let Some(result) = c.dequeue() {
-            match result {
-                Ok(resp) => {
-                    assert_eq!(
-                        resp,
-                        String::<consts::U256>::from("AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19")
-                    );
-                }
-                Err(e) => panic!("Dequeue Some error: {:?}", e),
-            };
-        } else {
-            panic!("Dequeue None.")
-        }
+        match c.dequeue().unwrap() {
+            Ok(resp) => {
+                assert_eq!(
+                    resp,
+                    String::<consts::U256>::from("AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19")
+                );
+            }
+            Err(e) => panic!("Dequeue Some error: {:?}", e),
+        };
     }
 
     #[test]
     fn urc() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (p, _c) = unsafe { REQ_Q.split() };
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (_com_p, com_c) = unsafe { COM_Q.split() };
-
         let conf = Config::new(Mode::Timeout);
-        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
+        let (mut at_pars, _) = setup!(conf);
 
         assert_eq!(at_pars.state, State::Idle);
 
@@ -380,48 +346,26 @@ mod test {
 
     #[test]
     fn overflow() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (p, mut c) = unsafe { REQ_Q.split() };
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (_com_p, com_c) = unsafe { COM_Q.split() };
-
         let conf = Config::new(Mode::Timeout);
-        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
+        let (mut at_pars, mut c) = setup!(conf);
 
         for _ in 0..266 {
             at_pars.write(b"s");
         }
         at_pars.digest();
 
-        if let Some(result) = c.dequeue() {
-            match result {
-                Err(e) => assert_eq!(e, Error::Overflow),
-                Ok(resp) => {
-                    panic!("Dequeue Ok: {:?}", resp);
-                }
-            };
-        } else {
-            panic!("Dequeue None.")
-        }
+        match c.dequeue().unwrap() {
+            Err(e) => assert_eq!(e, Error::Overflow),
+            Ok(resp) => {
+                panic!("Dequeue Ok: {:?}", resp);
+            }
+        };
     }
 
     #[test]
     fn read_error() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (p, _c) = unsafe { REQ_Q.split() };
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (_com_p, com_c) = unsafe { COM_Q.split() };
-
         let conf = Config::new(Mode::Timeout);
-        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
+        let (mut at_pars, _) = setup!(conf);
 
         assert_eq!(at_pars.state, State::Idle);
 
@@ -434,18 +378,8 @@ mod test {
 
     #[test]
     fn error_response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (p, mut c) = unsafe { REQ_Q.split() };
-
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (_com_p, com_c) = unsafe { COM_Q.split() };
-
         let conf = Config::new(Mode::Timeout);
-        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
+        let (mut at_pars, mut c) = setup!(conf);
 
         assert_eq!(at_pars.state, State::Idle);
         at_pars.write("AT+USORD=3,16\r\n".as_bytes());
@@ -462,16 +396,12 @@ mod test {
         assert_eq!(at_pars.state, State::Idle);
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
 
-        if let Some(result) = c.dequeue() {
-            match result {
-                Err(e) => assert_eq!(e, Error::InvalidResponse),
-                Ok(resp) => {
-                    panic!("Dequeue Ok: {:?}", resp);
-                }
-            };
-        } else {
-            panic!("Dequeue None.")
-        }
+        match c.dequeue().unwrap() {
+            Err(e) => assert_eq!(e, Error::InvalidResponse),
+            Ok(resp) => {
+                panic!("Dequeue Ok: {:?}", resp);
+            }
+        };
     }
 
     // #[bench]
