@@ -221,9 +221,6 @@ impl IngressManager {
 #[cfg(test)]
 #[cfg_attr(tarpaulin, skip)]
 mod test {
-    // extern crate test;
-    // use test::Bencher;
-
     use super::*;
     use crate as atat;
     use atat::Mode;
@@ -403,24 +400,4 @@ mod test {
             }
         };
     }
-
-    // #[bench]
-    // fn response_bench(b: &mut Bencher) {
-    //     static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-    //         Queue(heapless::i::Queue::u8());
-    //     let (p, _c) = unsafe { REQ_Q.split() };
-    //     static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-    //         Queue(heapless::i::Queue::u8());
-    //     let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-    //     static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-    //     let (_com_p, com_c) = unsafe { COM_Q.split() };
-
-    //     let conf = Config::new(Mode::Timeout);
-    //     let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
-
-    //     b.iter(|| {
-    //                 at_pars.write("AT+USORD=3,16\r\nOK\r\n".as_bytes());
-    //         at_pars.digest();
-    //     });
-    // }
 }
