@@ -254,13 +254,7 @@ mod test {
         at_pars.write("OK\r\n".as_bytes());
         at_pars.digest();
         assert_eq!(at_pars.state, State::Idle);
-
-        match c.dequeue().unwrap() {
-            Ok(resp) => {
-                assert_eq!(resp, String::<consts::U256>::from(""));
-            }
-            Err(e) => panic!("Dequeue Some error: {:?}", e),
-        };
+        assert_eq!(c.dequeue().unwrap(), Ok(String::<consts::U256>::from("")));
     }
 
     #[test]
@@ -289,16 +283,12 @@ mod test {
         at_pars.digest();
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
-
-        match c.dequeue().unwrap() {
-            Ok(resp) => {
-                assert_eq!(
-                    resp,
-                    String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"")
-                );
-            }
-            Err(e) => panic!("Dequeue Some error: {:?}", e),
-        };
+        assert_eq!(
+            c.dequeue().unwrap(),
+            Ok(String::<consts::U256>::from(
+                "+USORD: 3,16,\"16 bytes of data\""
+            ))
+        );
     }
 
     #[test]
@@ -316,16 +306,7 @@ mod test {
 
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
-
-        match c.dequeue().unwrap() {
-            Ok(resp) => {
-                assert_eq!(
-                    resp,
-                    String::<consts::U256>::from("AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19")
-                );
-            }
-            Err(e) => panic!("Dequeue Some error: {:?}", e),
-        };
+        assert_eq!(c.dequeue().unwrap(), Ok(String::<consts::U256>::from("AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19")));
     }
 
     #[test]
@@ -350,13 +331,7 @@ mod test {
             at_pars.write(b"s");
         }
         at_pars.digest();
-
-        match c.dequeue().unwrap() {
-            Err(e) => assert_eq!(e, Error::Overflow),
-            Ok(resp) => {
-                panic!("Dequeue Ok: {:?}", resp);
-            }
-        };
+        assert_eq!(c.dequeue().unwrap(), Err(Error::Overflow));
     }
 
     #[test]
@@ -392,12 +367,6 @@ mod test {
 
         assert_eq!(at_pars.state, State::Idle);
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
-
-        match c.dequeue().unwrap() {
-            Err(e) => assert_eq!(e, Error::InvalidResponse),
-            Ok(resp) => {
-                panic!("Dequeue Ok: {:?}", resp);
-            }
-        };
+        assert_eq!(c.dequeue().unwrap(), Err(Error::InvalidResponse));
     }
 }
