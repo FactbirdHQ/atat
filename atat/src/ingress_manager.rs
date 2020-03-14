@@ -55,10 +55,17 @@ pub enum State {
 }
 
 pub struct IngressManager {
+    /// Buffer holding incoming bytes.
     buf: String<consts::U256>,
+    /// A flag that is set to `true` when the buffer is cleared
+    /// with an incomplete response.
+    buf_incomplete: bool,
+
     res_p: ResProducer,
     urc_p: UrcProducer,
     com_c: ComConsumer,
+
+    /// Current processing state.
     state: State,
     /// Command line termination character S3 (Default = '\r' ASCII: \[013\])
     line_term_char: u8,
@@ -77,6 +84,7 @@ impl IngressManager {
         Self {
             state: State::Idle,
             buf: String::new(),
+            buf_incomplete: false,
             res_p,
             urc_p,
             com_c,
@@ -149,7 +157,12 @@ impl IngressManager {
         log::trace!("Ingress: Digest / {:?} / {:?}", self.state, self.buf);
         match self.state {
             State::Idle => {
-                if self.echo_enabled && self.buf.starts_with("AT") {
+                // The minimal buffer length that is required to identify all
+                // types of responses (e.g. `AT` and `+`).
+                let min_length = 2;
+
+                // Handle AT echo responses
+                if !self.buf_incomplete && self.echo_enabled && self.buf.starts_with("AT") {
                     if let Some(_) = get_line::<consts::U128, _>(
                         &mut self.buf,
                         // FIXME: Use `self.line_term_char` here
@@ -160,11 +173,16 @@ impl IngressManager {
                         false,
                     ) {
                         self.state = State::ReceivingResponse;
+                        self.buf_incomplete = false;
                         #[cfg(feature = "logging")]
                         log::trace!("Ingress: Switching to state ReceivingResponse");
                     }
+
+                // Echo is currently required
                 } else if !self.echo_enabled {
                     unimplemented!("Disabling AT echo is currently unsupported");
+
+                // Handle URCs
                 } else if self.buf.starts_with('+') {
                     if let Some(line) = get_line(
                         &mut self.buf,
@@ -175,10 +193,16 @@ impl IngressManager {
                         false,
                         false,
                     ) {
+                        self.buf_incomplete = false;
                         self.notify_urc(line);
                     }
-                } else {
+
+                // Text sent by the device that is not a valid response type (e.g. starting
+                // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
+                // ensure that we don't accidentally break a valid response.
+                } else if self.buf_incomplete || self.buf.len() > min_length {
                     self.buf.clear();
+                    self.buf_incomplete = true;
                 }
             }
             State::ReceivingResponse => {
