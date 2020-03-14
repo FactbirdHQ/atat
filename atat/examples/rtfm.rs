@@ -95,7 +95,7 @@ const APP: () = {
 
     #[task(schedule = [at_loop], resources = [ingress])]
     fn at_loop(mut ctx: at_loop::Context) {
-        ctx.resources.ingress.lock(|at| at.parse_at());
+        ctx.resources.ingress.lock(|at| at.digest());
 
         // Adjust this spin rate to set how often the request/response queue is checked
         ctx.schedule

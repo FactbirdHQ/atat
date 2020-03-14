@@ -18,8 +18,14 @@ fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     line_term_char: u8,
     format_char: u8,
     trim_response: bool,
+    reverse: bool
 ) -> Option<String<L>> {
-    match buf.match_indices(s).next() {
+    let ind = if reverse {
+        buf.rmatch_indices(s).next()
+    } else {
+        buf.match_indices(s).next()
+    };
+    match ind {
         Some((mut index, _)) => {
             index += s.len();
             while match buf.get(index..=index) {
@@ -129,7 +135,7 @@ impl IngressManager {
         }
     }
 
-    pub fn parse_at(&mut self) {
+    pub fn digest(&mut self) {
         self.handle_com();
         if self.buf.starts_with(self.line_term_char as char)
             || self.buf.starts_with(self.format_char as char)
@@ -143,13 +149,14 @@ impl IngressManager {
         match self.state {
             State::Idle => {
                 if self.echo_enabled && self.buf.starts_with("AT") {
-                    if let Some(_) = get_line::<consts::U64, _>(
+                    if let Some(_) = get_line::<consts::U128, _>(
                         &mut self.buf,
                         // FIXME: Use `self.line_term_char` here
                         "\r",
                         self.line_term_char,
                         self.format_char,
                         false,
+                        false
                     ) {
                         self.state = State::ReceivingResponse;
                     }
@@ -163,6 +170,7 @@ impl IngressManager {
                         self.line_term_char,
                         self.format_char,
                         false,
+                        false
                     ) {
                         self.notify_urc(line);
                     }
@@ -171,23 +179,25 @@ impl IngressManager {
                 }
             }
             State::ReceivingResponse => {
-                let resp = if let Some(mut line) = get_line::<consts::U64, _>(
+                let resp = if let Some(mut line) = get_line::<consts::U128, _>(
                     &mut self.buf,
                     "OK",
                     self.line_term_char,
                     self.format_char,
                     true,
+                    false
                 ) {
                     Ok(
-                        get_line(&mut line, "\r", self.line_term_char, self.format_char, true)
+                        get_line(&mut line, "\r", self.line_term_char, self.format_char, true, true)
                             .unwrap_or_else(|| String::new()),
                     )
-                } else if get_line::<consts::U64, _>(
+                } else if get_line::<consts::U128, _>(
                     &mut self.buf,
                     "ERROR",
                     self.line_term_char,
                     self.format_char,
                     false,
+                    false
                 )
                 .is_some()
                 {
@@ -230,12 +240,12 @@ mod test {
 
         assert_eq!(at_pars.state, State::Idle);
         at_pars.write("AT+USORD=3,16\r\n".as_bytes());
-        at_pars.parse_at();
+        at_pars.digest();
 
         assert_eq!(at_pars.state, State::ReceivingResponse);
 
         at_pars.write("OK\r\n".as_bytes());
-        at_pars.parse_at();
+        at_pars.digest();
         assert_eq!(at_pars.state, State::Idle);
 
         if let Some(result) = c.dequeue() {
@@ -266,11 +276,11 @@ mod test {
 
         assert_eq!(at_pars.state, State::Idle);
         at_pars.write("AT+USORD=3,16\r\n".as_bytes());
-        at_pars.parse_at();
+        at_pars.digest();
         assert_eq!(at_pars.state, State::ReceivingResponse);
 
         at_pars.write("+USORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
-        at_pars.parse_at();
+        at_pars.digest();
 
         assert_eq!(
             at_pars.buf,
@@ -282,7 +292,7 @@ mod test {
             at_pars.buf,
             String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n")
         );
-        at_pars.parse_at();
+        at_pars.digest();
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
 
@@ -292,6 +302,46 @@ mod test {
                     assert_eq!(
                         resp,
                         String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"")
+                    );
+                }
+                Err(e) => panic!("Dequeue Some error: {:?}", e),
+            };
+        } else {
+            panic!("Dequeue None.")
+        }
+    }
+
+    #[test]
+    fn multi_line_response() {
+        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (p, mut c) = unsafe { REQ_Q.split() };
+        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
+            Queue(heapless::i::Queue::u8());
+        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
+        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+        let (_com_p, com_c) = unsafe { COM_Q.split() };
+
+        let conf = Config::new(Mode::Timeout);
+        let mut at_pars = IngressManager::new(p, urc_p, com_c, &conf);
+
+        assert_eq!(at_pars.state, State::Idle);
+        at_pars.write("AT+GMR\r\r\n".as_bytes());
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
+
+        at_pars.write("AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19\r\nOK\r\n".as_bytes());
+        at_pars.digest();
+
+        assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
+        assert_eq!(at_pars.state, State::Idle);
+
+        if let Some(result) = c.dequeue() {
+            match result {
+                Ok(resp) => {
+                    assert_eq!(
+                        resp,
+                        String::<consts::U256>::from("AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19")
                     );
                 }
                 Err(e) => panic!("Dequeue Some error: {:?}", e),
@@ -318,7 +368,7 @@ mod test {
         assert_eq!(at_pars.state, State::Idle);
 
         at_pars.write("+UUSORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
-        at_pars.parse_at();
+        at_pars.digest();
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
     }
@@ -340,7 +390,7 @@ mod test {
         for _ in 0..266 {
             at_pars.write(b"s");
         }
-        at_pars.parse_at();
+        at_pars.digest();
 
         if let Some(result) = c.dequeue() {
             match result {
@@ -372,7 +422,7 @@ mod test {
 
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         at_pars.write("OK\r\n".as_bytes());
-        at_pars.parse_at();
+        at_pars.digest();
 
         assert_eq!(at_pars.state, State::Idle);
     }
@@ -394,15 +444,15 @@ mod test {
 
         assert_eq!(at_pars.state, State::Idle);
         at_pars.write("AT+USORD=3,16\r\n".as_bytes());
-        at_pars.parse_at();
+        at_pars.digest();
         assert_eq!(at_pars.state, State::ReceivingResponse);
 
         at_pars.write("+USORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
-        at_pars.parse_at();
+        at_pars.digest();
         assert_eq!(at_pars.state, State::ReceivingResponse);
 
         at_pars.write("ERROR\r\n".as_bytes());
-        at_pars.parse_at();
+        at_pars.digest();
 
         assert_eq!(at_pars.state, State::Idle);
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
@@ -435,7 +485,7 @@ mod test {
 
     //     b.iter(|| {
     //                 at_pars.write("AT+USORD=3,16\r\nOK\r\n".as_bytes());
-    //         at_pars.parse_at();
+    //         at_pars.digest();
     //     });
     // }
 }

@@ -102,7 +102,7 @@ fn main() -> ! {
 #[interrupt]
 fn TIM7() {
     let ingress = unsafe { INGRESS.as_mut().unwrap() };
-    ingress.parse_at();
+    ingress.digest();
 }
 
 #[interrupt]
