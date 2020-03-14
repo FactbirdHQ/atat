@@ -98,15 +98,12 @@ where
     }
 
     fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Response> {
-        if let Some(ref resp) = self.urc_c.dequeue() {
-            self.timer.start(self.config.cmd_cooldown);
-            match URC::parse(resp) {
-                Ok(r) => Some(r),
-                Err(_) => None,
-            }
-        } else {
-            None
+        if !self.urc_c.ready() {
+            return None;
         }
+
+        self.timer.start(self.config.cmd_cooldown);
+        URC::parse(unsafe { &self.urc_c.dequeue_unchecked() }).ok()
     }
 
     fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {
@@ -185,11 +182,7 @@ mod test {
         type Error = ();
 
         fn write(&mut self, c: u8) -> nb::Result<(), Self::Error> {
-            //TODO: this just feels wrong..
-            match self.s.push(c as char) {
-                Ok(_) => Ok(()),
-                Err(_) => Err(nb::Error::Other(())),
-            }
+            self.s.push(c as char).map_err(nb::Error::Other)
         }
 
         fn flush(&mut self) -> nb::Result<(), Self::Error> {
@@ -198,7 +191,7 @@ mod test {
     }
 
     #[derive(Clone, AtatCmd)]
-    #[at_cmd("+CFUN", NoResonse, timeout_ms = 180000)]
+    #[at_cmd("+CFUN", NoResponse, timeout_ms = 180000)]
     pub struct SetModuleFunctionality {
         #[at_arg(position = 0)]
         pub fun: Functionality,
@@ -207,7 +200,7 @@ mod test {
     }
 
     #[derive(Clone, AtatCmd)]
-    #[at_cmd("+FUN", NoResonse, timeout_ms = 180000)]
+    #[at_cmd("+FUN", NoResponse, timeout_ms = 180000)]
     pub struct Test2Cmd {
         #[at_arg(position = 1)]
         pub fun: Functionality,
@@ -254,7 +247,7 @@ mod test {
         Reset = 1,
     }
     #[derive(Clone, AtatResp, PartialEq, Debug)]
-    pub struct NoResonse;
+    pub struct NoResponse;
     #[derive(Clone, AtatResp, PartialEq, Debug)]
     pub struct TestResponseVec {
         #[at_arg(position = 0)]
@@ -299,39 +292,39 @@ mod test {
         MessageWaitingIndication(MessageWaitingIndication),
     }
 
+    macro_rules! setup {
+        ($config:expr) => {{
+            static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
+                Queue(heapless::i::Queue::u8());
+            let (p, c) = unsafe { REQ_Q.split() };
+            static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
+                Queue(heapless::i::Queue::u8());
+            let (urc_p, urc_c) = unsafe { URC_Q.split() };
+            static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+            let (com_p, _com_c) = unsafe { COM_Q.split() };
+
+            let timer = CdMock { time: 0 };
+
+            let tx_mock = TxMock::new(String::new());
+            let client: Client<TxMock, CdMock> =
+                Client::new(tx_mock, c, urc_c, com_p, timer, $config);
+            (client, p, urc_p)
+        }};
+    }
+
     #[test]
     fn string_sent() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe { REQ_Q.split() };
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (_urc_p, urc_c) = unsafe { URC_Q.split() };
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (com_p, _com_c) = unsafe { COM_Q.split() };
-
-        let timer = CdMock { time: 0 };
-
-        let tx_mock = TxMock::new(String::new());
-        let mut client: Client<TxMock, CdMock> =
-            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(""));
-        p.enqueue(resp).unwrap();
+        p.enqueue(Ok(String::<consts::U256>::from(""))).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
-
-        match client.send(&cmd) {
-            Ok(response) => {
-                assert_eq!(response, NoResonse);
-            }
-            _ => panic!("Panic send error in test."),
-        }
+        assert_eq!(client.send(&cmd), Ok(NoResponse));
         assert_eq!(client.state, ClientState::Idle);
 
         assert_eq!(
@@ -340,19 +333,13 @@ mod test {
             "Wrong encoding of string"
         );
 
-        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(""));
-        p.enqueue(resp).unwrap();
+        p.enqueue(Ok(String::<consts::U256>::from(""))).unwrap();
 
         let cmd = Test2Cmd {
             fun: Functionality::DM,
             rst: Some(ResetMode::Reset),
         };
-        match client.send(&cmd) {
-            Ok(response) => {
-                assert_eq!(response, NoResonse);
-            }
-            _ => panic!("Panic send error in test."),
-        }
+        assert_eq!(client.send(&cmd), Ok(NoResponse));
 
         assert_eq!(
             client.tx.s,
@@ -364,21 +351,7 @@ mod test {
     #[test]
     #[ignore]
     fn countdown() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let c = unsafe { REQ_Q.split().1 };
-
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (_urc_p, urc_c) = unsafe { URC_Q.split() };
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (com_p, _com_c) = unsafe { COM_Q.split() };
-
-        let timer = CdMock { time: 0 };
-
-        let tx_mock = TxMock::new(String::new());
-        let mut client: Client<TxMock, CdMock> =
-            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Timeout));
+        let (mut client, _, _) = setup!(Config::new(Mode::Timeout));
 
         assert_eq!(client.state, ClientState::Idle);
 
@@ -386,11 +359,9 @@ mod test {
             fun: Functionality::DM,
             rst: Some(ResetMode::Reset),
         };
-        match client.send(&cmd) {
-            Err(nb::Error::Other(error)) => assert_eq!(error, Error::Timeout),
-            _ => panic!("Panic send error in test."),
-        }
-        //Todo: Test countdown is recived corretly
+        assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Timeout)));
+
+        // TODO: Test countdown is recived corretly
         match client.config.mode {
             Mode::Timeout => {} // assert_eq!(cd_mock.time, 180000),
             _ => panic!("Wrong AT mode"),
@@ -400,67 +371,24 @@ mod test {
 
     #[test]
     fn blocking() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe { REQ_Q.split() };
-
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (_urc_p, urc_c) = unsafe { URC_Q.split() };
-
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (com_p, _com_c) = unsafe { COM_Q.split() };
-
-        let timer = CdMock { time: 0 };
-
-        let tx_mock = TxMock::new(String::new());
-        let mut client: Client<TxMock, CdMock> =
-            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(""));
-        p.enqueue(resp).unwrap();
+        p.enqueue(Ok(String::<consts::U256>::from(""))).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
-
-        match client.send(&cmd) {
-            Ok(response) => {
-                assert_eq!(response, NoResonse);
-            }
-            _ => panic!("Panic send error in test."),
-        }
+        assert_eq!(client.send(&cmd), Ok(NoResponse));
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.tx.s, String::<consts::U32>::from("AT+CFUN=4,0\r\n"));
     }
 
     #[test]
     fn non_blocking() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe { REQ_Q.split() };
-
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (_urc_p, urc_c) = unsafe { URC_Q.split() };
-
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (com_p, _com_c) = unsafe { COM_Q.split() };
-
-        let timer = CdMock { time: 0 };
-
-        let tx_mock = TxMock::new(String::new());
-        let mut client: Client<TxMock, CdMock> = Client::new(
-            tx_mock,
-            c,
-            urc_c,
-            com_p,
-            timer,
-            Config::new(Mode::NonBlocking),
-        );
+        let (mut client, mut p, _) = setup!(Config::new(Mode::NonBlocking));
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
@@ -468,105 +396,55 @@ mod test {
         };
 
         assert_eq!(client.state, ClientState::Idle);
+        assert_eq!(client.send(&cmd), Err(nb::Error::WouldBlock));
+        assert_eq!(client.state, ClientState::AwaitingResponse);
 
-        match client.send(&cmd) {
-            Err(error) => assert_eq!(error, nb::Error::WouldBlock),
-            _ => panic!("Panic send error in test"),
-        }
+        assert_eq!(client.check_response(&cmd), Err(nb::Error::WouldBlock));
+
+        p.enqueue(Ok(String::<consts::U256>::from(""))).unwrap();
 
         assert_eq!(client.state, ClientState::AwaitingResponse);
 
-        match client.check_response(&cmd) {
-            Err(error) => assert_eq!(error, nb::Error::WouldBlock),
-            _ => panic!("Send error in test"),
-        }
-
-        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(""));
-        p.enqueue(resp).unwrap();
-
-        assert_eq!(client.state, ClientState::AwaitingResponse);
-
-        match client.check_response(&cmd) {
-            Ok(response) => {
-                assert_eq!(response, NoResonse);
-            }
-            _ => panic!("Panic send error in test."),
-        }
+        assert_eq!(client.check_response(&cmd), Ok(NoResponse));
         assert_eq!(client.state, ClientState::Idle);
     }
 
-    // Testing unsupported frature in form of vec deserialization
+    // Testing unsupported feature in form of vec deserialization
     #[test]
     #[ignore]
     fn response_vec() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe { REQ_Q.split() };
-
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (_urc_p, urc_c) = unsafe { URC_Q.split() };
-
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (com_p, _com_c) = unsafe { COM_Q.split() };
-
-        let timer = CdMock { time: 0 };
-
-        let tx_mock = TxMock::new(String::new());
-        let mut client: Client<TxMock, CdMock> =
-            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
 
         let cmd = TestRespVecCmd {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(
+        p.enqueue(Ok(String::<consts::U256>::from(
             "+CUN: 22,16,\"0123456789012345\"",
-        ));
-        p.enqueue(resp).unwrap();
+        )))
+        .unwrap();
 
         let res_vec: Vec<u8, consts::U256> =
             "0123456789012345".as_bytes().iter().cloned().collect();
 
         assert_eq!(client.state, ClientState::Idle);
 
-        match client.send(&cmd) {
-            Ok(response) => {
-                assert_eq!(
-                    response,
-                    TestResponseVec {
-                        socket: 22,
-                        length: 16,
-                        data: res_vec
-                    }
-                );
-            }
-            Err(error) => panic!("Panic send error in test: {:?}", error),
-        }
+        assert_eq!(
+            client.send(&cmd),
+            Ok(TestResponseVec {
+                socket: 22,
+                length: 16,
+                data: res_vec
+            })
+        );
         assert_eq!(client.state, ClientState::Idle);
-
         assert_eq!(client.tx.s, String::<consts::U32>::from("AT+CFUN=4,0\r\n"));
     }
     // Test response containing string
     #[test]
     fn response_string() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe { REQ_Q.split() };
-
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (_urc_p, urc_c) = unsafe { URC_Q.split() };
-
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (com_p, _com_c) = unsafe { COM_Q.split() };
-
-        let timer = CdMock { time: 0 };
-
-        let tx_mock = TxMock::new(String::new());
-        let mut client: Client<TxMock, CdMock> =
-            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
 
         // String last
         let cmd = TestRespStringCmd {
@@ -574,26 +452,21 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(
+        p.enqueue(Ok(String::<consts::U256>::from(
             "+CUN: 22,16,\"0123456789012345\"",
-        ));
-        p.enqueue(resp).unwrap();
+        )))
+        .unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
 
-        match client.send(&cmd) {
-            Ok(response) => {
-                assert_eq!(
-                    response,
-                    TestResponseString {
-                        socket: 22,
-                        length: 16,
-                        data: String::<consts::U64>::from("0123456789012345")
-                    }
-                );
-            }
-            Err(error) => panic!("Panic send error in test: {:?}", error),
-        }
+        assert_eq!(
+            client.send(&cmd),
+            Ok(TestResponseString {
+                socket: 22,
+                length: 16,
+                data: String::<consts::U64>::from("0123456789012345")
+            })
+        );
         assert_eq!(client.state, ClientState::Idle);
 
         // Mixed order for string
@@ -602,84 +475,38 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>, Error> = Ok(String::<consts::U256>::from(
+        p.enqueue(Ok(String::<consts::U256>::from(
             "+CUN: \"0123456789012345\",22,16",
-        ));
-        p.enqueue(resp).unwrap();
+        )))
+        .unwrap();
 
-        match client.send(&cmd) {
-            Ok(response) => {
-                assert_eq!(
-                    response,
-                    TestResponseStringMixed {
-                        socket: 22,
-                        length: 16,
-                        data: String::<consts::U64>::from("0123456789012345")
-                    }
-                );
-            }
-            Err(error) => panic!("Panic send error in test: {:?}", error),
-        }
+        assert_eq!(
+            client.send(&cmd),
+            Ok(TestResponseStringMixed {
+                socket: 22,
+                length: 16,
+                data: String::<consts::U64>::from("0123456789012345")
+            })
+        );
         assert_eq!(client.state, ClientState::Idle);
     }
 
     #[test]
     fn urc() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (_p, c) = unsafe { REQ_Q.split() };
-
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (mut urc_p, urc_c) = unsafe { URC_Q.split() };
-
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (com_p, _com_c) = unsafe { COM_Q.split() };
-
-        let timer = CdMock { time: 0 };
-
-        let tx_mock = TxMock::new(String::new());
-        let mut client: Client<TxMock, CdMock> = Client::new(
-            tx_mock,
-            c,
-            urc_c,
-            com_p,
-            timer,
-            Config::new(Mode::NonBlocking),
-        );
+        let (mut client, _, mut urc_p) = setup!(Config::new(Mode::NonBlocking));
 
         urc_p
             .enqueue(String::<consts::U64>::from("+UMWI: 0, 1"))
             .unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
-
-        match client.check_urc::<Urc>() {
-            Some(_) => {}
-            _ => panic!("Send error in test"),
-        }
-
+        assert!(client.check_urc::<Urc>().is_some());
         assert_eq!(client.state, ClientState::Idle);
     }
 
     #[test]
     fn invalid_response() {
-        static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (mut p, c) = unsafe { REQ_Q.split() };
-
-        static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
-            Queue(heapless::i::Queue::u8());
-        let (_urc_p, urc_c) = unsafe { URC_Q.split() };
-
-        static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
-        let (com_p, _com_c) = unsafe { COM_Q.split() };
-
-        let timer = CdMock { time: 0 };
-
-        let tx_mock = TxMock::new(String::new());
-        let mut client: Client<TxMock, CdMock> =
-            Client::new(tx_mock, c, urc_c, com_p, timer, Config::new(Mode::Blocking));
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
 
         // String last
         let cmd = TestRespStringCmd {
@@ -692,11 +519,7 @@ mod test {
         p.enqueue(resp).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
-
-        match client.send(&cmd) {
-            Err(error) => assert_eq!(error, nb::Error::Other(Error::ParseString)),
-            _ => panic!("Panic send error in test"),
-        }
+        assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::ParseString)));
         assert_eq!(client.state, ClientState::Idle);
     }
 }
