@@ -146,7 +146,7 @@ impl IngressManager {
             self.buf = String::from(self.buf.trim_start());
         }
         #[cfg(feature = "logging")]
-        log::trace!("Ingress: Parsing / {:?} / {:?}", self.state, self.buf);
+        log::trace!("Ingress: Digest / {:?} / {:?}", self.state, self.buf);
         match self.state {
             State::Idle => {
                 if self.echo_enabled && self.buf.starts_with("AT") {
