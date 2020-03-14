@@ -374,4 +374,41 @@ mod test {
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(c.dequeue().unwrap(), Err(Error::InvalidResponse));
     }
+
+    /// By breaking up non-AT-commands into chunks, it's possible that
+    /// they're mistaken for AT commands due to buffer clearing.
+    ///
+    /// Regression test for #27.
+    #[test]
+    fn chunkwise_digest() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut at_pars, _c) = setup!(conf);
+
+        assert_eq!(at_pars.state, State::Idle);
+
+        at_pars.write("THIS FORM".as_bytes());
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::Idle);
+        at_pars.write("AT SUCKS\r\n".as_bytes());
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::Idle);
+    }
+
+    /// By sending AT-commands byte-by-byte, it's possible that
+    /// the command is incorrectly ignored due to buffer clearing.
+    ///
+    /// Regression test for #27.
+    #[test]
+    fn bytewise_digest() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut at_pars, _c) = setup!(conf);
+
+        assert_eq!(at_pars.state, State::Idle);
+
+        for byte in b"AT\r\n" {
+            at_pars.write(&[*byte]);
+            at_pars.digest();
+        }
+        assert_eq!(at_pars.state, State::ReceivingResponse);
+    }
 }
