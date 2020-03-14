@@ -18,7 +18,7 @@ fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     line_term_char: u8,
     format_char: u8,
     trim_response: bool,
-    reverse: bool
+    reverse: bool,
 ) -> Option<String<L>> {
     let ind = if reverse {
         buf.rmatch_indices(s).next()
@@ -156,7 +156,7 @@ impl IngressManager {
                         self.line_term_char,
                         self.format_char,
                         false,
-                        false
+                        false,
                     ) {
                         self.state = State::ReceivingResponse;
                     }
@@ -170,7 +170,7 @@ impl IngressManager {
                         self.line_term_char,
                         self.format_char,
                         false,
-                        false
+                        false,
                     ) {
                         self.notify_urc(line);
                     }
@@ -185,19 +185,24 @@ impl IngressManager {
                     self.line_term_char,
                     self.format_char,
                     true,
-                    false
+                    false,
                 ) {
-                    Ok(
-                        get_line(&mut line, "\r", self.line_term_char, self.format_char, true, true)
-                            .unwrap_or_else(|| String::new()),
+                    Ok(get_line(
+                        &mut line,
+                        "\r",
+                        self.line_term_char,
+                        self.format_char,
+                        true,
+                        true,
                     )
+                    .unwrap_or_else(|| String::new()))
                 } else if get_line::<consts::U128, _>(
                     &mut self.buf,
                     "ERROR",
                     self.line_term_char,
                     self.format_char,
                     false,
-                    false
+                    false,
                 )
                 .is_some()
                 {
