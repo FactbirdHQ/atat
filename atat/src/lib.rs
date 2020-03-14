@@ -168,11 +168,11 @@
 //!     }
 //! }
 //! ```
-//! # Optional features
+//! # Optional Cargo Features
 //!
 //! - **`derive`** *(enabled by default)* — Enables and re-exports [`atat_derive`].
-//! - **`logging`** *(disabled by default)* — Prints all incoming and outgoing
-//!   data bytes on the serial line.
+//! - **`logging`** *(disabled by default)* — Prints useful logging
+//! information, including incoming and outgoing bytes on the `TRACE` level.
 
 #![cfg_attr(not(test), no_std)]
 // #![feature(test)]

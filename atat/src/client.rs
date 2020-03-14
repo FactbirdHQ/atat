@@ -77,8 +77,11 @@ where
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
             block!(self.timer.wait()).ok();
-            for c in cmd.as_string().as_bytes() {
-                block!(self.tx.write(*c)).map_err(|_e| Error::Write)?;
+            let cmd_string = cmd.as_string();
+            #[cfg(feature = "logging")]
+            log::debug!("Sending command: {:?}", cmd_string.as_str());
+            for c in cmd_string.as_bytes() {
+                block!(self.tx.write(*c)).ok();
             }
             block!(self.tx.flush()).map_err(|_e| Error::Write)?;
             self.state = ClientState::AwaitingResponse;
