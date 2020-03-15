@@ -487,4 +487,37 @@ mod test {
         }
         assert_eq!(at_pars.state, State::ReceivingResponse);
     }
+
+    /// If an invalid response ends with a line terminator, the incomplete flag
+    /// should be cleared.
+    #[test]
+    fn invalid_line_with_termination() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut at_pars, _c) = setup!(conf);
+
+        assert_eq!(at_pars.state, State::Idle);
+
+        at_pars.write(b"some status msg\r\n");
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::Idle);
+
+        at_pars.write(b"AT+GMR\r\r\n");
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
+    }
+
+    /// If a valid response follows an invalid response, the buffer should not
+    /// be cleared in between.
+    #[test]
+    fn mixed_response() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut at_pars, _c) = setup!(conf);
+
+        assert_eq!(at_pars.state, State::Idle);
+
+        at_pars.write("some status msg\r\nAT+GMR\r\r\n".as_bytes());
+        at_pars.digest();
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
+    }
 }
