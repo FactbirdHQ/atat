@@ -75,12 +75,7 @@ pub struct IngressManager {
 }
 
 impl IngressManager {
-    pub fn new(
-        res_p: ResProducer,
-        urc_p: UrcProducer,
-        com_c: ComConsumer,
-        config: &Config,
-    ) -> Self {
+    pub fn new(res_p: ResProducer, urc_p: UrcProducer, com_c: ComConsumer, config: Config) -> Self {
         Self {
             state: State::Idle,
             buf: String::new(),
@@ -163,7 +158,7 @@ impl IngressManager {
 
                 // Handle AT echo responses
                 if !self.buf_incomplete && self.echo_enabled && self.buf.starts_with("AT") {
-                    if let Some(_) = get_line::<consts::U128, _>(
+                    if get_line::<consts::U128, _>(
                         &mut self.buf,
                         // FIXME: Use `self.line_term_char` here
                         "\r",
@@ -171,7 +166,9 @@ impl IngressManager {
                         self.format_char,
                         false,
                         false,
-                    ) {
+                    )
+                    .is_some()
+                    {
                         self.state = State::ReceivingResponse;
                         self.buf_incomplete = false;
                         #[cfg(feature = "logging")]
@@ -222,7 +219,7 @@ impl IngressManager {
                         true,
                         true,
                     )
-                    .unwrap_or_else(|| String::new()))
+                    .unwrap_or_else(String::new))
                 } else if get_line::<consts::U128, _>(
                     &mut self.buf,
                     "ERROR",
@@ -265,7 +262,7 @@ mod test {
             let (urc_p, _urc_c) = unsafe { URC_Q.split() };
             static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
             let (_com_p, com_c) = unsafe { COM_Q.split() };
-            (IngressManager::new(p, urc_p, com_c, &$config), c)
+            (IngressManager::new(p, urc_p, com_c, $config), c)
         }};
     }
 

@@ -252,8 +252,8 @@ impl Default for Config {
     fn default() -> Config {
         Config {
             mode: Mode::Blocking,
-            line_term_char: '\r' as u8,
-            format_char: '\n' as u8,
+            line_term_char: b'\r',
+            format_char: b'\n',
             at_echo_enabled: true,
             cmd_cooldown: 20,
         }
@@ -314,7 +314,7 @@ where
     let (res_p, res_c) = unsafe { RES_QUEUE.split() };
     let (urc_p, urc_c) = unsafe { URC_QUEUE.split() };
     let (com_p, com_c) = unsafe { COM_QUEUE.split() };
-    let parser = IngressManager::new(res_p, urc_p, com_c, &config);
+    let parser = IngressManager::new(res_p, urc_p, com_c, config);
     let client = Client::new(serial_tx, res_c, urc_c, com_p, timer, config);
 
     (client, parser)
