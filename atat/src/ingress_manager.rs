@@ -187,6 +187,11 @@ impl IngressManager {
                 // types of responses (e.g. `AT` and `+`).
                 let min_length = 2;
 
+                // Echo is currently required
+                if !self.echo_enabled {
+                    unimplemented!("Disabling AT echo is currently unsupported");
+                }
+
                 // Handle AT echo responses
                 if !self.buf_incomplete && self.echo_enabled && self.buf.starts_with("AT") {
                     if get_line::<consts::U256, _>(
@@ -206,12 +211,8 @@ impl IngressManager {
                         log::trace!("Switching to state ReceivingResponse\r");
                     }
 
-                // Echo is currently required
-                } else if !self.echo_enabled {
-                    unimplemented!("Disabling AT echo is currently unsupported");
-
                 // Handle URCs
-                } else if self.buf.starts_with('+') {
+                } else if !self.buf_incomplete && self.buf.starts_with('+') {
                     if let Some(line) = get_line(
                         &mut self.buf,
                         // FIXME: Use `self.line_term_char` here
@@ -230,9 +231,14 @@ impl IngressManager {
                 // ensure that we don't accidentally break a valid response.
                 } else if self.buf_incomplete || self.buf.len() > min_length {
                     #[cfg(feature = "logging")]
-                    log::trace!("Clearing buffer with invalid response");
+                    log::trace!(
+                        "Clearing buffer with invalid response (incomplete: {}, buflen: {})",
+                        self.buf_incomplete,
+                        self.buf.len(),
+                    );
+                    self.buf_incomplete = !self.buf.ends_with(self.line_term_char as char)
+                                       && !self.buf.ends_with(self.format_char as char);
                     self.buf.clear();
-                    self.buf_incomplete = true;
                 }
             }
             State::ReceivingResponse => {
