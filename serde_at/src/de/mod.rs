@@ -479,7 +479,6 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        self.eat_char();
         Ok(visitor.visit_seq(SeqAccess::new(self))?)
     }
 
