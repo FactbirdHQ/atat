@@ -115,7 +115,7 @@ fn generate_cmd_output(
         #[automatically_derived]
         impl #impl_generics atat::AtatCmd for #name #ty_generics #where_clause {
             type Response = #response;
-            type CommandLen = heapless::consts::U64;
+            type CommandLen = heapless::consts::U256;
 
             fn as_string(&self) -> heapless::String<Self::CommandLen> {
                 let s: heapless::String<Self::CommandLen> = heapless::String::from(#cmd);

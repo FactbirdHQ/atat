@@ -79,9 +79,9 @@ where
             block!(self.timer.wait()).ok();
             let cmd_string = cmd.as_string();
             #[cfg(feature = "logging")]
-            log::debug!("Sending command: {:?}", cmd_string.as_str());
+            log::debug!("Sending command: {:?}\r", cmd_string.as_str());
             for c in cmd_string.as_bytes() {
-                block!(self.tx.write(*c)).ok();
+                block!(self.tx.write(*c)).map_err(|_e| Error::Write)?;
             }
             block!(self.tx.flush()).map_err(|_e| Error::Write)?;
             self.state = ClientState::AwaitingResponse;
@@ -126,7 +126,8 @@ where
                 // Tell the parser to clear the buffer due to timeout
                 if self.com_p.enqueue(Command::ClearBuffer).is_err() {
                     // TODO: Consider how to act in this situation.
-                    // log::error!("Failed to signal parser to clear buffer on timeout!\r");
+                    #[cfg(feature = "logging")]
+                    log::error!("Failed to signal parser to clear buffer on timeout!\r");
                 }
                 return Err(nb::Error::Other(Error::Timeout));
             }
