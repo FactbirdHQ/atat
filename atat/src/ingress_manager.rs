@@ -99,7 +99,7 @@ impl IngressManager {
     /// be abstracted over the communication medium.
     pub fn write(&mut self, data: &[u8]) {
         #[cfg(feature = "logging")]
-        log::trace!("Ingress: Receiving {} bytes", data.len());
+        log::trace!("Receiving {} bytes", data.len());
         for byte in data {
             match self.buf.push(*byte as char) {
                 Ok(_) => {}
@@ -109,6 +109,8 @@ impl IngressManager {
     }
 
     fn notify_response(&mut self, resp: Result<String<consts::U256>, Error>) {
+        #[cfg(feature = "logging")]
+        log::debug!("Received response: {:?}", &resp);
         if self.res_p.ready() {
             self.res_p.enqueue(resp).ok();
         } else {
@@ -117,6 +119,8 @@ impl IngressManager {
     }
 
     fn notify_urc(&mut self, resp: String<consts::U64>) {
+        #[cfg(feature = "logging")]
+        log::debug!("Received URC: {:?}", &resp);
         if self.urc_p.ready() {
             self.urc_p.enqueue(resp).ok();
         } else {
@@ -154,7 +158,7 @@ impl IngressManager {
             self.buf = String::from(self.buf.trim_start());
         }
         #[cfg(feature = "logging")]
-        log::trace!("Ingress: Digest / {:?} / {:?}", self.state, self.buf);
+        log::trace!("Digest / {:?} / {:?}", self.state, self.buf);
         match self.state {
             State::Idle => {
                 // The minimal buffer length that is required to identify all
@@ -175,7 +179,7 @@ impl IngressManager {
                         self.state = State::ReceivingResponse;
                         self.buf_incomplete = false;
                         #[cfg(feature = "logging")]
-                        log::trace!("Ingress: Switching to state ReceivingResponse");
+                        log::trace!("Switching to state ReceivingResponse");
                     }
 
                 // Echo is currently required
@@ -201,6 +205,8 @@ impl IngressManager {
                 // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
                 // ensure that we don't accidentally break a valid response.
                 } else if self.buf_incomplete || self.buf.len() > min_length {
+                    #[cfg(feature = "logging")]
+                    log::trace!("Clearing buffer with invalid response");
                     self.buf.clear();
                     self.buf_incomplete = true;
                 }
@@ -240,7 +246,7 @@ impl IngressManager {
 
                 self.notify_response(resp);
                 #[cfg(feature = "logging")]
-                log::trace!("Ingress: Switching to state Idle");
+                log::trace!("Switching to state Idle");
                 self.state = State::Idle;
             }
         }
