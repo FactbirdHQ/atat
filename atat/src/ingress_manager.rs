@@ -1,16 +1,8 @@
-use heapless::{
-    consts,
-    spsc::{Consumer, Producer},
-    ArrayLength, String,
-};
+use heapless::{consts, ArrayLength, String};
 
 use crate::error::Error;
-use crate::Command;
-use crate::Config;
-
-type ResProducer = Producer<'static, Result<String<consts::U256>, Error>, consts::U5, u8>;
-type UrcProducer = Producer<'static, String<consts::U64>, consts::U10, u8>;
-type ComConsumer = Consumer<'static, Command, consts::U3, u8>;
+use crate::queues::{ComConsumer, ResProducer, UrcProducer};
+use crate::{Command, Config};
 
 fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     buf: &mut String<I>,
@@ -61,8 +53,11 @@ pub struct IngressManager {
     /// with an incomplete response.
     buf_incomplete: bool,
 
+    /// The response producer sends responses to the client
     res_p: ResProducer,
+    /// The URC producer sends URCs to the client
     urc_p: UrcProducer,
+    /// The command consumer receives commands from the client
     com_c: ComConsumer,
 
     /// Current processing state.

@@ -1,18 +1,9 @@
-use heapless::{
-    consts,
-    spsc::{Consumer, Producer},
-    String,
-};
-
 use embedded_hal::{serial, timer::CountDown};
 
 use crate::error::Error;
+use crate::queues::{ComProducer, ResConsumer, UrcConsumer};
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
 use crate::{Command, Config, Mode};
-
-type ResConsumer = Consumer<'static, Result<String<consts::U256>, Error>, consts::U5, u8>;
-type UrcConsumer = Consumer<'static, String<consts::U64>, consts::U10, u8>;
-type ComProducer = Producer<'static, Command, consts::U3, u8>;
 
 #[derive(Debug, PartialEq)]
 enum ClientState {
@@ -30,10 +21,16 @@ where
     Tx: serial::Write<u8>,
     T: CountDown,
 {
+    /// Serial writer
     tx: Tx,
+
+    /// The response consumer receives responses from the ingress manager
     res_c: ResConsumer,
+    /// The URC consumer receives URCs from the ingress manager
     urc_c: UrcConsumer,
+    /// The command producer can send commands to the ingress manager
     com_p: ComProducer,
+
     state: ClientState,
     timer: T,
     config: Config,
