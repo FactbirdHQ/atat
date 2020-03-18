@@ -185,18 +185,20 @@ extern crate void;
 mod client;
 mod error;
 mod ingress_manager;
+mod queues;
 mod traits;
-
-pub use self::client::Client;
-pub use self::error::Error;
-pub use self::ingress_manager::IngressManager;
-pub use self::traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 
 #[cfg(feature = "derive")]
 pub use atat_derive;
 
 use embedded_hal::{serial, timer::CountDown};
-use heapless::{consts, spsc::Queue, String};
+use heapless::spsc::Queue;
+
+pub use self::client::Client;
+pub use self::error::Error;
+pub use self::ingress_manager::IngressManager;
+use self::queues::{ComQueue, ResQueue, UrcQueue};
+pub use self::traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 
 pub mod prelude {
     //! The prelude is a collection of all the traits in this crate
@@ -291,9 +293,6 @@ impl Config {
     }
 }
 
-type ResQueue = Queue<Result<String<consts::U256>, error::Error>, consts::U5, u8>;
-type UrcQueue = Queue<String<consts::U64>, consts::U10, u8>;
-type ComQueue = Queue<Command, consts::U3, u8>;
 type ClientParser<Tx, T> = (Client<Tx, T>, IngressManager);
 
 /// Create a new Atat client instance.
