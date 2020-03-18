@@ -83,6 +83,12 @@ pub trait AtatCmd {
     fn max_timeout_ms(&self) -> u32 {
         1000
     }
+
+    /// Force the ingress manager into receive state immediately after sending
+    /// the command.
+    fn force_receive_state(&self) -> bool {
+        false
+    }
 }
 
 pub trait AtatClient {

@@ -73,6 +73,20 @@ where
 {
     fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {
         if let ClientState::Idle = self.state {
+            if cmd.force_receive_state() {
+                if self
+                    .com_p
+                    .enqueue(Command::ForceState(
+                        crate::ingress_manager::State::ReceivingResponse,
+                    ))
+                    .is_err()
+                {
+                    // TODO: Consider how to act in this situation.
+                    #[cfg(feature = "logging")]
+                    log::error!("Failed to signal parser to force state transition to 'ReceivingResponse'!\r");
+                }
+            }
+
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command

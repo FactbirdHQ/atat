@@ -1,4 +1,6 @@
 use crate::proc_macro2::{Literal, TokenStream, TokenTree};
+use quote::quote;
+
 use syn::{spanned::Spanned, Error, FieldsNamed, Ident, Result, Type};
 
 pub fn stream_from_tokens(tokens: &proc_macro2::TokenStream) -> TokenStream {
@@ -124,5 +126,67 @@ pub fn get_field_names(fields: Option<&FieldsNamed>) -> (Vec<Ident>, Vec<Type>, 
         (field_name, field_type, field_name_str)
     } else {
         (vec![], vec![], vec![])
+    }
+}
+
+fn get_string_length(ty: &Type) -> usize {
+    let type_string = quote! { #ty }.to_string();
+    let len = match type_string.replace(" ", "").as_str() {
+        "str" => panic!("String slices must be annotated with a length using #[at_arg()]"),
+        "tuple" => panic!("Tuples are not supported!"),
+        "char" => "a".len(),
+        "bool" => "false".len(),
+        "isize" => format!("{:?}", std::isize::MAX).len(),
+        "usize" => format!("{:?}", std::usize::MAX).len(),
+        "u8" => format!("{:?}", std::u8::MAX).len(),
+        "u16" => format!("{:?}", std::u16::MAX).len(),
+        "u32" => format!("{:?}", std::u32::MAX).len(),
+        "u64" => format!("{:?}", std::u64::MAX).len(),
+        "u128" => format!("{:?}", std::u128::MAX).len(),
+        "i8" => format!("{:?}", std::i8::MIN).len(),
+        "i16" => format!("{:?}", std::i16::MIN).len(),
+        "i32" => format!("{:?}", std::i32::MIN).len(),
+        "i64" => format!("{:?}", std::i64::MIN).len(),
+        "i128" => format!("{:?}", std::i128::MIN).len(),
+        "f32" => format!("{:?}", std::f32::MIN).len(),
+        "f64" => format!("{:?}", std::f64::MIN).len(),
+        _ => {
+            // println!("Unexpected type: {:?}", type_string);
+            0
+        }
+    };
+
+    // println!("Got len! {:?}: {:?}", type_string, len);
+    len
+}
+
+fn next_power_of_2(mut n: usize) -> usize {
+    n = n - 1;
+    while (n & (n - 1)) != 0 {
+        n = n & (n - 1);
+    }
+    return n << 1;
+}
+
+pub fn calculate_cmd_len(
+    subcmd_len: usize,
+    fields: Option<&FieldsNamed>,
+    termination_len: usize,
+) -> usize {
+    let fields_len = if let Some(fields) = fields {
+        fields
+            .named
+            .iter()
+            .map(|field| get_string_length(&field.ty))
+            .sum()
+    } else {
+        0
+    };
+
+    let total_len = fields_len + subcmd_len + termination_len;
+    if total_len <= 1024 {
+        total_len
+    } else {
+        next_power_of_2(total_len)
     }
 }

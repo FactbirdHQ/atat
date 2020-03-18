@@ -4,26 +4,26 @@ use heapless::ArrayLength;
 
 use crate::ser::{Error, Result, Serializer};
 
-pub struct SerializeStruct<'a, B, C>
+pub struct SerializeStruct<'a, 'b, B, C>
 where
     B: ArrayLength<u8>,
     C: ArrayLength<u8>,
 {
-    ser: &'a mut Serializer<B, C>,
+    ser: &'a mut Serializer<'b, B, C>,
     first: bool,
 }
 
-impl<'a, B, C> SerializeStruct<'a, B, C>
+impl<'a, 'b, B, C> SerializeStruct<'a, 'b, B, C>
 where
     B: ArrayLength<u8>,
     C: ArrayLength<u8>,
 {
-    pub(crate) fn new(ser: &'a mut Serializer<B, C>) -> Self {
+    pub(crate) fn new(ser: &'a mut Serializer<'b, B, C>) -> Self {
         SerializeStruct { ser, first: true }
     }
 }
 
-impl<'a, B, C> ser::SerializeStruct for SerializeStruct<'a, B, C>
+impl<'a, 'b, B, C> ser::SerializeStruct for SerializeStruct<'a, 'b, B, C>
 where
     B: ArrayLength<u8>,
     C: ArrayLength<u8>,
@@ -36,7 +36,7 @@ where
         T: ser::Serialize,
     {
         if self.first {
-            if self.ser.value_sep {
+            if self.ser.options.value_sep {
                 self.ser.buf.push(b'=')?;
             }
         } else {
@@ -49,7 +49,7 @@ where
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.ser.buf.extend_from_slice(b"\r\n")?;
+        self.ser.buf.extend_from_slice(self.ser.options.termination.as_bytes())?;
         Ok(())
     }
 }

@@ -13,6 +13,34 @@ mod struct_;
 /// Serialization result
 pub type Result<T> = ::core::result::Result<T, Error>;
 
+#[derive(Clone)]
+pub struct Bytes<'a>(pub &'a [u8]);
+
+impl<'a> serde::Serialize for Bytes<'a> {
+    fn serialize<S>(&self, serializer: S) -> serde::export::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serde::Serializer::serialize_bytes(serializer, self.0)
+    }
+}
+
+pub struct SerializeOptions<'a> {
+    pub value_sep: bool,
+    pub cmd_prefix: &'a str,
+    pub termination: &'a str,
+}
+
+impl<'a> Default for SerializeOptions<'a> {
+    fn default() -> Self {
+        SerializeOptions {
+            value_sep: true,
+            cmd_prefix: "AT",
+            termination: "\r\n"
+        }
+    }
+}
+
 /// This type represents all possible errors that can occur when serializing AT Command strings
 #[derive(Debug)]
 pub enum Error {
@@ -40,26 +68,26 @@ impl fmt::Display for Error {
     }
 }
 
-pub(crate) struct Serializer<B, C>
+pub(crate) struct Serializer<'a, B, C>
 where
     B: heapless::ArrayLength<u8>,
     C: heapless::ArrayLength<u8>,
 {
     buf: Vec<u8, B>,
     cmd: String<C>,
-    value_sep: bool,
+    options: SerializeOptions<'a>,
 }
 
-impl<B, C> Serializer<B, C>
+impl<'a, B, C> Serializer<'a, B, C>
 where
     B: heapless::ArrayLength<u8>,
     C: heapless::ArrayLength<u8>,
 {
-    fn new(cmd: String<C>, value_sep: bool) -> Self {
+    fn new(cmd: String<C>, options: SerializeOptions<'a>) -> Self {
         Serializer {
             buf: Vec::new(),
             cmd,
-            value_sep,
+            options,
         }
     }
 }
@@ -131,7 +159,7 @@ macro_rules! serialize_fmt {
     }};
 }
 
-impl<'a, B, C> ser::Serializer for &'a mut Serializer<B, C>
+impl<'a, 'b, B, C> ser::Serializer for &'a mut Serializer<'b, B, C>
 where
     B: heapless::ArrayLength<u8>,
     C: heapless::ArrayLength<u8>,
@@ -143,7 +171,7 @@ where
     type SerializeTupleStruct = Unreachable;
     type SerializeTupleVariant = Unreachable;
     type SerializeMap = Unreachable;
-    type SerializeStruct = SerializeStruct<'a, B, C>;
+    type SerializeStruct = SerializeStruct<'a, 'b, B, C>;
     type SerializeStructVariant = Unreachable;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok> {
@@ -237,9 +265,10 @@ where
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok> {
-        self.buf.extend_from_slice(b"AT")?;
+        self.buf
+            .extend_from_slice(self.options.cmd_prefix.as_bytes())?;
         self.buf.extend_from_slice(&self.cmd.as_bytes())?;
-        self.buf.extend_from_slice(b"\r\n")?;
+        self.buf.extend_from_slice(self.options.termination.as_bytes())?;
         Ok(())
     }
 
@@ -305,7 +334,8 @@ where
     }
 
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-        self.buf.extend_from_slice(b"AT")?;
+        self.buf
+            .extend_from_slice(self.options.cmd_prefix.as_bytes())?;
         self.buf.extend_from_slice(&self.cmd.as_bytes())?;
         Ok(SerializeStruct::new(self))
     }
@@ -326,25 +356,33 @@ where
 }
 
 /// Serializes the given data structure as a string
-pub fn to_string<B, C, T>(value: &T, cmd: String<C>, value_sep: bool) -> Result<String<B>>
+pub fn to_string<'a, B, C, T>(
+    value: &T,
+    cmd: String<C>,
+    options: SerializeOptions<'a>,
+) -> Result<String<B>>
 where
     B: heapless::ArrayLength<u8>,
     C: heapless::ArrayLength<u8>,
     T: ser::Serialize + ?Sized,
 {
-    let mut ser = Serializer::new(cmd, value_sep);
+    let mut ser = Serializer::new(cmd, options);
     value.serialize(&mut ser)?;
     Ok(unsafe { String::from_utf8_unchecked(ser.buf) })
 }
 
 /// Serializes the given data structure as a byte vector
-pub fn to_vec<B, C, T>(value: &T, cmd: String<C>, value_sep: bool) -> Result<Vec<u8, B>>
+pub fn to_vec<'a, B, C, T>(
+    value: &T,
+    cmd: String<C>,
+    options: SerializeOptions<'a>,
+) -> Result<Vec<u8, B>>
 where
     B: heapless::ArrayLength<u8>,
     C: heapless::ArrayLength<u8>,
     T: ser::Serialize + ?Sized,
 {
-    let mut ser = Serializer::new(cmd, value_sep);
+    let mut ser = Serializer::new(cmd, options);
     value.serialize(&mut ser)?;
     Ok(ser.buf)
 }
@@ -503,7 +541,7 @@ mod tests {
         let s: String<consts::U32> = to_string(
             &PacketSwitchedParam::QoSDelay3G(15),
             String::<consts::U32>::from(""),
-            true,
+            SerializeOptions::default(),
         )
         .unwrap();
 
@@ -512,8 +550,12 @@ mod tests {
 
     #[test]
     fn newtype_struct() {
-        let s: String<consts::U32> =
-            to_string(&Handle(15), String::<consts::U32>::from(""), true).unwrap();
+        let s: String<consts::U32> = to_string(
+            &Handle(15),
+            String::<consts::U32>::from(""),
+            SerializeOptions::default(),
+        )
+        .unwrap();
 
         assert_eq!(s, String::<consts::U32>::from("15"));
     }

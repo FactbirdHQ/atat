@@ -226,6 +226,8 @@ pub enum Mode {
 pub enum Command {
     /// Clear the rx buffer, usually as a result of a command timeout
     ClearBuffer,
+    /// Force the ingress manager into the given state
+    ForceState(ingress_manager::State),
     /// Change the line termination character, must be called af setting `ATS3=`
     SetLineTerm(u8),
     /// Change the format character, must be called af setting `ATS4=`

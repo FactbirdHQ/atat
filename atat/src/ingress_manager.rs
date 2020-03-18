@@ -12,22 +12,37 @@ type ResProducer = Producer<'static, Result<String<consts::U256>, Error>, consts
 type UrcProducer = Producer<'static, String<consts::U64>, consts::U10, u8>;
 type ComConsumer = Consumer<'static, Command, consts::U3, u8>;
 
-fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
+/// Helper function to take a subsection from `buf`.
+///
+/// It searches for `needle`, either from the beginning of buf, or the end,
+/// depending on `reverse`. If the search finds a match, it continues forward as
+/// long as the next characters matches `line_term_char` or `format_char`. It
+/// then returns a substring, trimming it for whitespaces if `trim_response` is
+/// true, and leaves the remainder in `buf`.
+///
+/// Example:
+/// ```
+/// let mut buf = heapless::String::from("+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\nAT+GMR\r\r\n");
+/// let response: heapless::String<heapless::consts::U64> = get_line(&mut buf, "OK", b'\r', b'\n', false, false);
+/// assert_eq!(response, heapless::String::from("+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n"));
+/// assert_eq!(buf, heapless::String::from("AT+GMR\r\r\n"));
+/// ```
+pub(crate) fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     buf: &mut String<I>,
-    s: &str,
+    needle: &str,
     line_term_char: u8,
     format_char: u8,
     trim_response: bool,
     reverse: bool,
 ) -> Option<String<L>> {
     let ind = if reverse {
-        buf.rmatch_indices(s).next()
+        buf.rmatch_indices(needle).next()
     } else {
-        buf.match_indices(s).next()
+        buf.match_indices(needle).next()
     };
     match ind {
         Some((mut index, _)) => {
-            index += s.len();
+            index += needle.len();
             while match buf.get(index..=index) {
                 Some(c) => c.as_bytes()[0] == line_term_char || c.as_bytes()[0] == format_char,
                 _ => false,
@@ -48,7 +63,7 @@ fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
 
 /// State of the IngressManager, used to distiguish URCs from solicited
 /// responses
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum State {
     Idle,
     ReceivingResponse,
@@ -89,9 +104,12 @@ impl IngressManager {
         }
     }
 
-    /// Write data into the internal buffer
-    /// raw bytes being the core type allows the ingress manager to
-    /// be abstracted over the communication medium.
+    /// Write data into the internal buffer raw bytes being the core type allows
+    /// the ingress manager to be abstracted over the communication medium.
+    ///
+    /// This function should be called by the UART Rx, either in a receive
+    /// interrupt, or a DMA interrupt, to move data from the peripheral into the
+    /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
         #[cfg(feature = "logging")]
         log::trace!("Receiving {} bytes\r", data.len());
@@ -103,6 +121,8 @@ impl IngressManager {
         }
     }
 
+    /// Notify the client that an appropriate response code, or error has been
+    /// received
     fn notify_response(&mut self, resp: Result<String<consts::U256>, Error>) {
         #[cfg(feature = "logging")]
         log::debug!("Received response: {:?}\r", &resp);
@@ -113,6 +133,8 @@ impl IngressManager {
         }
     }
 
+    /// Notify the client that an unsolicited response code (URC) has been
+    /// received
     fn notify_urc(&mut self, resp: String<consts::U64>) {
         #[cfg(feature = "logging")]
         log::debug!("Received URC: {:?}\r", &resp);
@@ -133,6 +155,11 @@ impl IngressManager {
                     log::debug!("Clearing buffer on timeout / {:?}\r", self.buf);
                     self.buf.clear()
                 }
+                Command::ForceState(state) => {
+                    #[cfg(feature = "logging")]
+                    log::trace!("Switching to state {:?}\r", state);
+                    self.state = state;
+                }
                 Command::SetEcho(e) => {
                     self.echo_enabled = e;
                 }
@@ -146,6 +173,9 @@ impl IngressManager {
         }
     }
 
+    /// Process the receive buffer, checking for AT responses, URC's or errors
+    ///
+    /// This function should be called regularly for the ingress manager to work
     pub fn digest(&mut self) {
         self.handle_com();
         if self.buf.starts_with(self.line_term_char as char)
@@ -164,7 +194,7 @@ impl IngressManager {
 
                 // Handle AT echo responses
                 if !self.buf_incomplete && self.echo_enabled && self.buf.starts_with("AT") {
-                    if get_line::<consts::U128, _>(
+                    if get_line::<consts::U256, _>(
                         &mut self.buf,
                         // FIXME: Use `self.line_term_char` here
                         "\r",
@@ -211,7 +241,7 @@ impl IngressManager {
                 }
             }
             State::ReceivingResponse => {
-                let resp = if let Some(mut line) = get_line::<consts::U128, _>(
+                let resp = if let Some(mut line) = get_line::<consts::U256, _>(
                     &mut self.buf,
                     "OK",
                     self.line_term_char,
@@ -228,7 +258,7 @@ impl IngressManager {
                         true,
                     )
                     .unwrap_or_else(String::new))
-                } else if get_line::<consts::U128, _>(
+                } else if get_line::<consts::U256, _>(
                     &mut self.buf,
                     "ERROR",
                     self.line_term_char,
@@ -239,6 +269,28 @@ impl IngressManager {
                 .is_some()
                 {
                     Err(Error::InvalidResponse)
+                } else if get_line::<consts::U256, _>(
+                    &mut self.buf,
+                    ">",
+                    self.line_term_char,
+                    self.format_char,
+                    false,
+                    false,
+                )
+                .is_some()
+                {
+                    Ok(String::from(""))
+                } else if get_line::<consts::U256, _>(
+                    &mut self.buf,
+                    "@",
+                    self.line_term_char,
+                    self.format_char,
+                    false,
+                    false,
+                )
+                .is_some()
+                {
+                    Ok(String::from(""))
                 } else {
                     return;
                 };

@@ -1,10 +1,10 @@
 use crate::proc_macro::TokenStream;
 use crate::proc_macro2::Literal;
 
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{Attribute, Data, DataStruct, DeriveInput, Fields, FieldsNamed, Ident, Result};
 
-use crate::helpers::{get_field_names, get_ident, get_lit, get_name_ident_lit};
+use crate::helpers::{calculate_cmd_len, get_field_names, get_ident, get_lit, get_name_ident_lit};
 
 pub fn atat_cmd(item: DeriveInput) -> TokenStream {
     match item.data {
@@ -37,38 +37,37 @@ struct AtCmdAttr {
     resp: Ident,
     timeout_ms: Option<u32>,
     abortable: Option<bool>,
+    force_receive_state: Option<bool>,
     value_sep: bool,
+    cmd_prefix: String,
+    termination: String,
+}
+
+fn get_parsed_ident<T: core::str::FromStr>(attr: &Attribute, needle: &str) -> Option<T> {
+    match get_name_ident_lit(&attr.tokens, needle) {
+        Ok(lit) => match lit.parse::<T>() {
+            Ok(t) => Some(t),
+            _ => None,
+        },
+        Err(_) => None,
+    }
 }
 
 fn get_cmd_response(attrs: &[Attribute]) -> Result<AtCmdAttr> {
     if let Some(attr) = attrs.iter().find(|attr| attr.path.is_ident("at_cmd")) {
-        let timeout_ms = match get_name_ident_lit(&attr.tokens, "timeout_ms") {
-            Ok(lit) => match lit.parse::<u32>() {
-                Ok(t) => Some(t),
-                _ => None,
-            },
-            Err(_) => None,
-        };
-        let abortable = match get_name_ident_lit(&attr.tokens, "abortable") {
-            Ok(lit) => match lit.parse::<bool>() {
-                Ok(t) => Some(t),
-                _ => None,
-            },
-            Err(_) => None,
-        };
-        let value_sep = match get_name_ident_lit(&attr.tokens, "value_sep") {
-            Ok(lit) => match lit.parse::<bool>() {
-                Ok(c) => c,
-                _ => true,
-            },
-            Err(_) => true,
-        };
         Ok(AtCmdAttr {
             cmd: get_lit(&attr.tokens)?,
             resp: get_ident(&attr.tokens)?,
-            timeout_ms,
-            abortable,
-            value_sep,
+            timeout_ms: get_parsed_ident(&attr, "timeout_ms"),
+            abortable: get_parsed_ident(&attr, "abortable"),
+            force_receive_state: get_parsed_ident(&attr, "force_receive_state"),
+            value_sep: get_parsed_ident(&attr, "value_sep").unwrap_or(true),
+            cmd_prefix: get_parsed_ident(&attr, "cmd_prefix")
+                .unwrap_or(String::from("AT"))
+                .replace("\"", ""),
+            termination: get_parsed_ident(&attr, "termination")
+                .unwrap_or(String::from("\r\n"))
+                .replace("\"", ""),
         })
     } else {
         panic!("Failed to find non-optional at_cmd attribute!",)
@@ -109,19 +108,39 @@ fn generate_cmd_output(
         quote! {}
     };
 
+    let force_receive = if let Some(force_receive_state) = &attr.force_receive_state {
+        quote! {
+            fn force_receive_state(&self) -> bool {
+                #force_receive_state
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    let termination = &attr.termination;
+
     let value_sep = &attr.value_sep;
+    let cmd_prefix = &attr.cmd_prefix;
+    let sub_len = format!("{}", cmd.to_string().replace("\"", "")).len();
+    let subcmd_len = format_ident!("U{}", sub_len);
+    // let cmd_len = format_ident!("U{}", calculate_cmd_len(sub_len, fields, termination.len()));
 
     TokenStream::from(quote! {
         #[automatically_derived]
         impl #impl_generics atat::AtatCmd for #name #ty_generics #where_clause {
             type Response = #response;
-            type CommandLen = heapless::consts::U256;
+            type CommandLen = heapless::consts::U2048;
 
             fn as_string(&self) -> heapless::String<Self::CommandLen> {
-                let s: heapless::String<Self::CommandLen> = heapless::String::from(#cmd);
-                match serde_at::to_string(self, s, #value_sep) {
+                let s: heapless::String<heapless::consts::#subcmd_len> = heapless::String::from(#cmd);
+                match serde_at::to_string(self, s, serde_at::SerializeOptions {
+                    value_sep: #value_sep,
+                    cmd_prefix: #cmd_prefix,
+                    termination: #termination
+                }) {
                     Ok(s) => s,
-                    Err(_) => String::new()
+                    Err(_) => panic!("Failed to serialize command")
                 }
             }
 
@@ -134,6 +153,8 @@ fn generate_cmd_output(
             #timeout
 
             #abortable
+
+            #force_receive
         }
 
         #[automatically_derived]
