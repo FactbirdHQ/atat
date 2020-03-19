@@ -310,7 +310,7 @@ mod test {
             static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
                 Queue(heapless::i::Queue::u8());
             let (p, c) = unsafe { REQ_Q.split() };
-            static mut URC_Q: Queue<String<consts::U64>, consts::U10, u8> =
+            static mut URC_Q: Queue<String<consts::U256>, consts::U10, u8> =
                 Queue(heapless::i::Queue::u8());
             let (urc_p, urc_c) = unsafe { URC_Q.split() };
             static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
@@ -509,7 +509,7 @@ mod test {
         let (mut client, _, mut urc_p) = setup!(Config::new(Mode::NonBlocking));
 
         urc_p
-            .enqueue(String::<consts::U64>::from("+UMWI: 0, 1"))
+            .enqueue(String::<consts::U256>::from("+UMWI: 0, 1"))
             .unwrap();
 
         assert_eq!(client.state, ClientState::Idle);

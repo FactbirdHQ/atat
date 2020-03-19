@@ -14,7 +14,7 @@ type UrcCapacity = consts::U10;
 // Queue item types
 type ComItem = Command;
 type ResItem = Result<String<consts::U256>, Error>;
-type UrcItem = String<consts::U64>;
+type UrcItem = String<consts::U256>;
 
 // Note: We could create a simple macro to define producer, consumer and queue,
 // but that would probably be harder to read than just the plain definitions.
