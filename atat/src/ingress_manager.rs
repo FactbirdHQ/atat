@@ -148,7 +148,7 @@ impl IngressManager {
                     self.state = State::Idle;
                     #[cfg(feature = "logging")]
                     log::debug!("Clearing buffer on timeout / {:?}\r", self.buf);
-                    self.buf.clear()
+                    self.clear_buf(true);
                 }
                 Command::ForceState(state) => {
                     #[cfg(feature = "logging")]
@@ -168,19 +168,54 @@ impl IngressManager {
         }
     }
 
+    /// Clear the buffer.
+    ///
+    /// If `complete` is `true`, clear the entire buffer. Otherwise, only
+    /// remove data until (and including) the first newline (or the entire
+    /// buffer if no newline is present).
+    fn clear_buf(&mut self, complete: bool) {
+        if complete {
+            self.buf.clear();
+            #[cfg(feature = "logging")]
+            log::trace!("Cleared complete buffer\r");
+        } else {
+            let removed = get_line::<consts::U128, _>(
+                &mut self.buf,
+                unsafe { core::str::from_utf8_unchecked(&[self.line_term_char]) },
+                self.line_term_char,
+                self.format_char,
+                false,
+                false,
+            );
+            if removed.is_none() {
+                self.buf.clear();
+                #[cfg(feature = "logging")]
+                log::trace!("Cleared partial buffer, removed everything\r");
+            } else {
+                #[cfg(feature = "logging")]
+                log::trace!("Cleared partial buffer, removed {:?}\r", removed.unwrap());
+            }
+        }
+    }
+
     /// Process the receive buffer, checking for AT responses, URC's or errors
     ///
     /// This function should be called regularly for the ingress manager to work
     pub fn digest(&mut self) {
+        // Handle commands
         self.handle_com();
+
+        // Trim leading whitespace
         if self.buf.starts_with(self.line_term_char as char)
             || self.buf.starts_with(self.format_char as char)
         {
             // TODO: Custom trim_start, that trims based on line_term_char and format_char
             self.buf = String::from(self.buf.trim_start());
         }
+
         #[cfg(feature = "logging")]
         log::trace!("Digest / {:?} / {:?}\r", self.state, self.buf);
+
         match self.state {
             State::Idle => {
                 // The minimal buffer length that is required to identify all
@@ -232,13 +267,20 @@ impl IngressManager {
                 } else if self.buf_incomplete || self.buf.len() > min_length {
                     #[cfg(feature = "logging")]
                     log::trace!(
-                        "Clearing buffer with invalid response (incomplete: {}, buflen: {})",
+                        "Clearing buffer with invalid response (incomplete: {}, buflen: {})\r",
                         self.buf_incomplete,
                         self.buf.len(),
                     );
                     self.buf_incomplete = !self.buf.ends_with(self.line_term_char as char)
-                                       && !self.buf.ends_with(self.format_char as char);
-                    self.buf.clear();
+                        && !self.buf.ends_with(self.format_char as char);
+                    self.clear_buf(false);
+
+                    // If the buffer wasn't cleared completely, that means that
+                    // a newline was found. In that case, the buffer cannot be
+                    // in an incomplete state.
+                    if !self.buf.is_empty() {
+                        self.buf_incomplete = false;
+                    }
                 }
             }
             State::ReceivingResponse => {
@@ -525,5 +567,46 @@ mod test {
         at_pars.digest();
         at_pars.digest();
         assert_eq!(at_pars.state, State::ReceivingResponse);
+    }
+
+    #[test]
+    fn clear_buf_complete() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut ingress, _c) = setup!(conf);
+
+        ingress.write(b"hello\r\ngoodbye\r\n");
+        assert_eq!(ingress.buf.as_str(), "hello\r\ngoodbye\r\n");
+
+        ingress.clear_buf(true);
+        assert_eq!(ingress.buf.as_str(), "");
+    }
+
+    #[test]
+    fn clear_buf_partial() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut ingress, _c) = setup!(conf);
+
+        ingress.write(b"hello\r\nthere\r\ngoodbye\r\n");
+        assert_eq!(ingress.buf.as_str(), "hello\r\nthere\r\ngoodbye\r\n");
+
+        ingress.clear_buf(false);
+        assert_eq!(ingress.buf.as_str(), "there\r\ngoodbye\r\n");
+
+        ingress.clear_buf(false);
+        assert_eq!(ingress.buf.as_str(), "goodbye\r\n");
+
+        ingress.clear_buf(false);
+        assert_eq!(ingress.buf.as_str(), "");
+    }
+
+    #[test]
+    fn clear_buf_partial_no_newlines() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut ingress, _c) = setup!(conf);
+
+        ingress.write(b"no newlines anywhere");
+        assert_eq!(ingress.buf.as_str(), "no newlines anywhere");
+        ingress.clear_buf(false);
+        assert_eq!(ingress.buf.as_str(), "");
     }
 }
