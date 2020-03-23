@@ -4,7 +4,7 @@ use crate::proc_macro2::Literal;
 use quote::{format_ident, quote};
 use syn::{Attribute, Data, DataStruct, DeriveInput, Fields, FieldsNamed, Ident, Result};
 
-use crate::helpers::{calculate_cmd_len, get_field_names, get_ident, get_lit, get_name_ident_lit};
+use crate::helpers::{get_field_names, get_ident, get_lit, get_name_ident_lit};
 
 pub fn atat_cmd(item: DeriveInput) -> TokenStream {
     match item.data {
@@ -61,12 +61,12 @@ fn get_cmd_response(attrs: &[Attribute]) -> Result<AtCmdAttr> {
             timeout_ms: get_parsed_ident(&attr, "timeout_ms"),
             abortable: get_parsed_ident(&attr, "abortable"),
             force_receive_state: get_parsed_ident(&attr, "force_receive_state"),
-            value_sep: get_parsed_ident(&attr, "value_sep").unwrap_or(true),
+            value_sep: get_parsed_ident(&attr, "value_sep").unwrap_or_else(|| true),
             cmd_prefix: get_parsed_ident(&attr, "cmd_prefix")
-                .unwrap_or(String::from("AT"))
+                .unwrap_or_else(|| String::from("AT"))
                 .replace("\"", ""),
             termination: get_parsed_ident(&attr, "termination")
-                .unwrap_or(String::from("\r\n"))
+                .unwrap_or_else(|| String::from("\r\n"))
                 .replace("\"", ""),
         })
     } else {
@@ -122,7 +122,7 @@ fn generate_cmd_output(
 
     let value_sep = &attr.value_sep;
     let cmd_prefix = &attr.cmd_prefix;
-    let sub_len = format!("{}", cmd.to_string().replace("\"", "")).len();
+    let sub_len = cmd.to_string().replace("\"", "").len();
     let subcmd_len = format_ident!("U{}", sub_len);
     // let cmd_len = format_ident!("U{}", calculate_cmd_len(sub_len, fields, termination.len()));
 

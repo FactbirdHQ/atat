@@ -49,7 +49,9 @@ where
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.ser.buf.extend_from_slice(self.ser.options.termination.as_bytes())?;
+        self.ser
+            .buf
+            .extend_from_slice(self.ser.options.termination.as_bytes())?;
         Ok(())
     }
 }

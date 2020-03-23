@@ -36,7 +36,7 @@ impl<'a> Default for SerializeOptions<'a> {
         SerializeOptions {
             value_sep: true,
             cmd_prefix: "AT",
-            termination: "\r\n"
+            termination: "\r\n",
         }
     }
 }
@@ -268,7 +268,8 @@ where
         self.buf
             .extend_from_slice(self.options.cmd_prefix.as_bytes())?;
         self.buf.extend_from_slice(&self.cmd.as_bytes())?;
-        self.buf.extend_from_slice(self.options.termination.as_bytes())?;
+        self.buf
+            .extend_from_slice(self.options.termination.as_bytes())?;
         Ok(())
     }
 

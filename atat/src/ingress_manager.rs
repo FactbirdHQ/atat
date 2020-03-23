@@ -187,13 +187,17 @@ impl IngressManager {
                 false,
                 false,
             );
-            if removed.is_none() {
-                self.buf.clear();
-                #[cfg(feature = "logging")]
-                log::trace!("Cleared partial buffer, removed everything");
-            } else {
-                #[cfg(feature = "logging")]
-                log::trace!("Cleared partial buffer, removed {:?}", removed.unwrap());
+            match removed {
+                #[allow(unused)]
+                Some(r) => {
+                    #[cfg(feature = "logging")]
+                    log::trace!("Cleared partial buffer, removed {:?}", r);
+                }
+                None => {
+                    self.buf.clear();
+                    #[cfg(feature = "logging")]
+                    log::trace!("Cleared partial buffer, removed everything");
+                }
             }
         }
     }
@@ -319,17 +323,15 @@ impl IngressManager {
                     false,
                 )
                 .is_some()
-                {
-                    Ok(String::from(""))
-                } else if get_line::<consts::U256, _>(
-                    &mut self.buf,
-                    "@",
-                    self.line_term_char,
-                    self.format_char,
-                    false,
-                    false,
-                )
-                .is_some()
+                    || get_line::<consts::U256, _>(
+                        &mut self.buf,
+                        "@",
+                        self.line_term_char,
+                        self.format_char,
+                        false,
+                        false,
+                    )
+                    .is_some()
                 {
                     Ok(String::from(""))
                 } else {
