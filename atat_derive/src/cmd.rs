@@ -201,6 +201,7 @@ fn generate_cmd_output(
             where
                 W: ufmt::uWrite + ?Sized,
             {
+                use atat::AtatCmd as _;
                 f.write_str(&self.as_string())
             }
         }
@@ -212,6 +213,7 @@ fn generate_cmd_output(
             where
                 W: ufmt::uWrite + ?Sized,
             {
+                use atat::AtatCmd as _;
                 let c = self.as_string();
                 f.write_str(&c[0..c.len() - 2])
             }
