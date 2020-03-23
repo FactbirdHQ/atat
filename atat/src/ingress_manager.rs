@@ -61,25 +61,83 @@ pub enum State {
     ReceivingResponse,
 }
 
-/// The type returned from a custom URC handler.
-pub enum UrcHandlerResult<L: ArrayLength<u8>> {
+/// The type returned from a custom URC matcher.
+pub enum UrcMatcherResult<L: ArrayLength<u8>> {
     NotHandled,
     Incomplete,
     Complete(String<L>),
 }
 
-/// A user-defined URC handler.
-pub trait UrcHandler {
+/// A user-defined URC matcher
+///
+/// This is used to detect and consume URCs that are not terminated with
+/// standard response codes like "OK". An example could be an URC that returns
+/// length-value (LV) encoded data without a terminator.
+///
+/// Note that you should only detect and consume but not process URCs.
+/// Processing should be done by an [`AtatUrc`](trait.AtatUrc.html)
+/// implementation.
+///
+/// A very simplistic example that can only handle the URC `+FOO,xx` (with
+/// `xx` being two arbitrary characters) followed by CRLF:
+///
+/// ```
+/// use atat::{UrcMatcher, UrcMatcherResult};
+/// use heapless::{consts, String};
+///
+/// struct FooUrcMatcher { }
+///
+/// impl UrcMatcher for FooUrcMatcher {
+///     type MaxLen = consts::U9;
+///
+///     fn process(&mut self, buf: &mut String<consts::U256>) -> UrcMatcherResult<Self::MaxLen> {
+///         if buf.starts_with("+FOO,") {
+///             if buf.len() >= 9 {
+///                 if &buf[7..9] == "\r\n" {
+///                     // URC is complete
+///                     let data = String::from(&buf[..9]);
+///                     *buf = String::from(&buf[9..]);
+///                     UrcMatcherResult::Complete(data)
+///                 } else {
+///                     // Invalid, reject
+///                     UrcMatcherResult::NotHandled
+///                 }
+///             } else {
+///                 // Insufficient data
+///                 UrcMatcherResult::Incomplete
+///             }
+///         } else {
+///             UrcMatcherResult::NotHandled
+///         }
+///     }
+/// }
+/// ```
+pub trait UrcMatcher {
+    /// The max length that an URC might have (e.g. `heapless::consts::U256`)
     type MaxLen: ArrayLength<u8>;
-    fn handle(&mut self, buf: &mut String<consts::U256>) -> UrcHandlerResult<Self::MaxLen>;
+
+    /// Take a look at `buf`. Then:
+    ///
+    /// - If the buffer contains a full URC, remove these bytes from the buffer
+    ///   and return [`Complete`] with the matched data.
+    /// - If it contains an incomplete URC, return [`Incomplete`].
+    /// - Otherwise, return [`NotHandled`].
+    ///
+    /// [`Complete`]: enum.UrcMatcherResult.html#variant.Complete
+    /// [`Incomplete`]: enum.UrcMatcherResult.html#variant.Incomplete
+    /// [`NotHandled`]: enum.UrcMatcherResult.html#variant.NotHandled
+    fn process(&mut self, buf: &mut String<consts::U256>) -> UrcMatcherResult<Self::MaxLen>;
 }
 
-pub struct DefaultUrcHandler {}
+/// A URC matcher that does nothing (it always returns [`NotHandled`][nothandled]).
+///
+/// [nothandled]: enum.UrcMatcherResult.html#variant.NotHandled
+pub struct NoopUrcMatcher {}
 
-impl UrcHandler for DefaultUrcHandler {
+impl UrcMatcher for NoopUrcMatcher {
     type MaxLen = consts::U256;
-    fn handle(&mut self, _: &mut String<consts::U256>) -> UrcHandlerResult<Self::MaxLen> {
-        UrcHandlerResult::NotHandled
+    fn process(&mut self, _: &mut String<consts::U256>) -> UrcMatcherResult<Self::MaxLen> {
+        UrcMatcherResult::NotHandled
     }
 }
 
@@ -105,20 +163,20 @@ pub struct IngressManager<U> {
     format_char: u8,
     echo_enabled: bool,
 
-    /// Custom URC handler.
-    custom_urc_handler: Option<U>,
+    /// Custom URC matcher.
+    custom_urc_matcher: Option<U>,
 }
 
 impl<U> IngressManager<U>
 where
-    U: UrcHandler<MaxLen = consts::U256>,
+    U: UrcMatcher<MaxLen = consts::U256>,
 {
     pub fn new(
         res_p: ResProducer,
         urc_p: UrcProducer,
         com_c: ComConsumer,
         config: Config,
-        custom_urc_handler: Option<U>,
+        custom_urc_matcher: Option<U>,
     ) -> Self {
         Self {
             state: State::Idle,
@@ -130,7 +188,7 @@ where
             line_term_char: config.line_term_char,
             format_char: config.format_char,
             echo_enabled: config.at_echo_enabled,
-            custom_urc_handler,
+            custom_urc_matcher,
         }
     }
 
@@ -286,12 +344,12 @@ where
 
                 // Handle URCs
                 } else if !self.buf_incomplete && self.buf.starts_with('+') {
-                    // Try to apply the custom URC Handler
-                    let handled = if let Some(ref mut handler) = self.custom_urc_handler {
-                        match handler.handle(&mut self.buf) {
-                            UrcHandlerResult::NotHandled => false,
-                            UrcHandlerResult::Incomplete => true,
-                            UrcHandlerResult::Complete(urc) => {
+                    // Try to apply the custom URC matcher
+                    let handled = if let Some(ref mut matcher) = self.custom_urc_matcher {
+                        match matcher.process(&mut self.buf) {
+                            UrcMatcherResult::NotHandled => false,
+                            UrcMatcherResult::Incomplete => true,
+                            UrcMatcherResult::Complete(urc) => {
                                 self.notify_urc(urc);
                                 true
                             }
@@ -422,7 +480,7 @@ mod test {
             )
         }};
         ($config:expr) => {{
-            let val: (IngressManager<DefaultUrcHandler>, _, _) = setup!($config, None);
+            let val: (IngressManager<NoopUrcMatcher>, _, _) = setup!($config, None);
             val
         }};
     }
@@ -672,39 +730,39 @@ mod test {
     }
 
     #[test]
-    fn custom_urc_handler() {
+    fn custom_urc_matcher() {
         let conf = Config::new(Mode::Timeout);
 
-        struct MyUrcHandler {}
-        impl UrcHandler for MyUrcHandler {
+        struct MyUrcMatcher {}
+        impl UrcMatcher for MyUrcMatcher {
             type MaxLen = consts::U256;
-            fn handle(&mut self, buf: &mut String<consts::U256>) -> UrcHandlerResult<Self::MaxLen> {
+            fn process(&mut self, buf: &mut String<consts::U256>) -> UrcMatcherResult<Self::MaxLen> {
                 if buf.starts_with("+match") {
                     let data = buf.clone();
                     buf.truncate(0);
-                    UrcHandlerResult::Complete(data)
+                    UrcMatcherResult::Complete(data)
                 } else if buf.starts_with("+mat") {
-                    UrcHandlerResult::Incomplete
+                    UrcMatcherResult::Incomplete
                 } else {
-                    UrcHandlerResult::NotHandled
+                    UrcMatcherResult::NotHandled
                 }
             }
         }
 
-        let (mut ingress, _req_c, mut urc_c) = setup!(conf, Some(MyUrcHandler {}));
+        let (mut ingress, _req_c, mut urc_c) = setup!(conf, Some(MyUrcMatcher {}));
 
         // Initial state
         assert_eq!(ingress.state, State::Idle);
         assert_eq!(urc_c.dequeue(), None);
 
-        // Check an URC that is not handled by MyUrcHandler (fall back to default behavior)
+        // Check an URC that is not handled by MyUrcMatcher (fall back to default behavior)
         // Note that this requires the trailing newlines to be present!
         ingress.write(b"+default-behavior\r\n");
         ingress.digest();
         assert_eq!(ingress.state, State::Idle);
         assert_eq!(urc_c.dequeue().unwrap().as_str(), "+default-behavior\r\n");
 
-        // Check an URC that is generally handled by MyUrcHandler but
+        // Check an URC that is generally handled by MyUrcMatcher but
         // considered incomplete (not enough data). This will not yet result in
         // an URC being dispatched.
         ingress.write(b"+mat");
@@ -713,7 +771,7 @@ mod test {
         assert_eq!(urc_c.dequeue(), None);
 
         // Make it complete!
-        ingress.write(b"ch");  // Still no newlines, but this will still be picked up!
+        ingress.write(b"ch"); // Still no newlines, but this will still be picked up!
         ingress.digest();
         assert_eq!(ingress.state, State::Idle);
         assert_eq!(urc_c.dequeue().unwrap().as_str(), "+match");
