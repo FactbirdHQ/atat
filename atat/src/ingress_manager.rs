@@ -107,7 +107,7 @@ impl IngressManager {
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
         #[cfg(feature = "logging")]
-        log::trace!("Receiving {} bytes\r", data.len());
+        log::trace!("Receiving {} bytes", data.len());
         for byte in data {
             match self.buf.push(*byte as char) {
                 Ok(_) => {}
@@ -120,7 +120,7 @@ impl IngressManager {
     /// received
     fn notify_response(&mut self, resp: Result<String<consts::U256>, Error>) {
         #[cfg(feature = "logging")]
-        log::debug!("Received response: {:?}\r", &resp);
+        log::debug!("Received response: {:?}", &resp);
         if self.res_p.ready() {
             self.res_p.enqueue(resp).ok();
         } else {
@@ -132,7 +132,7 @@ impl IngressManager {
     /// received
     fn notify_urc(&mut self, resp: String<consts::U64>) {
         #[cfg(feature = "logging")]
-        log::debug!("Received URC: {:?}\r", &resp);
+        log::debug!("Received URC: {:?}", &resp);
         if self.urc_p.ready() {
             self.urc_p.enqueue(resp).ok();
         } else {
@@ -147,12 +147,12 @@ impl IngressManager {
                 Command::ClearBuffer => {
                     self.state = State::Idle;
                     #[cfg(feature = "logging")]
-                    log::debug!("Clearing buffer on timeout / {:?}\r", self.buf);
+                    log::debug!("Clearing buffer on timeout / {:?}", self.buf);
                     self.clear_buf(true);
                 }
                 Command::ForceState(state) => {
                     #[cfg(feature = "logging")]
-                    log::trace!("Switching to state {:?}\r", state);
+                    log::trace!("Switching to state {:?}", state);
                     self.state = state;
                 }
                 Command::SetEcho(e) => {
@@ -177,7 +177,7 @@ impl IngressManager {
         if complete {
             self.buf.clear();
             #[cfg(feature = "logging")]
-            log::trace!("Cleared complete buffer\r");
+            log::trace!("Cleared complete buffer");
         } else {
             let removed = get_line::<consts::U128, _>(
                 &mut self.buf,
@@ -190,10 +190,10 @@ impl IngressManager {
             if removed.is_none() {
                 self.buf.clear();
                 #[cfg(feature = "logging")]
-                log::trace!("Cleared partial buffer, removed everything\r");
+                log::trace!("Cleared partial buffer, removed everything");
             } else {
                 #[cfg(feature = "logging")]
-                log::trace!("Cleared partial buffer, removed {:?}\r", removed.unwrap());
+                log::trace!("Cleared partial buffer, removed {:?}", removed.unwrap());
             }
         }
     }
@@ -214,7 +214,7 @@ impl IngressManager {
         }
 
         #[cfg(feature = "logging")]
-        log::trace!("Digest / {:?} / {:?}\r", self.state, self.buf);
+        log::trace!("Digest / {:?} / {:?}", self.state, self.buf);
 
         match self.state {
             State::Idle => {
@@ -231,8 +231,7 @@ impl IngressManager {
                 if !self.buf_incomplete && self.echo_enabled && self.buf.starts_with("AT") {
                     if get_line::<consts::U256, _>(
                         &mut self.buf,
-                        // FIXME: Use `self.line_term_char` here
-                        "\r",
+                        unsafe { core::str::from_utf8_unchecked(&[self.line_term_char]) },
                         self.line_term_char,
                         self.format_char,
                         false,
@@ -243,15 +242,14 @@ impl IngressManager {
                         self.state = State::ReceivingResponse;
                         self.buf_incomplete = false;
                         #[cfg(feature = "logging")]
-                        log::trace!("Switching to state ReceivingResponse\r");
+                        log::trace!("Switching to state ReceivingResponse");
                     }
 
                 // Handle URCs
                 } else if !self.buf_incomplete && self.buf.starts_with('+') {
                     if let Some(line) = get_line(
                         &mut self.buf,
-                        // FIXME: Use `self.line_term_char` here
-                        "\r",
+                        unsafe { core::str::from_utf8_unchecked(&[self.line_term_char]) },
                         self.line_term_char,
                         self.format_char,
                         false,
@@ -267,7 +265,7 @@ impl IngressManager {
                 } else if self.buf_incomplete || self.buf.len() > min_length {
                     #[cfg(feature = "logging")]
                     log::trace!(
-                        "Clearing buffer with invalid response (incomplete: {}, buflen: {})\r",
+                        "Clearing buffer with invalid response (incomplete: {}, buflen: {})",
                         self.buf_incomplete,
                         self.buf.len(),
                     );
@@ -294,7 +292,7 @@ impl IngressManager {
                 ) {
                     Ok(get_line(
                         &mut line,
-                        "\r",
+                        unsafe { core::str::from_utf8_unchecked(&[self.line_term_char]) },
                         self.line_term_char,
                         self.format_char,
                         true,
@@ -340,7 +338,7 @@ impl IngressManager {
 
                 self.notify_response(resp);
                 #[cfg(feature = "logging")]
-                log::trace!("Switching to state Idle\r");
+                log::trace!("Switching to state Idle");
                 self.state = State::Idle;
             }
         }

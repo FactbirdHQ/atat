@@ -80,7 +80,7 @@ where
                 {
                     // TODO: Consider how to act in this situation.
                     #[cfg(feature = "logging")]
-                    log::error!("Failed to signal parser to force state transition to 'ReceivingResponse'!\r");
+                    log::error!("Failed to signal parser to force state transition to 'ReceivingResponse'!");
                 }
             }
 
@@ -90,7 +90,7 @@ where
             block!(self.timer.wait()).ok();
             let cmd_string = cmd.as_string();
             #[cfg(feature = "logging")]
-            log::debug!("Sending command: {:?}\r", cmd_string.as_str());
+            log::debug!("Sending command: {:?}", cmd_string.as_str());
             for c in cmd_string.as_bytes() {
                 block!(self.tx.write(*c)).map_err(|_e| Error::Write)?;
             }
@@ -138,7 +138,7 @@ where
                 if self.com_p.enqueue(Command::ClearBuffer).is_err() {
                     // TODO: Consider how to act in this situation.
                     #[cfg(feature = "logging")]
-                    log::error!("Failed to signal parser to clear buffer on timeout!\r");
+                    log::error!("Failed to signal parser to clear buffer on timeout!");
                 }
                 return Err(nb::Error::Other(Error::Timeout));
             }
