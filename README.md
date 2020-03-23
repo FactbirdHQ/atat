@@ -71,6 +71,11 @@ The following dependent crates provide platform-agnostic device drivers built on
 [ublox-cellular-rs-docs-img]: https://docs.rs/ublox-cellular-rs/badge.svg
 [ublox-cellular-rs-docs]: https://docs.rs/ublox-cellular-rs/ -->
 
+## Features
+
+ - `logging`: Disabled by default. Add log statements on various log levels to aid debugging.
+ - `derive`: Enabled by default. Re-exports `atat_derive` to allow deriving `Atat__` traits.
+
 ## Chat / Getting Help
 
 If you have questions on the development of AT-AT or want to write a driver
