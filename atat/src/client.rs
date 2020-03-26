@@ -158,6 +158,7 @@ mod test {
     use super::*;
     use crate as atat;
     use crate::atat_derive::{AtatCmd, AtatResp, AtatUrc};
+    use crate::queues;
     use heapless::{consts, spsc::Queue, String, Vec};
     use nb;
     use serde;
@@ -307,21 +308,19 @@ mod test {
 
     macro_rules! setup {
         ($config:expr) => {{
-            static mut REQ_Q: Queue<Result<String<consts::U256>, Error>, consts::U5, u8> =
-                Queue(heapless::i::Queue::u8());
-            let (p, c) = unsafe { REQ_Q.split() };
-            static mut URC_Q: Queue<String<consts::U256>, consts::U10, u8> =
-                Queue(heapless::i::Queue::u8());
+            static mut RES_Q: queues::ResQueue = Queue(heapless::i::Queue::u8());
+            let (res_p, res_c) = unsafe { RES_Q.split() };
+            static mut URC_Q: queues::UrcQueue = Queue(heapless::i::Queue::u8());
             let (urc_p, urc_c) = unsafe { URC_Q.split() };
-            static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
+            static mut COM_Q: queues::ComQueue = Queue(heapless::i::Queue::u8());
             let (com_p, _com_c) = unsafe { COM_Q.split() };
 
             let timer = CdMock { time: 0 };
 
             let tx_mock = TxMock::new(String::new());
             let client: Client<TxMock, CdMock> =
-                Client::new(tx_mock, c, urc_c, com_p, timer, $config);
-            (client, p, urc_p)
+                Client::new(tx_mock, res_c, urc_c, com_p, timer, $config);
+            (client, res_p, urc_p)
         }};
     }
 
