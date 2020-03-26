@@ -33,7 +33,7 @@ use heapless::{consts, spsc::Queue, String};
 #[app(device = hal::pac, peripherals = true, monotonic = rtfm::cyccnt::CYCCNT)]
 const APP: () = {
     struct Resources {
-        ingress: atat::IngressManager,
+        ingress: atat::IngressManager<atat::NoopUrcMatcher>,
         rx: Rx<USART2>,
     }
 
@@ -77,7 +77,7 @@ const APP: () = {
         serial.listen(Rxne);
 
         let (tx, rx) = serial.split();
-        let (mut client, ingress) = atat::new(tx, timer, atat::Config::new(atat::Mode::Timeout));
+        let (mut client, ingress) = atat::new(tx, timer, atat::Config::new(atat::Mode::Timeout), None);
 
         ctx.spawn.at_loop().unwrap();
 
