@@ -7,7 +7,12 @@
 //!
 //! This can be simplified alot using the [`atat_derive`] crate!
 //!
+//! [`AtatCmd`]: trait.AtatCmd.html
+//! [`AtatResp`]: trait.AtatResp.html
+//! [`atat_derive`]: ../atat_derive/index.html
+//!
 //! # Examples
+//!
 //! ### Command and response example without atat_derive:
 //! ```
 //! pub struct SetGreetingText<'a> {
@@ -192,11 +197,11 @@ mod traits;
 pub use atat_derive;
 
 use embedded_hal::{serial, timer::CountDown};
-use heapless::spsc::Queue;
+use heapless::{consts, spsc::Queue};
 
 pub use self::client::Client;
 pub use self::error::Error;
-pub use self::ingress_manager::IngressManager;
+pub use self::ingress_manager::{IngressManager, NoopUrcMatcher, UrcMatcher, UrcMatcherResult};
 use self::queues::{ComQueue, ResQueue, UrcQueue};
 pub use self::traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 
@@ -293,7 +298,7 @@ impl Config {
     }
 }
 
-type ClientParser<Tx, T> = (Client<Tx, T>, IngressManager);
+type ClientParser<Tx, T, U> = (Client<Tx, T>, IngressManager<U>);
 
 /// Create a new Atat client instance.
 ///
@@ -303,11 +308,17 @@ type ClientParser<Tx, T> = (Client<Tx, T>, IngressManager);
 ///
 /// [serialwrite]: ../embedded_hal/serial/trait.Write.html
 /// [timercountdown]: ../embedded_hal/timer/trait.CountDown.html
-pub fn new<Tx, T>(serial_tx: Tx, timer: T, config: Config) -> ClientParser<Tx, T>
+pub fn new<Tx, T, U>(
+    serial_tx: Tx,
+    timer: T,
+    config: Config,
+    custom_urc_matcher: Option<U>,
+) -> ClientParser<Tx, T, U>
 where
     Tx: serial::Write<u8>,
     T: CountDown,
     T::Time: From<u32>,
+    U: UrcMatcher<MaxLen = consts::U256>,
 {
     static mut RES_QUEUE: ResQueue = Queue(heapless::i::Queue::u8());
     static mut URC_QUEUE: UrcQueue = Queue(heapless::i::Queue::u8());
@@ -315,7 +326,7 @@ where
     let (res_p, res_c) = unsafe { RES_QUEUE.split() };
     let (urc_p, urc_c) = unsafe { URC_QUEUE.split() };
     let (com_p, com_c) = unsafe { COM_QUEUE.split() };
-    let parser = IngressManager::new(res_p, urc_p, com_c, config);
+    let parser = IngressManager::new(res_p, urc_p, com_c, config, custom_urc_matcher);
     let client = Client::new(serial_tx, res_c, urc_c, com_p, timer, config);
 
     (client, parser)

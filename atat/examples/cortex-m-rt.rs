@@ -31,7 +31,7 @@ use heapless::{consts, spsc::Queue, String};
 
 use crate::rt::entry;
 
-static mut INGRESS: Option<atat::IngressManager> = None;
+static mut INGRESS: Option<atat::IngressManager<atat::NoopUrcMatcher>> = None;
 static mut RX: Option<Rx<USART2>> = None;
 
 #[entry]
@@ -75,7 +75,7 @@ fn main() -> ! {
     serial.listen(Rxne);
 
     let (tx, rx) = serial.split();
-    let (mut client, ingress) = atat::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout));
+    let (mut client, ingress) = atat::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout), None);
 
     unsafe { INGRESS = Some(ingress) };
     unsafe { RX = Some(rx) };
