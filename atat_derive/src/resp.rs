@@ -33,6 +33,7 @@ pub fn atat_resp(item: DeriveInput) -> TokenStream {
     }
 }
 
+#[allow(clippy::cognitive_complexity)]
 fn generate_resp_output(
     name: &Ident,
     generics: &syn::Generics,
