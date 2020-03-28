@@ -736,7 +736,10 @@ mod test {
         struct MyUrcMatcher {}
         impl UrcMatcher for MyUrcMatcher {
             type MaxLen = consts::U256;
-            fn process(&mut self, buf: &mut String<consts::U256>) -> UrcMatcherResult<Self::MaxLen> {
+            fn process(
+                &mut self,
+                buf: &mut String<consts::U256>,
+            ) -> UrcMatcherResult<Self::MaxLen> {
                 if buf.starts_with("+match") {
                     let data = buf.clone();
                     buf.truncate(0);

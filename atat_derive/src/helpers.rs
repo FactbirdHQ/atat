@@ -65,7 +65,10 @@ pub fn get_name_ident_lit(tokens: &proc_macro2::TokenStream, needle: &str) -> Re
 
 pub fn get_field_names(fields: Option<&FieldsNamed>) -> (Vec<Ident>, Vec<Type>, Vec<String>) {
     if let Some(fields) = fields {
-        let (mut field_name_pos, mut field_type_pos): (Vec<(Ident, usize)>, Vec<(Type, usize)>) = {
+        let (mut field_name_pos, mut field_type_pos): (
+            Vec<(Ident, usize)>,
+            Vec<(Type, usize)>,
+        ) = {
             (
                 fields
                     .named
