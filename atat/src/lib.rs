@@ -134,7 +134,8 @@
 //!     serial.listen(Rxne);
 //!
 //!     let (tx, rx) = serial.split();
-//!     let (mut client, ingress) = atat::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout));
+//!     let (mut client, ingress) =
+//!         atat::ClientBuilder::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout)).build();
 //!
 //!     unsafe { INGRESS = Some(ingress) };
 //!     unsafe { RX = Some(rx) };
@@ -300,34 +301,72 @@ impl Config {
 
 type ClientParser<Tx, T, U> = (Client<Tx, T>, IngressManager<U>);
 
-/// Create a new Atat client instance.
+/// Builder to set up a [`Client`] and [`IngressManager`] pair.
 ///
-/// The `serial_tx` type must implement the embedded_hal
-/// [`serial::Write<u8>`][serialwrite] trait while the timer must implement the
-/// [`timer::CountDown`][timercountdown] trait.
+/// Create a new builder through the [`new`] method.
 ///
-/// [serialwrite]: ../embedded_hal/serial/trait.Write.html
-/// [timercountdown]: ../embedded_hal/timer/trait.CountDown.html
-pub fn new<Tx, T, U>(
+/// [`Client`]: struct.Client.html
+/// [`IngressManager`]: struct.IngressManager.html
+/// [`new`]: #method.new
+pub struct ClientBuilder<Tx, T, U> {
     serial_tx: Tx,
     timer: T,
     config: Config,
     custom_urc_matcher: Option<U>,
-) -> ClientParser<Tx, T, U>
+}
+
+impl<Tx, T, U> ClientBuilder<Tx, T, U>
 where
     Tx: serial::Write<u8>,
     T: CountDown,
     T::Time: From<u32>,
     U: UrcMatcher<MaxLen = consts::U256>,
 {
-    static mut RES_QUEUE: ResQueue = Queue(heapless::i::Queue::u8());
-    static mut URC_QUEUE: UrcQueue = Queue(heapless::i::Queue::u8());
-    static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
-    let (res_p, res_c) = unsafe { RES_QUEUE.split() };
-    let (urc_p, urc_c) = unsafe { URC_QUEUE.split() };
-    let (com_p, com_c) = unsafe { COM_QUEUE.split() };
-    let parser = IngressManager::new(res_p, urc_p, com_c, config, custom_urc_matcher);
-    let client = Client::new(serial_tx, res_c, urc_c, com_p, timer, config);
+    /// Create a builder for new Atat client instance.
+    ///
+    /// The `serial_tx` type must implement the embedded_hal
+    /// [`serial::Write<u8>`][serialwrite] trait while the timer must implement the
+    /// [`timer::CountDown`][timercountdown] trait.
+    ///
+    /// [serialwrite]: ../embedded_hal/serial/trait.Write.html
+    /// [timercountdown]: ../embedded_hal/timer/trait.CountDown.html
+    pub fn new(serial_tx: Tx, timer: T, config: Config) -> Self {
+        Self {
+            serial_tx,
+            timer,
+            config,
+            custom_urc_matcher: None,
+        }
+    }
 
-    (client, parser)
+    /// Use a custom [`UrcMatcher`] implementation.
+    ///
+    /// [`UrcMatcher`]: trait.UrcMatcher.html
+    pub fn with_custom_urc_matcher(mut self, matcher: U) -> Self {
+        self.custom_urc_matcher = Some(matcher);
+        self
+    }
+
+    /// Set up and return a [`Client`] and [`IngressManager`] pair.
+    ///
+    /// [`Client`]: struct.Client.html
+    /// [`IngressManager`]: struct.IngressManager.html
+    pub fn build(self) -> ClientParser<Tx, T, U> {
+        static mut RES_QUEUE: ResQueue = Queue(heapless::i::Queue::u8());
+        static mut URC_QUEUE: UrcQueue = Queue(heapless::i::Queue::u8());
+        static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
+        let (res_p, res_c) = unsafe { RES_QUEUE.split() };
+        let (urc_p, urc_c) = unsafe { URC_QUEUE.split() };
+        let (com_p, com_c) = unsafe { COM_QUEUE.split() };
+        let parser = IngressManager::with_custom_urc_matcher(
+            res_p,
+            urc_p,
+            com_c,
+            self.config,
+            self.custom_urc_matcher,
+        );
+        let client = Client::new(self.serial_tx, res_c, urc_c, com_p, self.timer, self.config);
+
+        (client, parser)
+    }
 }
