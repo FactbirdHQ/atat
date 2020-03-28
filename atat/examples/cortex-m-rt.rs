@@ -75,7 +75,8 @@ fn main() -> ! {
     serial.listen(Rxne);
 
     let (tx, rx) = serial.split();
-    let (mut client, ingress) = atat::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout), None);
+    let (mut client, ingress) =
+        atat::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout), None);
 
     unsafe { INGRESS = Some(ingress) };
     unsafe { RX = Some(rx) };

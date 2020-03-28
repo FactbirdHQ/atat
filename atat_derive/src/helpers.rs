@@ -1,5 +1,4 @@
 use crate::proc_macro2::{Literal, TokenStream, TokenTree};
-use quote::quote;
 
 use syn::{spanned::Spanned, Error, FieldsNamed, Ident, Result, Type};
 
@@ -35,7 +34,7 @@ pub fn get_name_ident_lit(tokens: &proc_macro2::TokenStream, needle: &str) -> Re
     for l in stream_from_tokens(tokens) {
         match l {
             TokenTree::Ident(i) => {
-                if i.to_string() == needle {
+                if i == needle {
                     found = true;
                 } else if found {
                     return Ok(i.to_string());
@@ -65,7 +64,11 @@ pub fn get_name_ident_lit(tokens: &proc_macro2::TokenStream, needle: &str) -> Re
 
 pub fn get_field_names(fields: Option<&FieldsNamed>) -> (Vec<Ident>, Vec<Type>, Vec<String>) {
     if let Some(fields) = fields {
-        let (mut field_name_pos, mut field_type_pos): (Vec<(Ident, usize)>, Vec<(Type, usize)>) = {
+        #[allow(clippy::type_complexity)] // TODO: Maybe refactor this?
+        let (mut field_name_pos, mut field_type_pos): (
+            Vec<(Ident, usize)>,
+            Vec<(Type, usize)>,
+        ) = {
             (
                 fields
                     .named
