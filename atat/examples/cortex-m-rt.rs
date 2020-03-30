@@ -76,7 +76,7 @@ fn main() -> ! {
 
     let (tx, rx) = serial.split();
     let (mut client, ingress) =
-        atat::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout), None);
+        atat::ClientBuilder::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout)).build();
 
     unsafe { INGRESS = Some(ingress) };
     unsafe { RX = Some(rx) };

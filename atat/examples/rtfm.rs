@@ -78,7 +78,7 @@ const APP: () = {
 
         let (tx, rx) = serial.split();
         let (mut client, ingress) =
-            atat::new(tx, timer, atat::Config::new(atat::Mode::Timeout), None);
+            atat::ClientBuilder::new(tx, timer, atat::Config::new(atat::Mode::Timeout)).build();
 
         ctx.spawn.at_loop().unwrap();
 

@@ -141,7 +141,7 @@ impl UrcMatcher for NoopUrcMatcher {
     }
 }
 
-pub struct IngressManager<U> {
+pub struct IngressManager<U: UrcMatcher = NoopUrcMatcher> {
     /// Buffer holding incoming bytes.
     buf: String<consts::U256>,
     /// A flag that is set to `true` when the buffer is cleared
@@ -167,11 +167,17 @@ pub struct IngressManager<U> {
     custom_urc_matcher: Option<U>,
 }
 
+impl IngressManager<NoopUrcMatcher> {
+    pub fn new(res_p: ResProducer, urc_p: UrcProducer, com_c: ComConsumer, config: Config) -> Self {
+        Self::with_custom_urc_matcher(res_p, urc_p, com_c, config, None)
+    }
+}
+
 impl<U> IngressManager<U>
 where
     U: UrcMatcher<MaxLen = consts::U256>,
 {
-    pub fn new(
+    pub fn with_custom_urc_matcher(
         res_p: ResProducer,
         urc_p: UrcProducer,
         com_c: ComConsumer,
@@ -474,7 +480,7 @@ mod test {
             static mut COM_Q: Queue<Command, consts::U3, u8> = Queue(heapless::i::Queue::u8());
             let (_com_p, com_c) = unsafe { COM_Q.split() };
             (
-                IngressManager::new(req_p, urc_p, com_c, $config, $urch),
+                IngressManager::with_custom_urc_matcher(req_p, urc_p, com_c, $config, $urch),
                 req_c,
                 urc_c,
             )

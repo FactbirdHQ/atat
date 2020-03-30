@@ -15,7 +15,12 @@ enum ClientState {
 /// userfacing side. The client is decoupled from the ingress-manager through
 /// some spsc queue consumers, where any received responses can be dequeued. The
 /// Client also has an spsc producer, to allow signaling commands like
-/// 'clearBuffer' to the ingress-manager.
+/// `clearBuffer` to the ingress-manager.
+///
+/// Don't create a `Client` instance directly. Instead, use the
+/// [`ClientBuilder`].
+///
+/// [`ClientBuilder`]: struct.ClientBuilder.html
 pub struct Client<Tx, T>
 where
     Tx: serial::Write<u8>,
