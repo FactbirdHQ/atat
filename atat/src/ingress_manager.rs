@@ -215,6 +215,17 @@ where
         }
     }
 
+    /// Returns a string slice with leading whitespace, format_char &
+    /// line_term_char removed.
+    ///
+    /// 'Whitespace' is defined according to the terms of the Unicode Derived
+    /// Core Property `White_Space`.
+    fn trim_start(&mut self) {
+        self.buf = String::from(self.buf.trim_start_matches(|c: char| {
+            c.is_whitespace() || c == self.format_char as char || c == self.line_term_char as char
+        }));
+    }
+
     /// Notify the client that an appropriate response code, or error has been
     /// received
     fn notify_response(&mut self, resp: Result<String<consts::U256>, Error>) {
@@ -245,13 +256,11 @@ where
             match com {
                 Command::ClearBuffer => {
                     self.state = State::Idle;
-                    #[cfg(feature = "logging")]
-                    log::debug!("Clearing buffer on timeout / {:?}", self.buf);
                     self.clear_buf(true);
                 }
                 Command::ForceState(state) => {
                     #[cfg(feature = "logging")]
-                    log::trace!("Switching to state {:?}", state);
+                    log::trace!("Forcing state to {:?}", state);
                     self.state = state;
                 }
                 Command::SetEcho(e) => {
@@ -304,17 +313,16 @@ where
     /// Process the receive buffer, checking for AT responses, URC's or errors
     ///
     /// This function should be called regularly for the ingress manager to work
-    pub fn digest(&mut self) {
+    ///
+    /// If exhaustive is true, it will process the entire buffer at once (zero
+    /// or more state transitions), otherwise it will process just one step
+    /// (zero or one state transistion)
+    pub fn digest(&mut self, exhaustive: bool) {
         // Handle commands
         self.handle_com();
 
         // Trim leading whitespace
-        if self.buf.starts_with(self.line_term_char as char)
-            || self.buf.starts_with(self.format_char as char)
-        {
-            // TODO: Custom trim_start, that trims based on line_term_char and format_char
-            self.buf = String::from(self.buf.trim_start());
-        }
+        self.trim_start();
 
         #[cfg(feature = "logging")]
         log::trace!("Digest / {:?} / {:?}", self.state, self.buf);
@@ -331,7 +339,7 @@ where
                 }
 
                 // Handle AT echo responses
-                if !self.buf_incomplete && self.echo_enabled && self.buf.starts_with("AT") {
+                if !self.buf_incomplete && self.buf.starts_with("AT") {
                     if get_line::<consts::U256, _>(
                         &mut self.buf,
                         unsafe { core::str::from_utf8_unchecked(&[self.line_term_char]) },
@@ -346,6 +354,10 @@ where
                         self.buf_incomplete = false;
                         #[cfg(feature = "logging")]
                         log::trace!("Switching to state ReceivingResponse");
+
+                        if exhaustive {
+                            return self.digest(exhaustive);
+                        }
                     }
 
                 // Handle URCs
@@ -369,11 +381,14 @@ where
                             unsafe { core::str::from_utf8_unchecked(&[self.line_term_char]) },
                             self.line_term_char,
                             self.format_char,
-                            false,
+                            true,
                             false,
                         ) {
                             self.buf_incomplete = false;
                             self.notify_urc(line);
+                            if exhaustive {
+                                return self.digest(exhaustive);
+                            }
                         }
                     }
 
@@ -396,6 +411,9 @@ where
                     // in an incomplete state.
                     if !self.buf.is_empty() {
                         self.buf_incomplete = false;
+                        if exhaustive {
+                            return self.digest(exhaustive);
+                        }
                     }
                 }
             }
@@ -456,6 +474,10 @@ where
                 #[cfg(feature = "logging")]
                 log::trace!("Switching to state Idle");
                 self.state = State::Idle;
+
+                if exhaustive {
+                    return self.digest(exhaustive);
+                }
             }
         }
     }
@@ -498,12 +520,12 @@ mod test {
 
         assert_eq!(at_pars.state, State::Idle);
         at_pars.write("AT\r\r\n\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
 
         assert_eq!(at_pars.state, State::ReceivingResponse);
 
         at_pars.write("OK\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(at_pars.state, State::Idle);
         assert_eq!(
             req_c.dequeue().unwrap(),
@@ -518,11 +540,11 @@ mod test {
 
         assert_eq!(at_pars.state, State::Idle);
         at_pars.write("AT+USORD=3,16\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(at_pars.state, State::ReceivingResponse);
 
         at_pars.write("+USORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
 
         assert_eq!(
             at_pars.buf,
@@ -534,7 +556,7 @@ mod test {
             at_pars.buf,
             String::<consts::U256>::from("+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n")
         );
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
         assert_eq!(
@@ -552,11 +574,11 @@ mod test {
 
         assert_eq!(at_pars.state, State::Idle);
         at_pars.write("AT+GMR\r\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(at_pars.state, State::ReceivingResponse);
 
         at_pars.write("AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19\r\nOK\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
 
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
@@ -571,7 +593,7 @@ mod test {
         assert_eq!(at_pars.state, State::Idle);
 
         at_pars.write("+UUSORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         assert_eq!(at_pars.state, State::Idle);
     }
@@ -584,7 +606,7 @@ mod test {
         for _ in 0..266 {
             at_pars.write(b"s");
         }
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(req_c.dequeue().unwrap(), Err(Error::Overflow));
     }
 
@@ -597,7 +619,7 @@ mod test {
 
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
         at_pars.write("OK\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
 
         assert_eq!(at_pars.state, State::Idle);
     }
@@ -609,15 +631,15 @@ mod test {
 
         assert_eq!(at_pars.state, State::Idle);
         at_pars.write("AT+USORD=3,16\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(at_pars.state, State::ReceivingResponse);
 
         at_pars.write("+USORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(at_pars.state, State::ReceivingResponse);
 
         at_pars.write("ERROR\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
 
         assert_eq!(at_pars.state, State::Idle);
         assert_eq!(at_pars.buf, String::<consts::U256>::from(""));
@@ -636,10 +658,10 @@ mod test {
         assert_eq!(at_pars.state, State::Idle);
 
         at_pars.write("THIS FORM".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(at_pars.state, State::Idle);
         at_pars.write("AT SUCKS\r\n".as_bytes());
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(at_pars.state, State::Idle);
     }
 
@@ -656,7 +678,7 @@ mod test {
 
         for byte in b"AT\r\n" {
             at_pars.write(&[*byte]);
-            at_pars.digest();
+            at_pars.digest(false);
         }
         assert_eq!(at_pars.state, State::ReceivingResponse);
     }
@@ -671,11 +693,11 @@ mod test {
         assert_eq!(at_pars.state, State::Idle);
 
         at_pars.write(b"some status msg\r\n");
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(at_pars.state, State::Idle);
 
         at_pars.write(b"AT+GMR\r\r\n");
-        at_pars.digest();
+        at_pars.digest(false);
         assert_eq!(at_pars.state, State::ReceivingResponse);
     }
 
@@ -689,9 +711,60 @@ mod test {
         assert_eq!(at_pars.state, State::Idle);
 
         at_pars.write("some status msg\r\nAT+GMR\r\r\n".as_bytes());
-        at_pars.digest();
-        at_pars.digest();
+        at_pars.digest(false);
+        at_pars.digest(false);
         assert_eq!(at_pars.state, State::ReceivingResponse);
+    }
+
+    /// If the buffer contains more than one response, handle them all if
+    /// exhaustive = true
+    #[test]
+    fn exhaustive_digest() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut at_pars, _req_c, _urc_c) = setup!(conf);
+
+        assert_eq!(at_pars.state, State::Idle);
+
+        at_pars.write("some status msg\r\nAT+GMR\r\r\nOK\r\nAT+USORD=3,16\r\n+USORD: 3,16,\"16 bytes of data\"\r\n".as_bytes());
+        at_pars.digest(true);
+        assert_eq!(at_pars.state, State::ReceivingResponse);
+        assert_eq!(
+            at_pars.buf.as_str(),
+            "+USORD: 3,16,\"16 bytes of data\"\r\n"
+        );
+    }
+
+    /// If the buffer contains more than one response, handle them all if
+    /// exhaustive = true
+    #[test]
+    fn exhaustive_digest_clean_start() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut at_pars, _req_c, _urc_c) = setup!(conf);
+
+        assert_eq!(at_pars.state, State::Idle);
+
+        at_pars.write(
+            "AT+GMR\r\r\nOK\r\nAT+USORD=3,16\r\n+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n"
+                .as_bytes(),
+        );
+        at_pars.digest(true);
+        assert_eq!(at_pars.state, State::Idle);
+        assert_eq!(at_pars.buf.as_str(), "");
+    }
+
+    /// If the buffer contains more than one response, handle them all if
+    /// exhaustive = true
+    #[test]
+    fn exhaustive_digest_full() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut at_pars, _req_c, _urc_c) = setup!(conf);
+
+        assert_eq!(at_pars.state, State::Idle);
+
+        at_pars.write("some status msg\r\nAT+GMR\r\r\nOK\r\nAT+USORD=3,16\r\n+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n".as_bytes());
+        at_pars.digest(true);
+        assert_eq!(at_pars.state, State::Idle);
+        assert_eq!(at_pars.buf.as_str(), "");
     }
 
     #[test]
@@ -767,21 +840,21 @@ mod test {
         // Check an URC that is not handled by MyUrcMatcher (fall back to default behavior)
         // Note that this requires the trailing newlines to be present!
         ingress.write(b"+default-behavior\r\n");
-        ingress.digest();
+        ingress.digest(false);
         assert_eq!(ingress.state, State::Idle);
-        assert_eq!(urc_c.dequeue().unwrap().as_str(), "+default-behavior\r\n");
+        assert_eq!(urc_c.dequeue().unwrap().as_str(), "+default-behavior");
 
         // Check an URC that is generally handled by MyUrcMatcher but
         // considered incomplete (not enough data). This will not yet result in
         // an URC being dispatched.
         ingress.write(b"+mat");
-        ingress.digest();
+        ingress.digest(false);
         assert_eq!(ingress.state, State::Idle);
         assert_eq!(urc_c.dequeue(), None);
 
         // Make it complete!
         ingress.write(b"ch"); // Still no newlines, but this will still be picked up!
-        ingress.digest();
+        ingress.digest(false);
         assert_eq!(ingress.state, State::Idle);
         assert_eq!(urc_c.dequeue().unwrap().as_str(), "+match");
     }
