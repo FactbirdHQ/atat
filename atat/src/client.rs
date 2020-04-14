@@ -448,7 +448,9 @@ mod test {
         };
 
         let mut response = Vec::<u8, consts::U256>::new();
-        response.extend_from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
+        response
+            .extend_from_slice(b"+CUN: 22,16,\"0123456789012345\"")
+            .unwrap();
         p.enqueue(Ok(response)).unwrap();
 
         let res_vec: Vec<u8, consts::U256> =
@@ -479,7 +481,9 @@ mod test {
         };
 
         let mut response = Vec::<u8, consts::U256>::new();
-        response.extend_from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
+        response
+            .extend_from_slice(b"+CUN: 22,16,\"0123456789012345\"")
+            .unwrap();
         p.enqueue(Ok(response)).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
@@ -501,7 +505,9 @@ mod test {
         };
 
         let mut response = Vec::<u8, consts::U256>::new();
-        response.extend_from_slice(b"+CUN: \"0123456789012345\",22,16").unwrap();
+        response
+            .extend_from_slice(b"+CUN: \"0123456789012345\",22,16")
+            .unwrap();
         p.enqueue(Ok(response)).unwrap();
 
         assert_eq!(
@@ -521,9 +527,7 @@ mod test {
 
         let mut response = Vec::<u8, consts::U256>::new();
         response.extend_from_slice(b"+UMWI: 0, 1").unwrap();
-        urc_p
-            .enqueue(response)
-            .unwrap();
+        urc_p.enqueue(response).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert!(client.check_urc::<Urc>().is_some());
