@@ -1,7 +1,7 @@
 //! Type definitions for the queues used in this crate.
 
 use heapless::spsc::{Consumer, Producer, Queue};
-use heapless::{consts, String};
+use heapless::{consts, Vec};
 
 pub use crate::error::Error;
 pub use crate::Command;
@@ -13,8 +13,8 @@ type UrcCapacity = consts::U10;
 
 // Queue item types
 type ComItem = Command;
-type ResItem = Result<String<consts::U256>, Error>;
-type UrcItem = String<consts::U256>;
+type ResItem = Result<Vec<u8, consts::U256>, Error>;
+type UrcItem = Vec<u8, consts::U256>;
 
 // Note: We could create a simple macro to define producer, consumer and queue,
 // but that would probably be harder to read than just the plain definitions.
