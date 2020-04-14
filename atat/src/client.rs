@@ -94,11 +94,11 @@ where
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
             block!(self.timer.wait()).ok();
-            let cmd_string = cmd.as_string();
-            #[cfg(feature = "logging")]
-            log::debug!("Sending command: {:?}", cmd_string.as_str());
-            for c in cmd_string.as_bytes() {
-                block!(self.tx.write(*c)).map_err(|_e| Error::Write)?;
+            let cmd_buf = cmd.as_bytes();
+            // #[cfg(feature = "logging")]
+            // log::debug!("Sending command: {:?}", cmd_string.as_str());
+            for c in cmd_buf {
+                block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
             }
             block!(self.tx.flush()).map_err(|_e| Error::Write)?;
             self.state = ClientState::AwaitingResponse;
@@ -307,7 +307,7 @@ mod test {
 
     #[derive(Clone, AtatUrc)]
     pub enum Urc {
-        #[at_urc("+UMWI")]
+        #[at_urc(b"+UMWI")]
         MessageWaitingIndication(MessageWaitingIndication),
     }
 
@@ -338,7 +338,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Ok(String::<consts::U256>::from(""))).unwrap();
+        p.enqueue(Ok(Vec::<u8, consts::U256>::new())).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -350,7 +350,7 @@ mod test {
             "Wrong encoding of string"
         );
 
-        p.enqueue(Ok(String::<consts::U256>::from(""))).unwrap();
+        p.enqueue(Ok(Vec::<u8, consts::U256>::new())).unwrap();
 
         let cmd = Test2Cmd {
             fun: Functionality::DM,
@@ -395,7 +395,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Ok(String::<consts::U256>::from(""))).unwrap();
+        p.enqueue(Ok(Vec::<u8, consts::U256>::new())).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -418,7 +418,7 @@ mod test {
 
         assert_eq!(client.check_response(&cmd), Err(nb::Error::WouldBlock));
 
-        p.enqueue(Ok(String::<consts::U256>::from(""))).unwrap();
+        p.enqueue(Ok(Vec::<u8, consts::U256>::new())).unwrap();
 
         assert_eq!(client.state, ClientState::AwaitingResponse);
 
@@ -437,10 +437,9 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Ok(String::<consts::U256>::from(
-            "+CUN: 22,16,\"0123456789012345\"",
-        )))
-        .unwrap();
+        let mut response = Vec::<u8, consts::U256>::new();
+        response.extend_from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
+        p.enqueue(Ok(response)).unwrap();
 
         let res_vec: Vec<u8, consts::U256> =
             "0123456789012345".as_bytes().iter().cloned().collect();
@@ -469,10 +468,9 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Ok(String::<consts::U256>::from(
-            "+CUN: 22,16,\"0123456789012345\"",
-        )))
-        .unwrap();
+        let mut response = Vec::<u8, consts::U256>::new();
+        response.extend_from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
+        p.enqueue(Ok(response)).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
 
@@ -492,10 +490,9 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Ok(String::<consts::U256>::from(
-            "+CUN: \"0123456789012345\",22,16",
-        )))
-        .unwrap();
+        let mut response = Vec::<u8, consts::U256>::new();
+        response.extend_from_slice(b"+CUN: \"0123456789012345\",22,16").unwrap();
+        p.enqueue(Ok(response)).unwrap();
 
         assert_eq!(
             client.send(&cmd),
@@ -512,8 +509,10 @@ mod test {
     fn urc() {
         let (mut client, _, mut urc_p) = setup!(Config::new(Mode::NonBlocking));
 
+        let mut response = Vec::<u8, consts::U256>::new();
+        response.extend_from_slice(b"+UMWI: 0, 1").unwrap();
         urc_p
-            .enqueue(String::<consts::U256>::from("+UMWI: 0, 1"))
+            .enqueue(response)
             .unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
@@ -531,8 +530,9 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let resp: Result<String<consts::U256>, Error> =
-            Ok(String::<consts::U256>::from("+CUN: 22,16,22"));
+        let mut response = Vec::<u8, consts::U256>::new();
+        response.extend_from_slice(b"+CUN: 22,16,22").unwrap();
+        let resp: Result<Vec<u8, consts::U256>, Error> = Ok(response);
         p.enqueue(resp).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);

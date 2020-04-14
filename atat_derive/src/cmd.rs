@@ -130,11 +130,11 @@ fn generate_cmd_output(
         #[automatically_derived]
         impl #impl_generics atat::AtatCmd for #name #ty_generics #where_clause {
             type Response = #response;
-            type CommandLen = heapless::consts::U2048;
+            type CommandLen = ::heapless::consts::U2048;
 
-            fn as_string(&self) -> heapless::String<Self::CommandLen> {
-                let s: heapless::String<heapless::consts::#subcmd_len> = heapless::String::from(#cmd);
-                match serde_at::to_string(self, s, serde_at::SerializeOptions {
+            fn as_bytes(&self) -> ::heapless::Vec<u8, Self::CommandLen> {
+                let s: ::heapless::String<::heapless::consts::#subcmd_len> = ::heapless::String::from(#cmd);
+                match serde_at::to_vec(self, s, serde_at::SerializeOptions {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,
                     termination: #termination
@@ -144,8 +144,8 @@ fn generate_cmd_output(
                 }
             }
 
-            fn parse(&self, resp: &str) -> core::result::Result<#response, atat::Error> {
-                serde_at::from_str::<#response>(resp).map_err(|e| {
+            fn parse(&self, resp: &[u8]) -> core::result::Result<#response, atat::Error> {
+                serde_at::from_slice::<#response>(resp).map_err(|e| {
                     atat::Error::ParseString
                 })
             }
