@@ -194,29 +194,29 @@ fn generate_cmd_output(
             }
         }
 
-        #[automatically_derived]
-        #[cfg(feature = "use_ufmt")]
-        impl #impl_generics ufmt::uDebug for #name #ty_generics #where_clause {
-            fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> core::result::Result<(), W::Error>
-            where
-                W: ufmt::uWrite + ?Sized,
-            {
-                use atat::AtatCmd as _;
-                f.write_str(&self.as_string())
-            }
-        }
+        // #[automatically_derived]
+        // #[cfg(feature = "use_ufmt")]
+        // impl #impl_generics ufmt::uDebug for #name #ty_generics #where_clause {
+        //     fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> core::result::Result<(), W::Error>
+        //     where
+        //         W: ufmt::uWrite + ?Sized,
+        //     {
+        //         use atat::AtatCmd as _;
+        //         f.write_str(&self.as_string())
+        //     }
+        // }
 
-        #[automatically_derived]
-        #[cfg(feature = "use_ufmt")]
-        impl #impl_generics ufmt::uDisplay for #name #ty_generics #where_clause {
-            fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> core::result::Result<(), W::Error>
-            where
-                W: ufmt::uWrite + ?Sized,
-            {
-                use atat::AtatCmd as _;
-                let c = self.as_string();
-                f.write_str(&c[0..c.len() - 2])
-            }
-        }
+        // #[automatically_derived]
+        // #[cfg(feature = "use_ufmt")]
+        // impl #impl_generics ufmt::uDisplay for #name #ty_generics #where_clause {
+        //     fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> core::result::Result<(), W::Error>
+        //     where
+        //         W: ufmt::uWrite + ?Sized,
+        //     {
+        //         use atat::AtatCmd as _;
+        //         let c = self.as_string();
+        //         f.write_str(&c[0..c.len() - 2])
+        //     }
+        // }
     })
 }
