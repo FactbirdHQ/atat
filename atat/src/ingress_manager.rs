@@ -275,7 +275,10 @@ where
     /// received
     fn notify_response(&mut self, resp: Result<Vec<u8, consts::U256>, Error>) {
         #[cfg(feature = "logging")]
-        log::debug!("Received response: {:?}", &resp);
+        match &resp {
+            Ok(r) => log_str!(debug, "Received response: {:?}", r),
+            e @ Err(_) => log::debug!("Received response: {:?}", e)
+        }
         if self.res_p.ready() {
             self.res_p.enqueue(resp).ok();
         } else {
@@ -287,7 +290,8 @@ where
     /// received
     fn notify_urc(&mut self, resp: Vec<u8, consts::U256>) {
         #[cfg(feature = "logging")]
-        log::debug!("Received URC: {:?}", &resp);
+        log_str!(debug, "Received URC: {:?}", &resp);
+
         if self.urc_p.ready() {
             self.urc_p.enqueue(resp).ok();
         } else {
