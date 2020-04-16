@@ -99,6 +99,16 @@ pub(crate) fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     }
 }
 
+#[cfg(feature = "logging")]
+macro_rules! log_str {
+    ($level:ident, $fmt:expr, $buf:expr) => {
+        match core::str::from_utf8(&$buf) {
+            Ok(s) => log::$level!($fmt, s),
+            Err(_) => log::$level!($fmt, $buf),
+        }
+    };
+}
+
 /// State of the IngressManager, used to distiguish URCs from solicited
 /// responses
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -292,7 +302,7 @@ where
                 Command::ClearBuffer => {
                     self.state = State::Idle;
                     #[cfg(feature = "logging")]
-                    log::debug!("Clearing buffer on timeout / {:?}", self.buf);
+                    log_str!(debug, "Clearing buffer on timeout / {:?}", &self.buf);
                     self.clear_buf(true);
                 }
                 Command::ForceState(state) => {
@@ -336,7 +346,7 @@ where
                 #[allow(unused)]
                 Some(r) => {
                     #[cfg(feature = "logging")]
-                    log::trace!("Cleared partial buffer, removed {:?}", r);
+                    log_str!(trace, "Cleared partial buffer, removed {:?}", r);
                 }
                 None => {
                     self.buf.clear();
@@ -371,7 +381,7 @@ where
         }
 
         #[cfg(feature = "logging")]
-        log::trace!("Digest / {:?} / {:?}", self.state, self.buf);
+        log_str!(trace, "Digest / {:?}", self.buf);
 
         match self.state {
             State::Idle => {
