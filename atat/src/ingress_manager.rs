@@ -6,6 +6,11 @@ use crate::{Command, Config};
 
 use core::iter::FromIterator;
 
+#[cfg(feature = "logging")]
+use crate::log_str;
+
+type ByteVec<L> = Vec<u8, L>;
+
 trait SliceExt {
     fn trim(&self, whitespaces: &[u8]) -> &Self;
     fn trim_start(&self, whitespaces: &[u8]) -> &Self;
@@ -99,16 +104,6 @@ pub(crate) fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     }
 }
 
-#[cfg(feature = "logging")]
-macro_rules! log_str {
-    ($level:ident, $fmt:expr, $buf:expr) => {
-        match core::str::from_utf8(&$buf) {
-            Ok(s) => log::$level!($fmt, s),
-            Err(_) => log::$level!($fmt, $buf),
-        }
-    };
-}
-
 /// State of the IngressManager, used to distiguish URCs from solicited
 /// responses
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -182,7 +177,7 @@ pub trait UrcMatcher {
     /// [`Complete`]: enum.UrcMatcherResult.html#variant.Complete
     /// [`Incomplete`]: enum.UrcMatcherResult.html#variant.Incomplete
     /// [`NotHandled`]: enum.UrcMatcherResult.html#variant.NotHandled
-    fn process(&mut self, buf: &mut Vec<u8, consts::U256>) -> UrcMatcherResult<Self::MaxLen>;
+    fn process(&mut self, buf: &mut ByteVec<consts::U256>) -> UrcMatcherResult<Self::MaxLen>;
 }
 
 /// A URC matcher that does nothing (it always returns [`NotHandled`][nothandled]).
@@ -192,14 +187,14 @@ pub struct NoopUrcMatcher {}
 
 impl UrcMatcher for NoopUrcMatcher {
     type MaxLen = consts::U256;
-    fn process(&mut self, _: &mut Vec<u8, consts::U256>) -> UrcMatcherResult<Self::MaxLen> {
+    fn process(&mut self, _: &mut ByteVec<consts::U256>) -> UrcMatcherResult<Self::MaxLen> {
         UrcMatcherResult::NotHandled
     }
 }
 
 pub struct IngressManager<U: UrcMatcher = NoopUrcMatcher> {
     /// Buffer holding incoming bytes.
-    buf: Vec<u8, consts::U256>,
+    buf: ByteVec<consts::U256>,
     /// A flag that is set to `true` when the buffer is cleared
     /// with an incomplete response.
     buf_incomplete: bool,
@@ -266,21 +261,24 @@ where
         for byte in data {
             match self.buf.push(*byte) {
                 Ok(_) => {}
-                Err(_) => self.notify_response(Err(Error::Overflow)),
+                Err(_) => {
+                    self.notify_response(Err(Error::Overflow));
+                    break;
+                }
             }
         }
     }
 
     /// Notify the client that an appropriate response code, or error has been
     /// received
-    fn notify_response(&mut self, resp: Result<Vec<u8, consts::U256>, Error>) {
+    fn notify_response(&mut self, resp: Result<ByteVec<consts::U256>, Error>) {
         #[cfg(feature = "logging")]
         match &resp {
             Ok(r) => log_str!(debug, "Received response: {:?}", r),
-            e @ Err(_) => log::debug!("Received response: {:?}", e)
+            e @ Err(_) => log::error!("Received response: {:?}", e),
         }
         if self.res_p.ready() {
-            self.res_p.enqueue(resp).ok();
+            unsafe { self.res_p.enqueue_unchecked(resp) };
         } else {
             // FIXME: Handle queue not being ready
         }
@@ -288,12 +286,12 @@ where
 
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
-    fn notify_urc(&mut self, resp: Vec<u8, consts::U256>) {
+    fn notify_urc(&mut self, resp: ByteVec<consts::U256>) {
         #[cfg(feature = "logging")]
         log_str!(debug, "Received URC: {:?}", &resp);
 
         if self.urc_p.ready() {
-            self.urc_p.enqueue(resp).ok();
+            unsafe { self.urc_p.enqueue_unchecked(resp) };
         } else {
             // FIXME: Handle queue not being ready
         }
@@ -389,11 +387,11 @@ where
 
         match self.state {
             State::Idle => {
-                // The minimal buffer length that is resuired to identify all
+                // The minimal buffer length that is required to identify all
                 // types of responses (e.g. `AT` and `+`).
                 let min_length = 2;
 
-                // Echo is currently resuired
+                // Echo is currently required
                 if !self.echo_enabled {
                     unimplemented!("Disabling AT echo is currently unsupported");
                 }
@@ -455,9 +453,11 @@ where
                         self.buf_incomplete,
                         self.buf.len(),
                     );
-                    self.buf_incomplete = self.buf.len() > 0
-                        && self.buf.get(self.buf.len() - 1) != Some(&self.line_term_char)
-                        && self.buf.get(self.buf.len() - 1) != Some(&self.format_char);
+                    self.buf_incomplete = self.buf.is_empty()
+                        || (self.buf.len() > 0
+                            && self.buf.get(self.buf.len() - 1) != Some(&self.line_term_char)
+                            && self.buf.get(self.buf.len() - 1) != Some(&self.format_char));
+
                     self.clear_buf(false);
 
                     // If the buffer wasn't cleared completely, that means that
@@ -573,7 +573,7 @@ mod test {
         at_pars.write(b"OK\r\n");
         at_pars.digest();
         assert_eq!(at_pars.state, State::Idle);
-        assert_eq!(res_c.dequeue().unwrap(), Ok(Vec::<u8, consts::U256>::new()));
+        assert_eq!(res_c.dequeue().unwrap(), Ok(Vec::new()));
     }
 
     #[test]
@@ -590,7 +590,7 @@ mod test {
         at_pars.digest();
 
         {
-            let mut expectation = Vec::<u8, consts::U256>::new();
+            let mut expectation = Vec::<_, consts::U256>::new();
             expectation
                 .extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
                 .unwrap();
@@ -599,17 +599,17 @@ mod test {
 
         at_pars.write(b"OK\r\n");
         {
-            let mut expectation = Vec::<u8, consts::U256>::new();
+            let mut expectation = Vec::<_, consts::U256>::new();
             expectation
                 .extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n")
                 .unwrap();
             assert_eq!(at_pars.buf, expectation);
         }
         at_pars.digest();
-        assert_eq!(at_pars.buf, Vec::<u8, consts::U256>::new());
+        assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
         assert_eq!(at_pars.state, State::Idle);
         {
-            let mut expectation = Vec::<u8, consts::U256>::new();
+            let mut expectation = Vec::<_, consts::U256>::new();
             expectation
                 .extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"")
                 .unwrap();
@@ -630,10 +630,10 @@ mod test {
         at_pars.write(b"AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19\r\nOK\r\n");
         at_pars.digest();
 
-        assert_eq!(at_pars.buf, Vec::<u8, consts::U256>::new());
+        assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
         assert_eq!(at_pars.state, State::Idle);
         {
-            let mut expectation = Vec::<u8, consts::U256>::new();
+            let mut expectation = Vec::<_, consts::U256>::new();
             expectation.extend_from_slice(b"AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19").unwrap();
             assert_eq!(res_c.dequeue().unwrap(), Ok(expectation));
         }
@@ -648,7 +648,7 @@ mod test {
 
         at_pars.write(b"+UUSORD: 3,16,\"16 bytes of data\"\r\n");
         at_pars.digest();
-        assert_eq!(at_pars.buf, Vec::<u8, consts::U256>::new());
+        assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
         assert_eq!(at_pars.state, State::Idle);
     }
 
@@ -671,7 +671,7 @@ mod test {
 
         assert_eq!(at_pars.state, State::Idle);
 
-        assert_eq!(at_pars.buf, Vec::<u8, consts::U256>::new());
+        assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
         at_pars.write(b"OK\r\n");
         at_pars.digest();
 
@@ -696,7 +696,7 @@ mod test {
         at_pars.digest();
 
         assert_eq!(at_pars.state, State::Idle);
-        assert_eq!(at_pars.buf, Vec::<u8, consts::U256>::new());
+        assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
         assert_eq!(res_c.dequeue().unwrap(), Err(Error::InvalidResponse));
     }
 
@@ -820,7 +820,7 @@ mod test {
             type MaxLen = consts::U256;
             fn process(
                 &mut self,
-                buf: &mut Vec<u8, consts::U256>,
+                buf: &mut ByteVec<consts::U256>,
             ) -> UrcMatcherResult<Self::MaxLen> {
                 if buf.len() >= 6 && buf.get(0..6) == Some(b"+match") {
                     let data = buf.clone();
@@ -841,7 +841,7 @@ mod test {
         assert_eq!(urc_c.dequeue(), None);
 
         // Check an URC that is not handled by MyUrcMatcher (fall back to default behavior)
-        // Note that this resuires the trailing newlines to be present!
+        // Note that this requires the trailing newlines to be present!
         ingress.write(b"+default-behavior\r\n");
         ingress.digest();
         assert_eq!(ingress.state, State::Idle);
@@ -860,5 +860,25 @@ mod test {
         ingress.digest();
         assert_eq!(ingress.state, State::Idle);
         assert_eq!(urc_c.dequeue().unwrap(), b"+match");
+    }
+
+    #[test]
+    fn trim() {
+        assert_eq!(
+            b"  hello  whatup  ".trim(&[b' ', b'\t', b'\r', b'\n']),
+            b"hello  whatup"
+        );
+        assert_eq!(
+            b"  hello  whatup  ".trim_start(&[b' ', b'\t', b'\r', b'\n']),
+            b"hello  whatup  "
+        );
+        assert_eq!(
+            b"  \r\n \thello  whatup  ".trim_start(&[b' ', b'\t', b'\r', b'\n']),
+            b"hello  whatup  "
+        );
+        assert_eq!(
+            b"  \r\n \thello  whatup  \n \t".trim(&[b' ', b'\t', b'\r', b'\n']),
+            b"hello  whatup"
+        );
     }
 }
