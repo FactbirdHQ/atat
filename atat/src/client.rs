@@ -5,6 +5,9 @@ use crate::queues::{ComProducer, ResConsumer, UrcConsumer};
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
 use crate::{Command, Config, Mode};
 
+#[cfg(feature = "logging")]
+use crate::log_str;
+
 #[derive(Debug, PartialEq)]
 enum ClientState {
     Idle,
@@ -95,8 +98,8 @@ where
             // command
             block!(self.timer.wait()).ok();
             let cmd_buf = cmd.as_bytes();
-            // #[cfg(feature = "logging")]
-            // log::debug!("Sending command: {:?}", cmd_string.as_str());
+            #[cfg(feature = "logging")]
+            log_str!(debug, "Sending command: {:?}", cmd_buf);
             for c in cmd_buf {
                 block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
             }
