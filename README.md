@@ -1,9 +1,16 @@
-# `AT Parser`
+<div>
+  <img style="vertical-align:middle; padding-bottom: 20px; padding-right: 40px;"  src="https://w7.pngwing.com/pngs/154/828/png-transparent-star-wars-patent-all-terrain-armored-transport-printmaking-atat-uuml-rk-monochrome-film-mecha.png" alt="ATAT" width="150" />
+  <span style="font-size: 40px;">ATAT</span>
+</div>
+
+> no_std crate for parsing AT commands
 
 ![CI][workflow]
 [![Crates.io Version][crates-io-badge]][crates-io]
 [![Crates.io Downloads][crates-io-download-badge]][crates-io-download]
 [![chat][chat-badge]][chat]
+
+---
 
 A driver support crate for AT-command based serial modules, using the [embedded-hal] traits.
 

@@ -448,8 +448,10 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
-        visitor.visit_some(self)
+        match self.parse_whitespace() {
+            Some(_) => visitor.visit_some(self),
+            None => visitor.visit_none(),
+        }
     }
 
     /// Unsupported. Use a more specific deserialize_* method
@@ -669,6 +671,13 @@ mod tests {
         p3: bool,
     }
 
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct CFGOption {
+        p1: u8,
+        p2: i16,
+        p3: Option<bool>,
+    }
+
     #[derive(Clone, Debug, Deserialize, PartialEq)]
     pub struct CCID {
         pub ccid: u128,
@@ -690,6 +699,35 @@ mod tests {
                 p1: 2,
                 p2: 56,
                 p3: false
+            })
+        );
+    }
+
+    #[test]
+    fn simple_struct_optionals() {
+        assert_eq!(
+            crate::from_str("+CFG: 2,56"),
+            Ok(CFGOption {
+                p1: 2,
+                p2: 56,
+                p3: None
+            })
+        );
+
+        assert_eq!(
+            crate::from_str("+CFG: 2,56, true"),
+            Ok(CFGOption {
+                p1: 2,
+                p2: 56,
+                p3: Some(true)
+            })
+        );
+        assert_eq!(
+            crate::from_str("+CFG: 2,56,false"),
+            Ok(CFGOption {
+                p1: 2,
+                p2: 56,
+                p3: Some(false)
             })
         );
     }

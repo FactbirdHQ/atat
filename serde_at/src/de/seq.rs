@@ -20,25 +20,21 @@ impl<'a, 'de> de::SeqAccess<'de> for SeqAccess<'a, 'de> {
     where
         T: de::DeserializeSeed<'de>,
     {
-        match self
-            .de
-            .parse_whitespace()
-            .ok_or(Error::EofWhileParsingList)?
-        {
-            b',' => {
+        match self.de.parse_whitespace() {
+            Some(b',') => {
                 self.de.eat_char();
                 self.de
                     .parse_whitespace()
-                    .ok_or(Error::EofWhileParsingValue)?
+                    .ok_or(Error::EofWhileParsingValue)?;
             }
-            c => {
+            Some(_) => {
                 if self.first {
                     self.first = false;
-                    c
                 } else {
                     return Ok(None);
                 }
             }
+            None => {}
         };
 
         Ok(Some(seed.deserialize(&mut *self.de)?))
