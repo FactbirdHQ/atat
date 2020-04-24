@@ -6,9 +6,6 @@ use crate::{Command, Config};
 
 use core::iter::FromIterator;
 
-#[cfg(feature = "logging")]
-use crate::log_str;
-
 type ByteVec<L> = Vec<u8, L>;
 
 trait SliceExt {
@@ -274,7 +271,7 @@ where
     fn notify_response(&mut self, resp: Result<ByteVec<consts::U256>, Error>) {
         #[cfg(feature = "logging")]
         match &resp {
-            Ok(r) => log_str!(debug, "Received response: {:?}", r),
+            Ok(r) => crate::log_str!(debug, "Received response: {:?}", r),
             e @ Err(_) => log::error!("Received response: {:?}", e),
         }
         if self.res_p.ready() {
@@ -288,7 +285,7 @@ where
     /// received
     fn notify_urc(&mut self, resp: ByteVec<consts::U256>) {
         #[cfg(feature = "logging")]
-        log_str!(debug, "Received URC: {:?}", &resp);
+        crate::log_str!(debug, "Received URC: {:?}", &resp);
 
         if self.urc_p.ready() {
             unsafe { self.urc_p.enqueue_unchecked(resp) };
@@ -303,13 +300,15 @@ where
             match com {
                 Command::ClearBuffer => {
                     self.state = State::Idle;
+                    self.buf_incomplete = false;
                     #[cfg(feature = "logging")]
-                    log_str!(debug, "Clearing buffer on timeout / {:?}", &self.buf);
+                    crate::log_str!(debug, "Clearing buffer on timeout / {:?}", &self.buf);
                     self.clear_buf(true);
                 }
                 Command::ForceState(state) => {
                     #[cfg(feature = "logging")]
                     log::trace!("Switching to state {:?}", state);
+                    self.buf_incomplete = false;
                     self.state = state;
                 }
                 Command::SetEcho(e) => {
@@ -348,7 +347,7 @@ where
                 #[allow(unused)]
                 Some(r) => {
                     #[cfg(feature = "logging")]
-                    log_str!(trace, "Cleared partial buffer, removed {:?}", r);
+                    crate::log_str!(trace, "Cleared partial buffer, removed {:?}", r);
                 }
                 None => {
                     self.buf.clear();
@@ -383,7 +382,7 @@ where
         }
 
         #[cfg(feature = "logging")]
-        log_str!(trace, "Digest / {:?}", self.buf);
+        crate::log_str!(trace, "Digest / {:?}", self.buf);
 
         match self.state {
             State::Idle => {
@@ -657,11 +656,14 @@ mod test {
         let conf = Config::new(Mode::Timeout);
         let (mut at_pars, mut res_c, _urc_c) = setup!(conf);
 
+        at_pars.write(b"+USORD: 3,266,\"");
         for _ in 0..266 {
             at_pars.write(b"s");
         }
+        at_pars.write(b"\"\r\n");
         at_pars.digest();
         assert_eq!(res_c.dequeue().unwrap(), Err(Error::Overflow));
+        assert_eq!(at_pars.state, State::Idle);
     }
 
     #[test]
