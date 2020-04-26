@@ -17,6 +17,6 @@ pub struct AT;
 
 #[derive(Clone, AtatUrc)]
 pub enum Urc {
-    #[at_urc("+UMWI")]
+    #[at_urc(b"+UMWI")]
     MessageWaitingIndication(general::urc::MessageWaitingIndication),
 }
