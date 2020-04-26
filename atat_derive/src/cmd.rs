@@ -1,140 +1,98 @@
 use crate::proc_macro::TokenStream;
-use crate::proc_macro2::Literal;
 
 use quote::{format_ident, quote};
-use syn::{Attribute, Data, DataStruct, DeriveInput, Fields, FieldsNamed, Ident, Result};
+use syn::parse_macro_input;
 
-use crate::helpers::{get_field_names, get_ident, get_lit, get_name_ident_lit};
+use crate::parse::{CmdAttributes, ParseInput};
 
-pub fn atat_cmd(item: DeriveInput) -> TokenStream {
-    match item.data {
-        Data::Struct(struct_) => {
-            let at_cmd_attr = get_cmd_response(&item.attrs).unwrap();
-            match struct_ {
-                DataStruct {
-                    fields: Fields::Named(fields),
-                    ..
-                } => generate_cmd_output(&item.ident, &item.generics, &at_cmd_attr, Some(&fields)),
-                DataStruct {
-                    fields: Fields::Unit,
-                    ..
-                } => {
-                    let at_cmd_attr = get_cmd_response(&item.attrs).unwrap();
-                    generate_cmd_output(&item.ident, &item.generics, &at_cmd_attr, None)
-                }
-                _ => panic!("Cannot handle unnamed struct fields"),
-            }
-        }
-        _ => {
-            panic!("AtatCmd can only be applied to structs!");
-        }
-    }
-}
+pub fn atat_cmd(input: TokenStream) -> TokenStream {
+    let ParseInput {
+        ident,
+        at_cmd,
+        generics,
+        variants,
+        ..
+    } = parse_macro_input!(input as ParseInput);
 
-#[derive(Debug)]
-struct AtCmdAttr {
-    cmd: Literal,
-    resp: Ident,
-    timeout_ms: Option<u32>,
-    abortable: Option<bool>,
-    force_receive_state: Option<bool>,
-    value_sep: bool,
-    cmd_prefix: String,
-    termination: String,
-}
+    let CmdAttributes {
+        cmd,
+        resp,
+        timeout_ms,
+        abortable,
+        force_receive_state,
+        value_sep,
+        cmd_prefix,
+        termination,
+    } = at_cmd.expect("missing #[at_cmd(...)] attribute");
 
-fn get_parsed_ident<T: core::str::FromStr>(attr: &Attribute, needle: &str) -> Option<T> {
-    match get_name_ident_lit(&attr.tokens, needle) {
-        Ok(lit) => match lit.parse::<T>() {
-            Ok(t) => Some(t),
-            _ => None,
-        },
-        Err(_) => None,
-    }
-}
+    let ident_str = ident.to_string();
 
-fn get_cmd_response(attrs: &[Attribute]) -> Result<AtCmdAttr> {
-    if let Some(attr) = attrs.iter().find(|attr| attr.path.is_ident("at_cmd")) {
-        Ok(AtCmdAttr {
-            cmd: get_lit(&attr.tokens)?,
-            resp: get_ident(&attr.tokens)?,
-            timeout_ms: get_parsed_ident(&attr, "timeout_ms"),
-            abortable: get_parsed_ident(&attr, "abortable"),
-            force_receive_state: get_parsed_ident(&attr, "force_receive_state"),
-            value_sep: get_parsed_ident(&attr, "value_sep").unwrap_or_else(|| true),
-            cmd_prefix: get_parsed_ident(&attr, "cmd_prefix")
-                .unwrap_or_else(|| String::from("AT"))
-                .replace("\"", ""),
-            termination: get_parsed_ident(&attr, "termination")
-                .unwrap_or_else(|| String::from("\r\n"))
-                .replace("\"", ""),
-        })
-    } else {
-        panic!("Failed to find non-optional at_cmd attribute!",)
-    }
-}
+    let n_fields = variants.len();
 
-fn generate_cmd_output(
-    name: &Ident,
-    generics: &syn::Generics,
-    attr: &AtCmdAttr,
-    fields: Option<&FieldsNamed>,
-) -> TokenStream {
-    let name_str = &name.to_string();
-    let cmd = &attr.cmd;
-    let response = &attr.resp;
-
-    let (field_names, _, field_names_str) = get_field_names(fields);
-    let len = field_names.len();
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let timeout = if let Some(timeout_ms) = &attr.timeout_ms {
-        quote! {
-            fn max_timeout_ms(&self) -> u32 {
-                #timeout_ms
+    let timeout = match timeout_ms {
+        Some(timeout_ms) => {
+            quote! {
+                fn max_timeout_ms(&self) -> u32 {
+                    #timeout_ms
+                }
             }
         }
-    } else {
-        quote! {}
+        _ => quote! {},
     };
 
-    let abortable = if let Some(abortable) = &attr.abortable {
-        quote! {
-            fn can_abort(&self) -> bool {
-                #abortable
+    let abortable = match abortable {
+        Some(abortable) => {
+            quote! {
+                fn can_abort(&self) -> bool {
+                    #abortable
+                }
             }
         }
-    } else {
-        quote! {}
+        _ => quote! {},
     };
 
-    let force_receive = if let Some(force_receive_state) = &attr.force_receive_state {
-        quote! {
-            fn force_receive_state(&self) -> bool {
-                #force_receive_state
+    let force_receive = match force_receive_state {
+        Some(force_receive_state) => {
+            quote! {
+                fn force_receive_state(&self) -> bool {
+                    #force_receive_state
+                }
             }
         }
-    } else {
-        quote! {}
+        _ => quote! {},
     };
 
-    let termination = &attr.termination;
+    let subcmd_len_ident = format_ident!("U{}", cmd.len());
+    let mut cmd_len = cmd_prefix.len() + cmd.len() + termination.len();
+    if value_sep == true {
+        cmd_len += 1;
+    }
 
-    let value_sep = &attr.value_sep;
-    let cmd_prefix = &attr.cmd_prefix;
-    let sub_len = cmd.to_string().replace("\"", "").len();
-    let subcmd_len = format_ident!("U{}", sub_len);
-    // let cmd_len = format_ident!("U{}", calculate_cmd_len(sub_len, fields, termination.len()));
+    let cmd_len_ident = format_ident!("U{}", cmd_len);
+
+    let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants
+        .iter()
+        .map(|f| (f.ident.clone(), f.ident.to_string()))
+        .unzip();
+
+    let struct_len = crate::len::struct_len(variants);
 
     TokenStream::from(quote! {
         #[automatically_derived]
-        impl #impl_generics atat::AtatCmd for #name #ty_generics #where_clause {
-            type Response = #response;
-            type CommandLen = heapless::consts::U2048;
+        impl #impl_generics atat::AtatLen for #ident #ty_generics #where_clause {
+            type Len = #struct_len;
+        }
 
-            fn as_string(&self) -> heapless::String<Self::CommandLen> {
-                let s: heapless::String<heapless::consts::#subcmd_len> = heapless::String::from(#cmd);
-                match serde_at::to_string(self, s, serde_at::SerializeOptions {
+        #[automatically_derived]
+        impl #impl_generics atat::AtatCmd for #ident #ty_generics #where_clause {
+            type Response = #resp;
+            type CommandLen = <<Self as atat::AtatLen>::Len as core::ops::Add<::heapless::consts::#cmd_len_ident>>::Output;
+
+            fn as_bytes(&self) -> ::heapless::Vec<u8, Self::CommandLen> {
+                let s: ::heapless::String<::heapless::consts::#subcmd_len_ident> = ::heapless::String::from(#cmd);
+                match serde_at::to_vec(self, s, serde_at::SerializeOptions {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,
                     termination: #termination
@@ -144,8 +102,8 @@ fn generate_cmd_output(
                 }
             }
 
-            fn parse(&self, resp: &str) -> core::result::Result<#response, atat::Error> {
-                serde_at::from_str::<#response>(resp).map_err(|e| {
+            fn parse(&self, resp: &[u8]) -> core::result::Result<#resp, atat::Error> {
+                serde_at::from_slice::<#resp>(resp).map_err(|e| {
                     atat::Error::ParseString
                 })
             }
@@ -158,7 +116,7 @@ fn generate_cmd_output(
         }
 
         #[automatically_derived]
-        impl #impl_generics serde::Serialize for #name #ty_generics #where_clause {
+        impl #impl_generics serde::Serialize for #ident #ty_generics #where_clause {
             fn serialize<S>(
                 &self,
                 serializer: S,
@@ -168,8 +126,8 @@ fn generate_cmd_output(
             {
                 let mut serde_state = match serde::Serializer::serialize_struct(
                     serializer,
-                    #name_str,
-                    #len,
+                    #ident_str,
+                    #n_fields,
                 ) {
                     serde::export::Ok(val) => val,
                     serde::export::Err(err) => {
@@ -191,31 +149,6 @@ fn generate_cmd_output(
                 )*
 
                 serde::ser::SerializeStruct::end(serde_state)
-            }
-        }
-
-        #[automatically_derived]
-        #[cfg(feature = "use_ufmt")]
-        impl #impl_generics ufmt::uDebug for #name #ty_generics #where_clause {
-            fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> core::result::Result<(), W::Error>
-            where
-                W: ufmt::uWrite + ?Sized,
-            {
-                use atat::AtatCmd as _;
-                f.write_str(&self.as_string())
-            }
-        }
-
-        #[automatically_derived]
-        #[cfg(feature = "use_ufmt")]
-        impl #impl_generics ufmt::uDisplay for #name #ty_generics #where_clause {
-            fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> core::result::Result<(), W::Error>
-            where
-                W: ufmt::uWrite + ?Sized,
-            {
-                use atat::AtatCmd as _;
-                let c = self.as_string();
-                f.write_str(&c[0..c.len() - 2])
             }
         }
     })

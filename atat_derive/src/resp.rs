@@ -2,64 +2,46 @@ use crate::proc_macro::TokenStream;
 use crate::proc_macro2::{Literal, Span};
 
 use quote::{format_ident, quote};
-use syn::{
-    Data, DataStruct, DeriveInput, Fields, FieldsNamed, GenericParam, Ident, Lifetime, LifetimeDef,
-};
+use syn::{parse_macro_input, GenericParam, Ident, Lifetime, LifetimeDef};
 
-use crate::helpers::get_field_names;
+use crate::parse::ParseInput;
 
-pub fn atat_resp(item: DeriveInput) -> TokenStream {
-    match item.data {
-        Data::Struct(struct_) => match struct_ {
-            DataStruct {
-                fields: Fields::Named(fields),
-                ..
-            } => generate_resp_output(&item.ident, &item.generics, Some(&fields)),
-            DataStruct {
-                fields: Fields::Unit,
-                ..
-            } => generate_resp_output(&item.ident, &item.generics, None),
+pub fn atat_resp(input: TokenStream) -> TokenStream {
+    let ParseInput {
+        ident,
+        generics,
+        variants,
+        ..
+    } = parse_macro_input!(input as ParseInput);
 
-            _ => panic!("Cannot handle unnamed struct fields"),
-        },
-        _ => {
-            // item.span()
-            //     .unstable()
-            //     .error("AtatResp can only be applied to structs!")
-            //     .emit();
-            // TokenStream::new()
-            panic!("AtatResp can only be applied to structs!");
-        }
-    }
-}
+    let ident_str = ident.to_string();
 
-#[allow(clippy::cognitive_complexity)]
-fn generate_resp_output(
-    name: &Ident,
-    generics: &syn::Generics,
-    fields: Option<&FieldsNamed>,
-) -> TokenStream {
-    let name_str = &name.to_string();
-    let (field_names, field_types, field_names_str) = get_field_names(fields);
+    let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants
+        .iter()
+        .map(|f| (f.ident.clone(), f.ident.to_string()))
+        .unzip();
+    let field_types: Vec<_> = variants.iter().map(|f| f.ty.clone()).collect();
+
     let (anon_field_ind, anon_field): (Vec<usize>, Vec<Ident>) = field_names
         .iter()
         .enumerate()
         .map(|(i, _)| (i, format_ident!("field{}", i)))
         .unzip();
+
     let anon_field_ind64: Vec<u64> = anon_field_ind.iter().map(|i| *i as u64).collect();
     let anon_field_ind128: Vec<u128> = anon_field_ind.iter().map(|i| *i as u128).collect();
-    let len = field_names.len();
-    let visitor = format_ident!("{}Visitor", name_str);
-    let field_visitor = format_ident!("{}FieldVisitor", name_str);
-    let enum_field = format_ident!("{}Field", name_str);
+    let len = variants.len();
+    let visitor = format_ident!("{}Visitor", ident);
+    let field_visitor = format_ident!("{}FieldVisitor", ident);
+    let enum_field = format_ident!("{}Field", ident);
     let field_names_bytestr = field_names_str
         .iter()
         .map(|a| Literal::byte_string(a.as_bytes()));
-    let invalid_len_err = format!("struct {} with {} elements", name_str, len);
+    let invalid_len_err = format!("struct {} with {} elements", ident, len);
     let invalid_val_err = format!("field index {} <= i < {}", 0, len);
-    let struct_name = format!("struct {}", name);
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let struct_name = format!("struct {}", ident);
 
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let mut serde_generics = generics.clone();
 
     serde_generics
@@ -72,10 +54,10 @@ fn generate_resp_output(
 
     TokenStream::from(quote! {
         #[automatically_derived]
-        impl #impl_generics atat::AtatResp for #name #ty_generics #where_clause {}
+        impl #impl_generics atat::AtatResp for #ident #ty_generics #where_clause {}
 
         #[automatically_derived]
-        impl #serde_impl_generics serde::Deserialize<'de> for #name #ty_generics #where_clause {
+        impl #serde_impl_generics serde::Deserialize<'de> for #ident #ty_generics #where_clause {
             fn deserialize<D>(deserializer: D) -> serde::export::Result<Self, D::Error>
             where
                 D: serde::Deserializer<'de>,
@@ -168,11 +150,11 @@ fn generate_resp_output(
                     }
                 }
                 struct #visitor<'de> {
-                    marker: serde::export::PhantomData<#name>,
+                    marker: serde::export::PhantomData<#ident>,
                     lifetime: serde::export::PhantomData<&'de ()>,
                 }
                 impl<'de> serde::de::Visitor<'de> for #visitor<'de> {
-                    type Value = #name;
+                    type Value = #ident;
                     fn expecting(
                         &self,
                         formatter: &mut serde::export::Formatter,
@@ -204,7 +186,7 @@ fn generate_resp_output(
                                     }
                                 };
                         )*
-                        serde::export::Ok(#name {
+                        serde::export::Ok(#ident {
                             #(
                                 #field_names: #anon_field
                             ),*
@@ -275,7 +257,7 @@ fn generate_resp_output(
                                 }
                             };
                         )*
-                        serde::export::Ok(#name {
+                        serde::export::Ok(#ident {
                             #(
                                 #field_names: #anon_field
                             ),*
@@ -285,10 +267,10 @@ fn generate_resp_output(
                 const FIELDS: &'static [&'static str] = &[#(#field_names_str),*];
                 serde::Deserializer::deserialize_struct(
                     deserializer,
-                    #name_str,
+                    #ident_str,
                     FIELDS,
                     #visitor {
-                        marker: serde::export::PhantomData::<#name>,
+                        marker: serde::export::PhantomData::<#ident>,
                         lifetime: serde::export::PhantomData,
                     },
                 )
