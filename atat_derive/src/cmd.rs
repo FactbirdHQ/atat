@@ -66,7 +66,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
     let subcmd_len_ident = format_ident!("U{}", cmd.len());
     let mut cmd_len = cmd_prefix.len() + cmd.len() + termination.len();
-    if value_sep == true {
+    if value_sep {
         cmd_len += 1;
     }
 
