@@ -176,12 +176,12 @@
 //! ```
 //! # Optional Cargo Features
 //!
-//! - **`derive`** *(enabled by default)* — Enables and re-exports [`atat_derive`].
-//! - **`logging`** *(disabled by default)* — Prints useful logging
-//! information, including incoming and outgoing bytes on the `TRACE` level.
+//! - **`derive`** *(enabled by default)* — Enables and re-exports
+//!   [`atat_derive`].
+//! - **`logging`** *(disabled by default)* — Prints useful logging information,
+//!   including incoming and outgoing bytes on the `TRACE` level.
 
 #![cfg_attr(not(test), no_std)]
-// #![feature(test)]
 
 #[macro_use]
 extern crate nb;
@@ -197,6 +197,12 @@ mod traits;
 #[cfg(feature = "derive")]
 pub use atat_derive;
 
+#[cfg(feature = "derive")]
+pub mod derive;
+
+#[cfg(feature = "derive")]
+pub use self::derive::AtatLen;
+
 use embedded_hal::{serial, timer::CountDown};
 use heapless::{consts, spsc::Queue};
 
@@ -209,11 +215,15 @@ pub use self::traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 pub mod prelude {
     //! The prelude is a collection of all the traits in this crate
     //!
-    //! The traits have been renamed to avoid collisions with other items when performing a glob import.
+    //! The traits have been renamed to avoid collisions with other items when
+    //! performing a glob import.
     pub use crate::AtatClient as _atat_AtatClient;
     pub use crate::AtatCmd as _atat_AtatCmd;
     pub use crate::AtatResp as _atat_AtatResp;
     pub use crate::AtatUrc as _atat_AtatUrc;
+
+    #[cfg(feature = "derive")]
+    pub use crate::AtatLen as _atat_AtatLen;
 }
 
 /// Whether the AT client should block while waiting responses or return early.
@@ -325,8 +335,8 @@ where
     /// Create a builder for new Atat client instance.
     ///
     /// The `serial_tx` type must implement the embedded_hal
-    /// [`serial::Write<u8>`][serialwrite] trait while the timer must implement the
-    /// [`timer::CountDown`][timercountdown] trait.
+    /// [`serial::Write<u8>`][serialwrite] trait while the timer must implement
+    /// the [`timer::CountDown`][timercountdown] trait.
     ///
     /// [serialwrite]: ../embedded_hal/serial/trait.Write.html
     /// [timercountdown]: ../embedded_hal/timer/trait.CountDown.html
