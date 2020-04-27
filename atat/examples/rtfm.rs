@@ -24,10 +24,7 @@ use hal::{
 };
 
 use atat::prelude::*;
-use rtfm::{
-    app,
-    export::wfi,
-};
+use rtfm::{app, export::wfi};
 
 use heapless::{consts, spsc::Queue, String};
 
