@@ -5,6 +5,8 @@
 
 extern crate atat;
 extern crate heapless;
+
+#[cfg(not(test))]
 extern crate panic_halt;
 extern crate stm32l4xx_hal as hal;
 
@@ -24,13 +26,12 @@ use hal::{
 use atat::prelude::*;
 use rtfm::{
     app,
-    cyccnt::{Duration, Instant, U32Ext},
     export::wfi,
 };
 
 use heapless::{consts, spsc::Queue, String};
 
-#[app(device = hal::pac, peripherals = true, monotonic = rtfm::cyccnt::CYCCNT)]
+#[app(device = hal::pac, peripherals = true)]
 const APP: () = {
     struct Resources {
         ingress: atat::IngressManager<atat::NoopUrcMatcher>,
@@ -94,13 +95,14 @@ const APP: () = {
         }
     }
 
-    #[task(schedule = [at_loop], resources = [ingress])]
+    #[task(spawn = [at_loop], resources = [ingress])]
     fn at_loop(mut ctx: at_loop::Context) {
         ctx.resources.ingress.lock(|at| at.digest());
 
         // Adjust this spin rate to set how often the request/response queue is checked
-        ctx.schedule
-            .at_loop(ctx.scheduled + 1_000_000.cycles())
+        ctx.spawn
+            .at_loop()
+            // .at_loop(ctx.scheduled + 1_000_000.cycles())
             .unwrap();
     }
 

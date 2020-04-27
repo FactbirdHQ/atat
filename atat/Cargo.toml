@@ -20,9 +20,8 @@ maintenance = { status = "actively-developed" }
 [dependencies]
 embedded-hal = "0.2.3"
 nb = "0.1.2"
-ufmt = "0.1.0"
 void = { version = "1.0.2", default-features = false }
-heapless = { version = "0.5.3", features = ["serde"] }
+heapless = { version = "^0.5", features = ["serde"] }
 serde_at = { path = "../serde_at", version = "^0.3.0"}
 atat_derive = { path = "../atat_derive", version = "^0.3.0", optional = true }
 serde = {version = "^1", default-features = false}
@@ -35,10 +34,6 @@ cortex-m-rt = "0.6.12"
 cortex-m-rtfm = "0.5.1"
 panic-halt = "0.2.0"
 stm32l4xx-hal = { git = "https://github.com/stm32-rs/stm32l4xx-hal", features = ["stm32l4x5", "rt"] }
-# stm32l4xx-hal = { version = "0.5.0", features = ["stm32l4x5", "rt"] }
-
-[target.'x86_64-unknown-linux-gnu'.dev-dependencies]
-embedded-hal-mock = "0.7.1"
 
 [features]
 default = ["derive"]

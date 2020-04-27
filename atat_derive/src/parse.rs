@@ -54,11 +54,13 @@ pub struct FieldAttributes {
 
 #[derive(Clone)]
 pub struct Variant {
-    pub ident: Ident,
+    /// Ident will be set on named variants, and None on unnamed variants
+    pub ident: Option<Ident>,
     /// Type of a struct variant
     pub ty: Option<Type>,
     /// Fields of an enum variant
     pub fields: Option<Fields>,
+    /// Parsed contents on `#[at_arg(..)]` and `#[at_urc(..)]`
     pub attrs: FieldAttributes,
 }
 
@@ -105,7 +107,7 @@ fn sorted_variants(data: Data) -> Result<Vec<Variant>> {
                     Ok((
                         i,
                         Variant {
-                            ident: f.ident.unwrap(),
+                            ident: f.ident,
                             ty: Some(f.ty),
                             fields: None,
                             attrs: parse_field_attr(f.attrs)?,
@@ -121,7 +123,7 @@ fn sorted_variants(data: Data) -> Result<Vec<Variant>> {
                 Ok((
                     i,
                     Variant {
-                        ident: v.ident.clone(),
+                        ident: Some(v.ident.clone()),
                         ty: None,
                         fields: Some(v.fields.clone()),
                         attrs: parse_field_attr(v.attrs)?,
@@ -135,20 +137,25 @@ fn sorted_variants(data: Data) -> Result<Vec<Variant>> {
     };
 
     variants.sort_by(|(ai, a), (bi, b)| {
-        a.attrs
-            .at_arg
-            .clone()
-            .unwrap()
-            .position
-            .unwrap_or_else(|| *ai)
-            .cmp(
-                &b.attrs
-                    .at_arg
-                    .clone()
-                    .unwrap()
-                    .position
-                    .unwrap_or_else(|| *bi),
-            )
+        let ap = if let Some(ArgAttributes {
+            position: Some(p), ..
+        }) = a.attrs.at_arg
+        {
+            p
+        } else {
+            *ai
+        };
+
+        let bp = if let Some(ArgAttributes {
+            position: Some(p), ..
+        }) = b.attrs.at_arg
+        {
+            p
+        } else {
+            *bi
+        };
+
+        ap.cmp(&bp)
     });
 
     Ok(variants.into_iter().map(|t| t.1).collect())

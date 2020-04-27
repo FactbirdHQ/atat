@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse_macro_input;
 
-use crate::parse::{EnumAttributes, ParseInput, Variant};
+use crate::parse::{EnumAttributes, ParseInput, Variant, ArgAttributes};
 
 pub fn atat_enum(input: TokenStream) -> TokenStream {
     let ParseInput {
@@ -21,13 +21,12 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
     let variant_idents = variants.iter().map(|variant| &variant.ident);
 
     let match_variants = variants.iter().map(|variant| {
-        let attrs = variant.attrs.at_arg.clone().unwrap();
         let variant_ident = variant.ident.clone();
-        let val = attrs
-            .value
-            .clone()
-            .map(|v| quote! { #v })
-            .unwrap_or_else(|| quote! { #ident::#variant_ident });
+        let val = if let Some(ArgAttributes { value: Some(v), .. }) = variant.attrs.at_arg {
+            quote! { #v }
+        } else {
+            quote! { #ident::#variant_ident }
+        };
 
         quote! {
             #ident::#variant_ident => #val as #repr,
@@ -35,13 +34,12 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
     });
 
     let declare_discriminants = variants.iter().map(|variant| {
-        let attrs = variant.attrs.at_arg.clone().unwrap();
         let variant_ident = variant.ident.clone();
-        let val = attrs
-            .value
-            .clone()
-            .map(|v| quote! { #v })
-            .unwrap_or_else(|| quote! { #ident::#variant_ident });
+        let val = if let Some(ArgAttributes { value: Some(v), .. }) = variant.attrs.at_arg {
+            quote! { #v }
+        } else {
+            quote! { #ident::#variant_ident }
+        };
 
         quote! {
             #[allow(non_upper_case_globals)]
