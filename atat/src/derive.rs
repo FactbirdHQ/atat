@@ -1,4 +1,6 @@
+use core::ops::Mul;
 use heapless::{consts, ArrayLength, String, Vec};
+use typenum::Unsigned;
 
 pub trait AtatLen {
     type Len: ArrayLength<u8>;
@@ -37,13 +39,11 @@ impl<T: AtatLen> AtatLen for Option<T> {
     type Len = T::Len;
 }
 
-impl<T: ArrayLength<u8>> AtatLen for Vec<u8, T> {
-    type Len = T;
+impl<T, L> AtatLen for Vec<T, L>
+where
+    T: AtatLen,
+    L: ArrayLength<T> + Unsigned + Mul<<T as AtatLen>::Len>,
+    <L as Mul<<T as AtatLen>::Len>>::Output: ArrayLength<u8> + Unsigned,
+{
+    type Len = <L as Mul<<T as AtatLen>::Len>>::Output;
 }
-
-// TODO: Replace above Vec<_> impl with below generic one, as soon as i figure
-// out how to obtain the length from `ArrayLength` trait
-//
-// impl<T: AtatLen, L: ArrayLength<T>> AtatLen for Vec<T, L> {
-//     type Len = <<T as AtatLen>::Len as core::ops::Mul<<L as typenum::Len>::Output>>::Output;
-// }
