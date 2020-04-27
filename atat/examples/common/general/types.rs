@@ -1,8 +1,7 @@
 //! Argument and parameter types used by General Commands and Responses
 use atat_derive::AtatEnum;
-use ufmt::derive::uDebug;
 
-#[derive(uDebug, Clone, PartialEq, AtatEnum)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[at_enum(u8)]
 pub enum Snt {
     /// (default value): International Mobile station Equipment Identity (IMEI)
@@ -20,7 +19,7 @@ pub enum Snt {
 }
 
 /// Indicates the basic message indication type
-#[derive(uDebug, Clone, PartialEq, AtatEnum)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[at_enum(u8)]
 pub enum MessageIndicationType {
     /// • 1: Voice Message Waiting (third level method) or Voice Message Waiting on Line 1

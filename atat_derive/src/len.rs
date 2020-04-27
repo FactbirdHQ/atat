@@ -4,6 +4,8 @@ use syn::parse_macro_input;
 
 use crate::parse::{ArgAttributes, ParseInput, Variant};
 
+/// Calculate the serialized length of a struct
+///
 /// Use #[at_arg(len = 128)], with a fallback to
 /// types AtatLen implementation, allowing overwriting the max length of all
 /// types, including borrowed data

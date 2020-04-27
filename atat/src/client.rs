@@ -93,23 +93,23 @@ where
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
-            block!(self.timer.wait()).ok();
+            nb::block!(self.timer.wait()).ok();
             let cmd_buf = cmd.as_bytes();
             #[cfg(feature = "logging")]
             crate::log_str!(debug, "Sending command: {:?}", cmd_buf);
             for c in cmd_buf {
-                block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
+                nb::block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
             }
-            block!(self.tx.flush()).map_err(|_e| Error::Write)?;
+            nb::block!(self.tx.flush()).map_err(|_e| Error::Write)?;
             self.state = ClientState::AwaitingResponse;
         }
 
         match self.config.mode {
-            Mode::Blocking => Ok(block!(self.check_response(cmd))?),
+            Mode::Blocking => Ok(nb::block!(self.check_response(cmd))?),
             Mode::NonBlocking => self.check_response(cmd),
             Mode::Timeout => {
                 self.timer.start(cmd.max_timeout_ms());
-                Ok(block!(self.check_response(cmd))?)
+                Ok(nb::block!(self.check_response(cmd))?)
             }
         }
     }

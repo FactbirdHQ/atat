@@ -18,7 +18,10 @@ pub fn atat_resp(input: TokenStream) -> TokenStream {
 
     let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants
         .iter()
-        .map(|f| (f.ident.clone(), f.ident.to_string()))
+        .map(|f| {
+            let ident = f.ident.clone().unwrap();
+            (ident.clone(), ident.to_string())
+        })
         .unzip();
     let field_types: Vec<_> = variants.iter().map(|f| f.ty.clone()).collect();
 

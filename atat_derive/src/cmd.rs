@@ -74,7 +74,10 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
     let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants
         .iter()
-        .map(|f| (f.ident.clone(), f.ident.to_string()))
+        .map(|f| {
+            let ident = f.ident.clone().unwrap();
+            (ident.clone(), ident.to_string())
+        })
         .unzip();
 
     let struct_len = crate::len::struct_len(variants);

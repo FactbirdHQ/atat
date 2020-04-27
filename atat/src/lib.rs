@@ -183,11 +183,6 @@
 
 #![cfg_attr(not(test), no_std)]
 
-#[macro_use]
-extern crate nb;
-extern crate ufmt;
-extern crate void;
-
 mod client;
 mod error;
 mod ingress_manager;
