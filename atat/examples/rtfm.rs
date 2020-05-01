@@ -31,7 +31,7 @@ use heapless::{consts, spsc::Queue, String};
 #[app(device = hal::pac, peripherals = true)]
 const APP: () = {
     struct Resources {
-        ingress: atat::IngressManager<atat::NoopUrcMatcher>,
+        ingress: atat::IngressManager<consts::U256, atat::NoopUrcMatcher>,
         rx: Rx<USART2>,
     }
 
