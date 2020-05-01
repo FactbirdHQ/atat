@@ -203,8 +203,8 @@ use heapless::{consts, spsc::Queue};
 
 pub use self::client::Client;
 pub use self::error::Error;
-pub use self::ingress_manager::{IngressManager, NoopUrcMatcher, UrcMatcher, UrcMatcherResult};
-use self::queues::{ComQueue, ResQueue, UrcQueue};
+pub use self::ingress_manager::{IngressManager, NoopUrcMatcher, UrcMatcher, UrcMatcherResult, get_line};
+pub use self::queues::{ComQueue, ResQueue, UrcQueue};
 pub use self::traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 
 pub mod prelude {
@@ -315,7 +315,7 @@ impl Config {
     }
 }
 
-type ClientParser<Tx, T, U> = (Client<Tx, T>, IngressManager<U>);
+type ClientParser<Tx, T, BufLen, U> = (Client<Tx, T, BufLen>, IngressManager<BufLen, U>);
 
 /// Builder to set up a [`Client`] and [`IngressManager`] pair.
 ///
@@ -331,12 +331,14 @@ pub struct ClientBuilder<Tx, T, U> {
     custom_urc_matcher: Option<U>,
 }
 
+type DefaultRxBufLen = consts::U256;
+
 impl<Tx, T, U> ClientBuilder<Tx, T, U>
 where
     Tx: serial::Write<u8>,
     T: CountDown,
     T::Time: From<u32>,
-    U: UrcMatcher<MaxLen = consts::U256>,
+    U: UrcMatcher<DefaultRxBufLen>,
 {
     /// Create a builder for new Atat client instance.
     ///
@@ -367,9 +369,9 @@ where
     ///
     /// [`Client`]: struct.Client.html
     /// [`IngressManager`]: struct.IngressManager.html
-    pub fn build(self) -> ClientParser<Tx, T, U> {
-        static mut RES_QUEUE: ResQueue = Queue(heapless::i::Queue::u8());
-        static mut URC_QUEUE: UrcQueue = Queue(heapless::i::Queue::u8());
+    pub fn build(self) -> ClientParser<Tx, T, DefaultRxBufLen, U> {
+        static mut RES_QUEUE: ResQueue<DefaultRxBufLen> = Queue(heapless::i::Queue::u8());
+        static mut URC_QUEUE: UrcQueue<DefaultRxBufLen> = Queue(heapless::i::Queue::u8());
         static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
         let (res_p, res_c) = unsafe { RES_QUEUE.split() };
         let (urc_p, urc_c) = unsafe { URC_QUEUE.split() };

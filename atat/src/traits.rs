@@ -70,6 +70,12 @@ pub trait AtatCmd {
 
     /// Return the command as a heapless `Vec` of bytes.
     fn as_bytes(&self) -> Vec<u8, Self::CommandLen>;
+    // fn as_bytes(&self, buf: &mut [u8]) -> Vec<u8, Self::CommandLen>;
+
+    // fn as_bytes_owned(&self) -> Vec<u8, Self::CommandLen> {
+    //     let mut buf: Vec<u8, Self::CommandLen> = Vec::new();
+    //     self.as_bytes(&mut buf)
+    // }
 
     /// Parse the response into a `Self::Response` instance.
     fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error>;

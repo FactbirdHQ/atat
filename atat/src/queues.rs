@@ -13,23 +13,23 @@ type UrcCapacity = consts::U10;
 
 // Queue item types
 type ComItem = Command;
-type ResItem = Result<Vec<u8, consts::U256>, Error>;
-type UrcItem = Vec<u8, consts::U256>;
+type ResItem<BufLen> = Result<Vec<u8, BufLen>, Error>;
+type UrcItem<BufLen> = Vec<u8, BufLen>;
 
 // Note: We could create a simple macro to define producer, consumer and queue,
 // but that would probably be harder to read than just the plain definitions.
 
 // Consumers
 pub(crate) type ComConsumer = Consumer<'static, ComItem, ComCapacity, u8>;
-pub(crate) type ResConsumer = Consumer<'static, ResItem, ResCapacity, u8>;
-pub(crate) type UrcConsumer = Consumer<'static, UrcItem, UrcCapacity, u8>;
+pub(crate) type ResConsumer<BufLen> = Consumer<'static, ResItem<BufLen>, ResCapacity, u8>;
+pub(crate) type UrcConsumer<BufLen> = Consumer<'static, UrcItem<BufLen>, UrcCapacity, u8>;
 
 // Producers
 pub(crate) type ComProducer = Producer<'static, ComItem, ComCapacity, u8>;
-pub(crate) type ResProducer = Producer<'static, ResItem, ResCapacity, u8>;
-pub(crate) type UrcProducer = Producer<'static, UrcItem, UrcCapacity, u8>;
+pub(crate) type ResProducer<BufLen> = Producer<'static, ResItem<BufLen>, ResCapacity, u8>;
+pub(crate) type UrcProducer<BufLen> = Producer<'static, UrcItem<BufLen>, UrcCapacity, u8>;
 
 // Queues
-pub(crate) type ComQueue = Queue<ComItem, ComCapacity, u8>;
-pub(crate) type ResQueue = Queue<ResItem, ResCapacity, u8>;
-pub(crate) type UrcQueue = Queue<UrcItem, UrcCapacity, u8>;
+pub type ComQueue = Queue<ComItem, ComCapacity, u8>;
+pub type ResQueue<BufLen> = Queue<ResItem<BufLen>, ResCapacity, u8>;
+pub type UrcQueue<BufLen> = Queue<UrcItem<BufLen>, UrcCapacity, u8>;

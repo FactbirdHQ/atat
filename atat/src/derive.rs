@@ -39,6 +39,10 @@ impl<T: AtatLen> AtatLen for Option<T> {
     type Len = T::Len;
 }
 
+impl<T: AtatLen> AtatLen for &T {
+    type Len = T::Len;
+}
+
 impl<T, L> AtatLen for Vec<T, L>
 where
     T: AtatLen,

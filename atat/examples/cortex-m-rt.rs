@@ -33,7 +33,7 @@ use heapless::{consts, spsc::Queue, String};
 
 use crate::rt::entry;
 
-static mut INGRESS: Option<atat::IngressManager<atat::NoopUrcMatcher>> = None;
+static mut INGRESS: Option<atat::IngressManager<consts::U256, atat::NoopUrcMatcher>> = None;
 static mut RX: Option<Rx<USART2>> = None;
 
 #[entry]
