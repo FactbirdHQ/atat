@@ -4,3 +4,6 @@ members = [
     "atat_derive",
     "atat",
 ]
+
+[patch.crates-io]
+heapless = { git = "https://github.com/japaric/heapless.git" }

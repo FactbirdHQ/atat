@@ -366,19 +366,15 @@ where
         self.handle_com();
 
         // Trim leading whitespace
-        if let Some(c) = self.buf.get(0) {
-            if c == &self.line_term_char || c == &self.format_char {
-                let mut new_buf = Vec::new();
-                new_buf
-                    .extend_from_slice(self.buf.trim_start(&[
-                        b'\t',
-                        b' ',
-                        self.format_char,
-                        self.line_term_char,
-                    ]))
-                    .unwrap();
-                self.buf = new_buf;
-            }
+        if self.buf.starts_with(&[self.line_term_char]) || self.buf.starts_with(&[self.format_char])
+        {
+            self.buf = Vec::from_slice(self.buf.trim_start(&[
+                b'\t',
+                b' ',
+                self.format_char,
+                self.line_term_char,
+            ]))
+            .unwrap();
         }
 
         #[cfg(feature = "logging")]
@@ -589,29 +585,25 @@ mod test {
         at_pars.digest();
 
         {
-            let mut expectation = Vec::<_, consts::U256>::new();
-            expectation
-                .extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
-                .unwrap();
+            let expectation =
+                Vec::<_, consts::U256>::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
+                    .unwrap();
             assert_eq!(at_pars.buf, expectation);
         }
 
         at_pars.write(b"OK\r\n");
         {
-            let mut expectation = Vec::<_, consts::U256>::new();
-            expectation
-                .extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n")
-                .unwrap();
+            let expectation =
+                Vec::<_, consts::U256>::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n")
+                    .unwrap();
             assert_eq!(at_pars.buf, expectation);
         }
         at_pars.digest();
         assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
         assert_eq!(at_pars.state, State::Idle);
         {
-            let mut expectation = Vec::<_, consts::U256>::new();
-            expectation
-                .extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"")
-                .unwrap();
+            let expectation =
+                Vec::<_, consts::U256>::from_slice(b"+USORD: 3,16,\"16 bytes of data\"").unwrap();
             assert_eq!(res_c.dequeue().unwrap(), Ok(expectation));
         }
     }
@@ -632,8 +624,7 @@ mod test {
         assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
         assert_eq!(at_pars.state, State::Idle);
         {
-            let mut expectation = Vec::<_, consts::U256>::new();
-            expectation.extend_from_slice(b"AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19").unwrap();
+            let expectation = Vec::<_, consts::U256>::from_slice(b"AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19").unwrap();
             assert_eq!(res_c.dequeue().unwrap(), Ok(expectation));
         }
     }

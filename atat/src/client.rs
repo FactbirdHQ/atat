@@ -93,23 +93,23 @@ where
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
-            block!(self.timer.wait()).ok();
+            nb::block!(self.timer.wait()).ok();
             let cmd_buf = cmd.as_bytes();
             #[cfg(feature = "logging")]
             crate::log_str!(debug, "Sending command: {:?}", cmd_buf);
             for c in cmd_buf {
-                block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
+                nb::block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
             }
-            block!(self.tx.flush()).map_err(|_e| Error::Write)?;
+            nb::block!(self.tx.flush()).map_err(|_e| Error::Write)?;
             self.state = ClientState::AwaitingResponse;
         }
 
         match self.config.mode {
-            Mode::Blocking => Ok(block!(self.check_response(cmd))?),
+            Mode::Blocking => Ok(nb::block!(self.check_response(cmd))?),
             Mode::NonBlocking => self.check_response(cmd),
             Mode::Timeout => {
                 self.timer.start(cmd.max_timeout_ms());
-                Ok(block!(self.check_response(cmd))?)
+                Ok(nb::block!(self.check_response(cmd))?)
             }
         }
     }
@@ -437,10 +437,8 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let mut response = Vec::<u8, consts::U256>::new();
-        response
-            .extend_from_slice(b"+CUN: 22,16,\"0123456789012345\"")
-            .unwrap();
+        let response =
+            Vec::<u8, consts::U256>::from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
         p.enqueue(Ok(response)).unwrap();
 
         let res_vec: Vec<u8, consts::U256> =
@@ -470,10 +468,8 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let mut response = Vec::<u8, consts::U256>::new();
-        response
-            .extend_from_slice(b"+CUN: 22,16,\"0123456789012345\"")
-            .unwrap();
+        let response =
+            Vec::<u8, consts::U256>::from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
         p.enqueue(Ok(response)).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
@@ -494,10 +490,8 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let mut response = Vec::<u8, consts::U256>::new();
-        response
-            .extend_from_slice(b"+CUN: \"0123456789012345\",22,16")
-            .unwrap();
+        let response =
+            Vec::<u8, consts::U256>::from_slice(b"+CUN: \"0123456789012345\",22,16").unwrap();
         p.enqueue(Ok(response)).unwrap();
 
         assert_eq!(
@@ -515,8 +509,7 @@ mod test {
     fn urc() {
         let (mut client, _, mut urc_p) = setup!(Config::new(Mode::NonBlocking));
 
-        let mut response = Vec::<u8, consts::U256>::new();
-        response.extend_from_slice(b"+UMWI: 0, 1").unwrap();
+        let response = Vec::<u8, consts::U256>::from_slice(b"+UMWI: 0, 1").unwrap();
         urc_p.enqueue(response).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
@@ -534,8 +527,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let mut response = Vec::<u8, consts::U256>::new();
-        response.extend_from_slice(b"+CUN: 22,16,22").unwrap();
+        let response = Vec::<u8, consts::U256>::from_slice(b"+CUN: 22,16,22").unwrap();
         let resp: Result<Vec<u8, consts::U256>, Error> = Ok(response);
         p.enqueue(resp).unwrap();
 
