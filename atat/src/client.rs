@@ -453,10 +453,8 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let mut response = Vec::<u8, TestRxBufLen>::new();
-        response
-            .extend_from_slice(b"+CUN: 22,16,\"0123456789012345\"")
-            .unwrap();
+        let response =
+            Vec::<u8, TestRxBufLen>::from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
         p.enqueue(Ok(response)).unwrap();
 
         let res_vec: Vec<u8, TestRxBufLen> =
@@ -486,10 +484,8 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let mut response = Vec::<u8, TestRxBufLen>::new();
-        response
-            .extend_from_slice(b"+CUN: 22,16,\"0123456789012345\"")
-            .unwrap();
+        let response =
+            Vec::<u8, TestRxBufLen>::from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
         p.enqueue(Ok(response)).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
@@ -510,10 +506,8 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let mut response = Vec::<u8, TestRxBufLen>::new();
-        response
-            .extend_from_slice(b"+CUN: \"0123456789012345\",22,16")
-            .unwrap();
+        let response =
+            Vec::<u8, TestRxBufLen>::from_slice(b"+CUN: \"0123456789012345\",22,16").unwrap();
         p.enqueue(Ok(response)).unwrap();
 
         assert_eq!(
@@ -531,8 +525,7 @@ mod test {
     fn urc() {
         let (mut client, _, mut urc_p) = setup!(Config::new(Mode::NonBlocking));
 
-        let mut response = Vec::<u8, TestRxBufLen>::new();
-        response.extend_from_slice(b"+UMWI: 0, 1").unwrap();
+        let response = Vec::<u8, TestRxBufLen>::from_slice(b"+UMWI: 0, 1").unwrap();
         urc_p.enqueue(response).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
@@ -550,8 +543,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let mut response = Vec::<u8, TestRxBufLen>::new();
-        response.extend_from_slice(b"+CUN: 22,16,22").unwrap();
+        let response = Vec::<u8, TestRxBufLen>::from_slice(b"+CUN: 22,16,22").unwrap();
         let resp: Result<Vec<u8, TestRxBufLen>, Error> = Ok(response);
         p.enqueue(resp).unwrap();
 

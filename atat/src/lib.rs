@@ -232,6 +232,17 @@ macro_rules! log_str {
     };
 }
 
+#[cfg(feature = "logging")]
+#[macro_export]
+macro_rules! log_str {
+    ($level:ident, $fmt:expr, $buf:expr) => {
+        match core::str::from_utf8(&$buf) {
+            Ok(s) => log::$level!($fmt, s),
+            Err(_) => log::$level!($fmt, $buf),
+        }
+    };
+}
+
 /// Whether the AT client should block while waiting responses or return early.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Mode {
