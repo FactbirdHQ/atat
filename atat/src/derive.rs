@@ -39,10 +39,13 @@ impl<T: AtatLen> AtatLen for Option<T> {
     type Len = T::Len;
 }
 
+<<<<<<< HEAD
 impl<T: AtatLen> AtatLen for &T {
     type Len = T::Len;
 }
 
+=======
+>>>>>>> Refactor/atat derive (#48)
 impl<T, L> AtatLen for Vec<T, L>
 where
     T: AtatLen,

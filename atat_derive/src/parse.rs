@@ -2,7 +2,11 @@ use proc_macro2::Span;
 use syn::parse::{Error, Parse, ParseStream, Parser, Result};
 use syn::{
     parenthesized, Attribute, Data, DataEnum, DataStruct, DeriveInput, Fields, Generics, Ident,
+<<<<<<< HEAD
     Lit, LitByteStr, Type, LitStr,
+=======
+    Lit, LitByteStr, Type,
+>>>>>>> Refactor/atat derive (#48)
 };
 
 #[derive(Clone)]
@@ -37,7 +41,11 @@ pub struct ArgAttributes {
 /// Parsed attributes of `#[at_urc(..)]`
 #[derive(Clone)]
 pub struct UrcAttributes {
+<<<<<<< HEAD
     pub code: LitStr,
+=======
+    pub code: LitByteStr,
+>>>>>>> Refactor/atat derive (#48)
 }
 
 /// Parsed attributes of `#[at_enum(..)]`
@@ -212,8 +220,13 @@ impl Parse for ArgAttributes {
 impl Parse for UrcAttributes {
     fn parse(input: ParseStream) -> Result<Self> {
         let code = match input.parse::<syn::Lit>()? {
+<<<<<<< HEAD
             // Lit::ByteStr(b) => b,
             Lit::Str(s) => s,
+=======
+            Lit::ByteStr(b) => b,
+            Lit::Str(s) => LitByteStr::new(s.value().as_bytes(), input.span()),
+>>>>>>> Refactor/atat derive (#48)
             _ => {
                 return Err(Error::new(
                     input.span(),

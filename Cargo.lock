@@ -37,9 +37,13 @@ dependencies = [
  "serde_at",
  "stm32l4xx-hal",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "typenum",
 =======
 >>>>>>> Refactor ingress buffer to Vec<u8> (#45)
+=======
+ "typenum",
+>>>>>>> Refactor/atat derive (#48)
  "void",
 ]
 

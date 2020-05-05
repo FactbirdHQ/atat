@@ -219,6 +219,7 @@ pub mod prelude {
 
     #[cfg(feature = "derive")]
     pub use crate::AtatLen as _atat_AtatLen;
+<<<<<<< HEAD
 }
 
 #[cfg(feature = "logging")]
@@ -230,6 +231,8 @@ macro_rules! log_str {
             Err(_) => log::$level!($fmt, $buf),
         }
     };
+=======
+>>>>>>> Refactor/atat derive (#48)
 }
 
 #[cfg(feature = "logging")]
