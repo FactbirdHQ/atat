@@ -750,7 +750,8 @@ mod tests {
     #[ignore]
     fn simple_vec() {
         let mut vec = Vec::new();
-        vec.extend_from_slice(&[8, 9, 8, 8, 3, 0, 3, 0, 0, 0, 0, 0, 0, 5, 4, 2, 1, 1, 6, 6]).unwrap();
+        vec.extend_from_slice(&[8, 9, 8, 8, 3, 0, 3, 0, 0, 0, 0, 0, 0, 5, 4, 2, 1, 1, 6, 6])
+            .unwrap();
         assert_eq!(
             crate::from_slice("+CCID: \"89883030000005421166\"".as_bytes()),
             Ok(VecTest { vec })
