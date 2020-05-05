@@ -9,9 +9,9 @@ license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/atat_derive"
 
 [dependencies]
-quote = "1.0"
-syn = { version = "1.0", features = ["full"] }
-proc-macro2 = "1.0"
+quote = "^1"
+syn = { version = "^1", features = ["full"] }
+proc-macro2 = "^1"
 serde_at = { path = "../serde_at", version = "^0.3.0"}
 
 [lib]
