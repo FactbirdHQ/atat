@@ -183,11 +183,6 @@
 #![cfg_attr(not(test), no_std)]
 // #![feature(test)]
 
-#[macro_use]
-extern crate nb;
-extern crate ufmt;
-extern crate void;
-
 mod client;
 mod error;
 mod ingress_manager;
@@ -214,6 +209,17 @@ pub mod prelude {
     pub use crate::AtatCmd as _atat_AtatCmd;
     pub use crate::AtatResp as _atat_AtatResp;
     pub use crate::AtatUrc as _atat_AtatUrc;
+}
+
+#[cfg(feature = "logging")]
+#[macro_export]
+macro_rules! log_str {
+    ($level:ident, $fmt:expr, $buf:expr) => {
+        match core::str::from_utf8(&$buf) {
+            Ok(s) => log::$level!($fmt, s),
+            Err(_) => log::$level!($fmt, $buf),
+        }
+    };
 }
 
 /// Whether the AT client should block while waiting responses or return early.

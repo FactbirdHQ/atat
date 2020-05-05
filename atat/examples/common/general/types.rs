@@ -1,9 +1,8 @@
 //! Argument and parameter types used by General Commands and Responses
 
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use ufmt::derive::uDebug;
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum Snt {
     /// (default value): International Mobile station Equipment Identity (IMEI)
@@ -17,7 +16,7 @@ pub enum Snt {
 }
 
 /// Indicates the basic message indication type
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum MessageIndicationType {
     /// • 1: Voice Message Waiting (third level method) or Voice Message Waiting on Line 1

@@ -78,11 +78,11 @@ fn generate_urc_output(
         impl #impl_generics atat::AtatUrc for #name #ty_generics #where_clause {
             type Response = #name;
 
-            fn parse(resp: &str) -> ::core::result::Result<Self::Response, atat::Error> {
-                if let Some(cmd) = resp.splitn(2, ':').next() {
-                    Ok(match cmd {
+            fn parse(resp: &[u8]) -> ::core::result::Result<Self::Response, atat::Error> {
+                if let Some(index) = resp.iter().position(|&x| x == b':') {
+                    Ok(match &resp[..index] {
                         #(
-                            #cmds => #name::#variant_names(serde_at::from_str::<#variant_field_types>(resp).map_err(|e| {
+                            #cmds => #name::#variant_names(serde_at::from_slice::<#variant_field_types>(resp).map_err(|e| {
                                 atat::Error::ParseString
                             })?),
                         )*

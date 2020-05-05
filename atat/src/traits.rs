@@ -1,6 +1,6 @@
 use crate::error::Error;
 use crate::Mode;
-use heapless::{ArrayLength, String};
+use heapless::{ArrayLength, Vec};
 
 pub trait AtatErr {}
 
@@ -22,8 +22,8 @@ pub trait AtatUrc {
     /// The type of the response. Usually the enum this trait is implemented on.
     type Response;
 
-    /// Parse the string response into a `Self::Response` instance.
-    fn parse(resp: &str) -> Result<Self::Response, Error>;
+    /// Parse the response into a `Self::Response` instance.
+    fn parse(resp: &[u8]) -> Result<Self::Response, Error>;
 }
 
 /// This trait needs to be implemented for every command type.
@@ -44,8 +44,8 @@ pub trait AtatUrc {
 ///     type CommandLen = heapless::consts::U64;
 ///     type Response = NoResponse;
 ///
-///     fn as_str(&self) -> String<Self::CommandLen> {
-///         let buf: String<Self::CommandLen> = String::new();
+///     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+///         let buf: Vec<u8, Self::CommandLen> = Vec::new();
 ///         write!(buf, "AT+CSGT={}", self.text);
 ///         buf
 ///     }
@@ -68,11 +68,11 @@ pub trait AtatCmd {
     /// The type of the response. Must implement the `AtatResp` trait.
     type Response: AtatResp;
 
-    /// Return the command as a heapless `String`.
-    fn as_string(&self) -> String<Self::CommandLen>;
+    /// Return the command as a heapless `Vec` of bytes.
+    fn as_bytes(&self) -> Vec<u8, Self::CommandLen>;
 
-    /// Parse the string response into a `Self::Response` instance.
-    fn parse(&self, resp: &str) -> Result<Self::Response, Error>;
+    /// Parse the response into a `Self::Response` instance.
+    fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error>;
 
     /// Whether or not this command can be aborted.
     fn can_abort(&self) -> bool {
