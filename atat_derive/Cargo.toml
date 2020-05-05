@@ -10,7 +10,7 @@ documentation = "https://docs.rs/atat_derive"
 
 [dependencies]
 quote = "^1"
-syn = { version = "^1", features = ["extra-traits","full"] }
+syn = { version = "^1", features = ["full"] }
 proc-macro2 = "^1"
 serde_at = { path = "../serde_at", version = "^0.3.0"}
 

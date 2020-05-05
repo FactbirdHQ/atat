@@ -8,6 +8,8 @@ extern crate cortex_m;
 extern crate cortex_m_rt as rt;
 extern crate heapless;
 extern crate nb;
+
+#[cfg(not(test))]
 extern crate panic_halt;
 extern crate stm32l4xx_hal as hal;
 

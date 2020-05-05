@@ -162,12 +162,11 @@ where
 mod test {
     use super::*;
     use crate as atat;
-    use crate::atat_derive::{AtatCmd, AtatResp, AtatUrc};
+    use crate::atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc};
     use crate::queues;
     use heapless::{consts, spsc::Queue, String, Vec};
     use nb;
     use serde;
-    use serde_repr::{Deserialize_repr, Serialize_repr};
     use void::Void;
 
     struct CdMock {
@@ -251,19 +250,30 @@ mod test {
         pub rst: Option<ResetMode>,
     }
 
-    #[derive(Clone, PartialEq, Serialize_repr, Deserialize_repr)]
-    #[repr(u8)]
+    // #[derive(Clone, AtatCmd)]
+    // #[at_cmd("+CUN", TestResponseStringMixed, timeout_ms = 180000)]
+    // pub struct TestUnnamedStruct(Functionality, Option<ResetMode>);
+
+    #[derive(Clone, PartialEq, AtatEnum)]
+    #[at_enum(u8)]
     pub enum Functionality {
-        Min = 0,
-        Full = 1,
-        APM = 4,
-        DM = 6,
+        #[at_arg(value = 0)]
+        Min,
+        #[at_arg(value = 1)]
+        Full,
+        #[at_arg(value = 4)]
+        APM,
+        #[at_arg(value = 6)]
+        DM,
     }
-    #[derive(Clone, PartialEq, Serialize_repr, Deserialize_repr)]
-    #[repr(u8)]
+
+    #[derive(Clone, PartialEq, AtatEnum)]
+    #[at_enum(u8)]
     pub enum ResetMode {
-        DontReset = 0,
-        Reset = 1,
+        #[at_arg(value = 0)]
+        DontReset,
+        #[at_arg(value = 1)]
+        Reset,
     }
     #[derive(Clone, AtatResp, PartialEq, Debug)]
     pub struct NoResponse;

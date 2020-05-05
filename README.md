@@ -37,11 +37,10 @@ This crate attempts to work from these AT best practices:
 
 ## [Documentation](https://docs.rs/atat/latest)
 
-<!-- ## Tests
+## Tests
 
-> The crate is covered by tests using the [embedded-hal-mock] crate. These tests can be run by `cargo test --lib --target x86_64-unknown-linux-gnu`.
+> The crate is covered by tests. These tests can be run by `cargo test --tests --all-features`, and are run by the CI on every push.
 
-[embedded-hal-mock]: https://crates.io/crates/embedded-hal-mock -->
 
 ## Examples
 The crate has examples for usage with [cortex-m-rt] and [cortex-m-rtfm] crates.

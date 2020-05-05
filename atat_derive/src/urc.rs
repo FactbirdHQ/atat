@@ -1,90 +1,71 @@
 use crate::proc_macro::TokenStream;
-use crate::proc_macro2::Literal;
+
 use quote::quote;
+use syn::{parse_macro_input, Fields};
 
-use syn::{Attribute, Data, DataEnum, DeriveInput, Fields, Ident, Type, Variant};
+use crate::parse::{ParseInput, UrcAttributes};
 
-use crate::helpers::get_lit;
+pub fn atat_urc(input: TokenStream) -> TokenStream {
+    let ParseInput {
+        ident,
+        generics,
+        variants,
+        ..
+    } = parse_macro_input!(input as ParseInput);
 
-#[derive(Debug)]
-struct AtUrcAttr {
-    pub variant_name: Ident,
-    pub variant_field_type: Type,
-    pub cmd: Literal,
-}
-
-fn get_type(variant: &Variant) -> Type {
-    if variant.fields.len() > 1 {
-        panic!("AtatUrc does not support more than one field per variant");
-    }
-    match variant.fields {
-        Fields::Unnamed(ref f) => f
-            .unnamed
-            .first()
-            .expect(
-                "AtatUrc does not support unit variants, \
-                please add unnamed field to a struct, \
-                implementing AtatResp",
-            )
-            .ty
-            .clone(),
-        _ => panic!("AtatUrc does not support named fields in variants"),
-    }
-}
-
-pub fn atat_urc(item: DeriveInput) -> TokenStream {
-    match item.data {
-        Data::Enum(DataEnum { variants, .. }) => {
-            let urc_attrs: Vec<AtUrcAttr> = variants
-                .iter()
-                .map(|variant| AtUrcAttr {
-                    cmd: get_urc_code(&variant.attrs),
-                    variant_field_type: get_type(&variant),
-                    variant_name: variant.ident.clone(),
-                })
-                .collect();
-            generate_urc_output(&item.ident, &item.generics, &urc_attrs)
-        }
-        _ => {
-            panic!("AtatUrc can only be applied to enums!");
-        }
-    }
-}
-
-fn get_urc_code(attrs: &[Attribute]) -> Literal {
-    if let Some(Attribute { tokens, .. }) = attrs.iter().find(|attr| attr.path.is_ident("at_urc")) {
-        get_lit(&tokens).expect("Failed to find non-optional at_urc attribute on all variants!")
-    } else {
-        panic!("Failed to find non-optional at_urc attribute on all variants!")
-    }
-}
-
-fn generate_urc_output(
-    name: &Ident,
-    generics: &syn::Generics,
-    urc_attrs: &[AtUrcAttr],
-) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let variant_names: Vec<Ident> = urc_attrs.iter().map(|a| a.variant_name.clone()).collect();
-    let variant_field_types: Vec<Type> = urc_attrs
-        .iter()
-        .map(|a| a.variant_field_type.clone())
-        .collect();
-    let cmds: Vec<Literal> = urc_attrs.iter().map(|a| a.cmd.clone()).collect();
+    if variants.is_empty() {
+        panic!("there must be at least one variant");
+    }
+
+    let match_arms: Vec<_> = variants.iter().map(|variant| {
+        let UrcAttributes {
+            code
+        } = variant.attrs.at_urc.clone().unwrap_or_else(|| {
+            panic!(
+                "missing #[at_urc(...)] attribute",
+            )
+        });
+
+        let variant_ident = variant.ident.clone();
+        match variant.fields.clone() {
+            Some(Fields::Named(_)) => {
+                panic!("cannot handle named enum variants")
+            }
+            Some(Fields::Unnamed(f)) => {
+                let mut field_iter = f.unnamed.iter();
+                let first_field = field_iter.next().unwrap_or_else(|| panic!(""));
+                if field_iter.next().is_some() {
+                    panic!("cannot handle variants with more than one field")
+                }
+                quote! {
+                    #code => #ident::#variant_ident(serde_at::from_slice::<#first_field>(resp).map_err(|e| {
+                        atat::Error::ParseString
+                    })?),
+                }
+            }
+            Some(Fields::Unit) => {
+                quote! {
+                    #code => #ident::#variant_ident,
+                }
+            }
+            None => {
+                panic!()
+            }
+        }
+    }).collect();
 
     TokenStream::from(quote! {
         #[automatically_derived]
-        impl #impl_generics atat::AtatUrc for #name #ty_generics #where_clause {
-            type Response = #name;
+        impl #impl_generics atat::AtatUrc for #ident #ty_generics #where_clause {
+            type Response = #ident;
 
             fn parse(resp: &[u8]) -> ::core::result::Result<Self::Response, atat::Error> {
                 if let Some(index) = resp.iter().position(|&x| x == b':') {
                     Ok(match &resp[..index] {
                         #(
-                            #cmds => #name::#variant_names(serde_at::from_slice::<#variant_field_types>(resp).map_err(|e| {
-                                atat::Error::ParseString
-                            })?),
+                            #match_arms
                         )*
                         _ => return Err(atat::Error::InvalidResponse)
                     })

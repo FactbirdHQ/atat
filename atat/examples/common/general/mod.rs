@@ -29,5 +29,5 @@ pub struct GetIMEI {
 ///
 /// Returns the ICCID (Integrated Circuit Card ID) of the SIM-card. ICCID is a serial number identifying the SIM.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+CCID" CCID)]
+#[at_cmd("+CCID", CCID)]
 pub struct GetCCID;

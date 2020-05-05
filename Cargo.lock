@@ -37,6 +37,7 @@ dependencies = [
  "serde_at",
  "serde_repr",
  "stm32l4xx-hal",
+ "typenum",
  "void",
 ]
 
