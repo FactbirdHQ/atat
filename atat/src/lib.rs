@@ -9,7 +9,7 @@
 //!
 //! [`AtatCmd`]: trait.AtatCmd.html
 //! [`AtatResp`]: trait.AtatResp.html
-//! [`atat_derive`]: ../atat_derive/index.html
+//! [`atat_derive`]: https://crates.io/crates/atat_derive
 //!
 //! # Examples
 //!
@@ -97,7 +97,7 @@
 //!     timer::{Event, Timer},
 //! };
 //!
-//! use atat::prelude::*;
+//! use atat::{driver, prelude::*};
 //!
 //! use heapless::{consts, spsc::Queue, String};
 //!
@@ -134,8 +134,7 @@
 //!     serial.listen(Rxne);
 //!
 //!     let (tx, rx) = serial.split();
-//!     let (mut client, ingress) =
-//!         atat::ClientBuilder::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout)).build();
+//!     let (mut client, ingress) = driver!(tx, at_timer, atat::Config::new(atat::Mode::Timeout));
 //!
 //!     unsafe { INGRESS = Some(ingress) };
 //!     unsafe { RX = Some(rx) };
@@ -198,9 +197,6 @@ pub mod derive;
 #[cfg(feature = "derive")]
 pub use self::derive::AtatLen;
 
-use embedded_hal::{serial, timer::CountDown};
-use heapless::{consts, spsc::Queue};
-
 pub use self::client::Client;
 pub use self::error::Error;
 pub use self::ingress_manager::{IngressManager, NoopUrcMatcher, UrcMatcher, UrcMatcherResult, get_line};
@@ -219,20 +215,6 @@ pub mod prelude {
 
     #[cfg(feature = "derive")]
     pub use crate::AtatLen as _atat_AtatLen;
-<<<<<<< HEAD
-}
-
-#[cfg(feature = "logging")]
-#[macro_export]
-macro_rules! log_str {
-    ($level:ident, $fmt:expr, $buf:expr) => {
-        match core::str::from_utf8(&$buf) {
-            Ok(s) => log::$level!($fmt, s),
-            Err(_) => log::$level!($fmt, $buf),
-        }
-    };
-=======
->>>>>>> Refactor/atat derive (#48)
 }
 
 #[cfg(feature = "logging")]
@@ -278,7 +260,7 @@ pub enum Command {
 /// parameters can be changed on the fly, through issuing a [`Command`] from the
 /// client.
 ///
-/// [`Command`]: #Command
+/// [`Command`]: enum.Command.html
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct Config {
     mode: Mode,
@@ -329,76 +311,36 @@ impl Config {
     }
 }
 
-type ClientParser<Tx, T, BufLen, U> = (Client<Tx, T, BufLen>, IngressManager<BufLen, U>);
-
-/// Builder to set up a [`Client`] and [`IngressManager`] pair.
+/// Macro to ease the setup of queues, [`Client`] and [`IngressManager`]
 ///
-/// Create a new builder through the [`new`] method.
-///
-/// [`Client`]: struct.Client.html
-/// [`IngressManager`]: struct.IngressManager.html
-/// [`new`]: #method.new
-pub struct ClientBuilder<Tx, T, U> {
-    serial_tx: Tx,
-    timer: T,
-    config: Config,
-    custom_urc_matcher: Option<U>,
-}
+#[macro_export]
+macro_rules! driver {
+    ($tx:expr, $timer:expr, $config:expr) => {
+        driver!($tx, $timer, $config, None)
+    };
+    ($tx:expr, $timer:expr, $config:expr, $matcher:expr) => {
+        driver!($tx, $timer, $config, None, consts::U256)
+    };
+    ($tx:expr, $timer:expr, $config:expr, $matcher:expr, $rxbuflen:ty) => {
+        driver!($tx, $timer, $config, None, $rxbuflen, consts::U3, consts::U5, consts::U10)
+    };
+    ($tx:expr, $timer:expr, $config:expr, $matcher:expr, $rxbuflen:ty, $comcap:ty, $rescap:ty, $urccap:ty) => {{
 
-type DefaultRxBufLen = consts::U256;
+        static mut RES_QUEUE: atat::ResQueue<$rxbuflen, $rescap> =
+            heapless::spsc::Queue(heapless::i::Queue::u8());
+        static mut URC_QUEUE: atat::UrcQueue<$rxbuflen, $urccap> =
+            heapless::spsc::Queue(heapless::i::Queue::u8());
+        static mut COM_QUEUE: atat::ComQueue<$comcap> =
+            heapless::spsc::Queue(heapless::i::Queue::u8());
 
-impl<Tx, T, U> ClientBuilder<Tx, T, U>
-where
-    Tx: serial::Write<u8>,
-    T: CountDown,
-    T::Time: From<u32>,
-    U: UrcMatcher<DefaultRxBufLen>,
-{
-    /// Create a builder for new Atat client instance.
-    ///
-    /// The `serial_tx` type must implement the embedded_hal
-    /// [`serial::Write<u8>`][serialwrite] trait while the timer must implement
-    /// the [`timer::CountDown`][timercountdown] trait.
-    ///
-    /// [serialwrite]: ../embedded_hal/serial/trait.Write.html
-    /// [timercountdown]: ../embedded_hal/timer/trait.CountDown.html
-    pub fn new(serial_tx: Tx, timer: T, config: Config) -> Self {
-        Self {
-            serial_tx,
-            timer,
-            config,
-            custom_urc_matcher: None,
-        }
-    }
-
-    /// Use a custom [`UrcMatcher`] implementation.
-    ///
-    /// [`UrcMatcher`]: trait.UrcMatcher.html
-    pub fn with_custom_urc_matcher(mut self, matcher: U) -> Self {
-        self.custom_urc_matcher = Some(matcher);
-        self
-    }
-
-    /// Set up and return a [`Client`] and [`IngressManager`] pair.
-    ///
-    /// [`Client`]: struct.Client.html
-    /// [`IngressManager`]: struct.IngressManager.html
-    pub fn build(self) -> ClientParser<Tx, T, DefaultRxBufLen, U> {
-        static mut RES_QUEUE: ResQueue<DefaultRxBufLen> = Queue(heapless::i::Queue::u8());
-        static mut URC_QUEUE: UrcQueue<DefaultRxBufLen> = Queue(heapless::i::Queue::u8());
-        static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
         let (res_p, res_c) = unsafe { RES_QUEUE.split() };
         let (urc_p, urc_c) = unsafe { URC_QUEUE.split() };
         let (com_p, com_c) = unsafe { COM_QUEUE.split() };
-        let parser = IngressManager::with_custom_urc_matcher(
-            res_p,
-            urc_p,
-            com_c,
-            self.config,
-            self.custom_urc_matcher,
-        );
-        let client = Client::new(self.serial_tx, res_c, urc_c, com_p, self.timer, self.config);
+
+        let parser =
+            ::atat::IngressManager::with_custom_urc_matcher(res_p, urc_p, com_c, $config, $matcher);
+        let client = ::atat::Client::new($tx, res_c, urc_c, com_p, $timer, $config);
 
         (client, parser)
-    }
+    }};
 }
