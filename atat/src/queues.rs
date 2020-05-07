@@ -16,13 +16,17 @@ pub(crate) type UrcItem<BufLen> = Vec<u8, BufLen>;
 
 // Consumers
 pub(crate) type ComConsumer<ComCapacity> = Consumer<'static, ComItem, ComCapacity, u8>;
-pub(crate) type ResConsumer<BufLen, ResCapacity> = Consumer<'static, ResItem<BufLen>, ResCapacity, u8>;
-pub(crate) type UrcConsumer<BufLen, UrcCapacity> = Consumer<'static, UrcItem<BufLen>, UrcCapacity, u8>;
+pub(crate) type ResConsumer<BufLen, ResCapacity> =
+    Consumer<'static, ResItem<BufLen>, ResCapacity, u8>;
+pub(crate) type UrcConsumer<BufLen, UrcCapacity> =
+    Consumer<'static, UrcItem<BufLen>, UrcCapacity, u8>;
 
 // Producers
 pub(crate) type ComProducer<ComCapacity> = Producer<'static, ComItem, ComCapacity, u8>;
-pub(crate) type ResProducer<BufLen, ResCapacity> = Producer<'static, ResItem<BufLen>, ResCapacity, u8>;
-pub(crate) type UrcProducer<BufLen, UrcCapacity> = Producer<'static, UrcItem<BufLen>, UrcCapacity, u8>;
+pub(crate) type ResProducer<BufLen, ResCapacity> =
+    Producer<'static, ResItem<BufLen>, ResCapacity, u8>;
+pub(crate) type UrcProducer<BufLen, UrcCapacity> =
+    Producer<'static, UrcItem<BufLen>, UrcCapacity, u8>;
 
 // Queues
 pub type ComQueue<ComCapacity> = Queue<ComItem, ComCapacity, u8>;
