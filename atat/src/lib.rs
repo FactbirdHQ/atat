@@ -321,14 +321,17 @@ macro_rules! driver {
         driver!($tx, $timer, $config, None)
     };
     ($tx:expr, $timer:expr, $config:expr, $matcher:expr) => {
-        driver!($tx, $timer, $config, None, consts::U256)
+        driver!($tx, $timer, $config, $matcher, consts::U256)
+    };
+    ($tx:expr, $timer:expr, $config:expr, $rxbuflen:ty) => {
+        driver!($tx, $timer, $config, None, $rxbuflen,)
     };
     ($tx:expr, $timer:expr, $config:expr, $matcher:expr, $rxbuflen:ty) => {
         driver!(
             $tx,
             $timer,
             $config,
-            None,
+            $matcher,
             $rxbuflen,
             consts::U3,
             consts::U5,
