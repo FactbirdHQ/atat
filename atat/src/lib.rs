@@ -324,10 +324,18 @@ macro_rules! driver {
         driver!($tx, $timer, $config, None, consts::U256)
     };
     ($tx:expr, $timer:expr, $config:expr, $matcher:expr, $rxbuflen:ty) => {
-        driver!($tx, $timer, $config, None, $rxbuflen, consts::U3, consts::U5, consts::U10)
+        driver!(
+            $tx,
+            $timer,
+            $config,
+            None,
+            $rxbuflen,
+            consts::U3,
+            consts::U5,
+            consts::U10
+        )
     };
     ($tx:expr, $timer:expr, $config:expr, $matcher:expr, $rxbuflen:ty, $comcap:ty, $rescap:ty, $urccap:ty) => {{
-
         static mut RES_QUEUE: atat::ResQueue<$rxbuflen, $rescap> =
             heapless::spsc::Queue(heapless::i::Queue::u8());
         static mut URC_QUEUE: atat::UrcQueue<$rxbuflen, $urccap> =
