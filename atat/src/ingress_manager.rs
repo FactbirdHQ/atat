@@ -1,7 +1,7 @@
-use heapless::{ArrayLength, Vec};
+use heapless::{consts, ArrayLength, Vec};
 
 use crate::error::Error;
-use crate::queues::{ComConsumer, ResProducer, UrcProducer};
+use crate::queues::{ComConsumer, ComItem, ResItem, ResProducer, UrcItem, UrcProducer};
 use crate::{Command, Config};
 
 use core::iter::FromIterator;
@@ -185,7 +185,19 @@ impl<BufLen: ArrayLength<u8>> UrcMatcher<BufLen> for NoopUrcMatcher {
     }
 }
 
-pub struct IngressManager<BufLen: ArrayLength<u8>, U: UrcMatcher<BufLen> = NoopUrcMatcher> {
+pub struct IngressManager<
+    BufLen = consts::U256,
+    U = NoopUrcMatcher,
+    ComCapacity = consts::U3,
+    ResCapacity = consts::U5,
+    UrcCapacity = consts::U10,
+> where
+    BufLen: ArrayLength<u8>,
+    U: UrcMatcher<BufLen>,
+    ComCapacity: ArrayLength<ComItem>,
+    ResCapacity: ArrayLength<ResItem<BufLen>>,
+    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
+{
     /// Buffer holding incoming bytes.
     buf: ByteVec<BufLen>,
     /// A flag that is set to `true` when the buffer is cleared
@@ -193,11 +205,11 @@ pub struct IngressManager<BufLen: ArrayLength<u8>, U: UrcMatcher<BufLen> = NoopU
     buf_incomplete: bool,
 
     /// The response producer sends responses to the client
-    res_p: ResProducer<BufLen>,
+    res_p: ResProducer<BufLen, ResCapacity>,
     /// The URC producer sends URCs to the client
-    urc_p: UrcProducer<BufLen>,
+    urc_p: UrcProducer<BufLen, UrcCapacity>,
     /// The command consumer receives commands from the client
-    com_c: ComConsumer,
+    com_c: ComConsumer<ComCapacity>,
 
     /// Current processing state.
     state: State,
@@ -211,26 +223,37 @@ pub struct IngressManager<BufLen: ArrayLength<u8>, U: UrcMatcher<BufLen> = NoopU
     custom_urc_matcher: Option<U>,
 }
 
-impl<BufLen: ArrayLength<u8>> IngressManager<BufLen, NoopUrcMatcher> {
+impl<BufLen, ComCapacity, ResCapacity, UrcCapacity>
+    IngressManager<BufLen, NoopUrcMatcher, ComCapacity, ResCapacity, UrcCapacity>
+where
+    BufLen: ArrayLength<u8>,
+    ComCapacity: ArrayLength<ComItem>,
+    ResCapacity: ArrayLength<ResItem<BufLen>>,
+    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
+{
     pub fn new(
-        res_p: ResProducer<BufLen>,
-        urc_p: UrcProducer<BufLen>,
-        com_c: ComConsumer,
+        res_p: ResProducer<BufLen, ResCapacity>,
+        urc_p: UrcProducer<BufLen, UrcCapacity>,
+        com_c: ComConsumer<ComCapacity>,
         config: Config,
     ) -> Self {
         Self::with_custom_urc_matcher(res_p, urc_p, com_c, config, None)
     }
 }
 
-impl<BufLen, U> IngressManager<BufLen, U>
+impl<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>
+    IngressManager<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>
 where
     U: UrcMatcher<BufLen>,
     BufLen: ArrayLength<u8>,
+    ComCapacity: ArrayLength<ComItem>,
+    ResCapacity: ArrayLength<ResItem<BufLen>>,
+    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
     pub fn with_custom_urc_matcher(
-        res_p: ResProducer<BufLen>,
-        urc_p: UrcProducer<BufLen>,
-        com_c: ComConsumer,
+        res_p: ResProducer<BufLen, ResCapacity>,
+        urc_p: UrcProducer<BufLen, UrcCapacity>,
+        com_c: ComConsumer<ComCapacity>,
         config: Config,
         custom_urc_matcher: Option<U>,
     ) -> Self {
@@ -535,14 +558,19 @@ mod test {
     use heapless::{consts, spsc::Queue};
 
     type TestRxBufLen = consts::U256;
+    type TestComCapacity = consts::U3;
+    type TestResCapacity = consts::U5;
+    type TestUrcCapacity = consts::U10;
 
     macro_rules! setup {
         ($config:expr, $urch:expr) => {{
-            static mut RES_Q: ResQueue<TestRxBufLen> = Queue(heapless::i::Queue::u8());
+            static mut RES_Q: ResQueue<TestRxBufLen, TestResCapacity> =
+                Queue(heapless::i::Queue::u8());
             let (res_p, res_c) = unsafe { RES_Q.split() };
-            static mut URC_Q: UrcQueue<TestRxBufLen> = Queue(heapless::i::Queue::u8());
+            static mut URC_Q: UrcQueue<TestRxBufLen, TestUrcCapacity> =
+                Queue(heapless::i::Queue::u8());
             let (urc_p, urc_c) = unsafe { URC_Q.split() };
-            static mut COM_Q: ComQueue = Queue(heapless::i::Queue::u8());
+            static mut COM_Q: ComQueue<TestComCapacity> = Queue(heapless::i::Queue::u8());
             let (_com_p, com_c) = unsafe { COM_Q.split() };
             (
                 IngressManager::with_custom_urc_matcher(res_p, urc_p, com_c, $config, $urch),
@@ -551,7 +579,17 @@ mod test {
             )
         }};
         ($config:expr) => {{
-            let val: (IngressManager<TestRxBufLen, NoopUrcMatcher>, _, _) = setup!($config, None);
+            let val: (
+                IngressManager<
+                    TestRxBufLen,
+                    NoopUrcMatcher,
+                    TestComCapacity,
+                    TestResCapacity,
+                    TestUrcCapacity,
+                >,
+                _,
+                _,
+            ) = setup!($config, None);
             val
         }};
     }

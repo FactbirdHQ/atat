@@ -23,7 +23,7 @@ use hal::{
     timer::{Event, Timer},
 };
 
-use atat::prelude::*;
+use atat::{driver, prelude::*};
 use rtfm::{app, export::wfi};
 
 use heapless::{consts, spsc::Queue, String};
@@ -75,8 +75,7 @@ const APP: () = {
         serial.listen(Rxne);
 
         let (tx, rx) = serial.split();
-        let (mut client, ingress) =
-            atat::ClientBuilder::new(tx, timer, atat::Config::new(atat::Mode::Timeout)).build();
+        let (mut client, ingress) = driver!(tx, timer, atat::Config::new(atat::Mode::Timeout));
 
         ctx.spawn.at_loop().unwrap();
 

@@ -1,10 +1,10 @@
 use embedded_hal::{serial, timer::CountDown};
 
 use crate::error::Error;
-use crate::queues::{ComProducer, ResConsumer, UrcConsumer};
+use crate::queues::{ComItem, ComProducer, ResConsumer, ResItem, UrcConsumer, UrcItem};
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
 use crate::{Command, Config, Mode};
-use heapless::ArrayLength;
+use heapless::{consts, ArrayLength};
 
 #[derive(Debug, PartialEq)]
 enum ClientState {
@@ -19,42 +19,55 @@ enum ClientState {
 /// `clearBuffer` to the ingress-manager.
 ///
 /// Don't create a `Client` instance directly. Instead, use the
-/// [`ClientBuilder`].
+/// [`driver!`] macro.
 ///
-/// [`ClientBuilder`]: struct.ClientBuilder.html
-pub struct Client<Tx, T, BufLen>
-where
+/// [`driver!`]: macro.driver.html
+pub struct Client<
+    Tx,
+    T,
+    BufLen = consts::U256,
+    ComCapacity = consts::U3,
+    ResCapacity = consts::U5,
+    UrcCapacity = consts::U10,
+> where
     Tx: serial::Write<u8>,
     T: CountDown,
     BufLen: ArrayLength<u8>,
+    ComCapacity: ArrayLength<ComItem>,
+    ResCapacity: ArrayLength<ResItem<BufLen>>,
+    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
     /// Serial writer
     tx: Tx,
 
     /// The response consumer receives responses from the ingress manager
-    res_c: ResConsumer<BufLen>,
+    res_c: ResConsumer<BufLen, ResCapacity>,
     /// The URC consumer receives URCs from the ingress manager
-    urc_c: UrcConsumer<BufLen>,
+    urc_c: UrcConsumer<BufLen, UrcCapacity>,
     /// The command producer can send commands to the ingress manager
-    com_p: ComProducer,
+    com_p: ComProducer<ComCapacity>,
 
     state: ClientState,
     timer: T,
     config: Config,
 }
 
-impl<Tx, T, BufLen> Client<Tx, T, BufLen>
+impl<Tx, T, BufLen, ComCapacity, ResCapacity, UrcCapacity>
+    Client<Tx, T, BufLen, ComCapacity, ResCapacity, UrcCapacity>
 where
     Tx: serial::Write<u8>,
     T: CountDown,
     T::Time: From<u32>,
     BufLen: ArrayLength<u8>,
+    ComCapacity: ArrayLength<ComItem>,
+    ResCapacity: ArrayLength<ResItem<BufLen>>,
+    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
     pub fn new(
         tx: Tx,
-        res_c: ResConsumer<BufLen>,
-        urc_c: UrcConsumer<BufLen>,
-        com_p: ComProducer,
+        res_c: ResConsumer<BufLen, ResCapacity>,
+        urc_c: UrcConsumer<BufLen, UrcCapacity>,
+        com_p: ComProducer<ComCapacity>,
         timer: T,
         config: Config,
     ) -> Self {
@@ -70,12 +83,16 @@ where
     }
 }
 
-impl<Tx, T, BufLen> AtatClient for Client<Tx, T, BufLen>
+impl<Tx, T, BufLen, ComCapacity, ResCapacity, UrcCapacity> AtatClient
+    for Client<Tx, T, BufLen, ComCapacity, ResCapacity, UrcCapacity>
 where
     Tx: serial::Write<u8>,
     T: CountDown,
     T::Time: From<u32>,
     BufLen: ArrayLength<u8>,
+    ComCapacity: ArrayLength<ComItem>,
+    ResCapacity: ArrayLength<ResItem<BufLen>>,
+    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
     fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {
         if let ClientState::Idle = self.state {
@@ -325,22 +342,33 @@ mod test {
         MessageWaitingIndication(MessageWaitingIndication),
     }
 
-    type TestRxBufLen = consts::U512;
+    type TestRxBufLen = consts::U256;
+    type TestComCapacity = consts::U3;
+    type TestResCapacity = consts::U5;
+    type TestUrcCapacity = consts::U10;
 
     macro_rules! setup {
         ($config:expr) => {{
-            static mut RES_Q: queues::ResQueue<TestRxBufLen> = Queue(heapless::i::Queue::u8());
+            static mut RES_Q: queues::ResQueue<TestRxBufLen, TestResCapacity> =
+                Queue(heapless::i::Queue::u8());
             let (res_p, res_c) = unsafe { RES_Q.split() };
-            static mut URC_Q: queues::UrcQueue<TestRxBufLen> = Queue(heapless::i::Queue::u8());
+            static mut URC_Q: queues::UrcQueue<TestRxBufLen, TestUrcCapacity> =
+                Queue(heapless::i::Queue::u8());
             let (urc_p, urc_c) = unsafe { URC_Q.split() };
-            static mut COM_Q: queues::ComQueue = Queue(heapless::i::Queue::u8());
+            static mut COM_Q: queues::ComQueue<TestComCapacity> = Queue(heapless::i::Queue::u8());
             let (com_p, _com_c) = unsafe { COM_Q.split() };
 
             let timer = CdMock { time: 0 };
 
             let tx_mock = TxMock::new(String::new());
-            let client: Client<TxMock, CdMock, TestRxBufLen> =
-                Client::new(tx_mock, res_c, urc_c, com_p, timer, $config);
+            let client: Client<
+                TxMock,
+                CdMock,
+                TestRxBufLen,
+                TestComCapacity,
+                TestResCapacity,
+                TestUrcCapacity,
+            > = Client::new(tx_mock, res_c, urc_c, com_p, timer, $config);
             (client, res_p, urc_p)
         }};
     }
