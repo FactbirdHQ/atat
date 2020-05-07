@@ -349,7 +349,7 @@ macro_rules! driver {
         let (com_p, com_c) = unsafe { COM_QUEUE.split() };
 
         let parser =
-            ::atat::IngressManager::with_custom_urc_matcher(res_p, urc_p, com_c, $config, $matcher);
+            ::atat::IngressManager::with_custom_urc_matcher(res_p, urc_p, com_c, $config, Some($matcher));
         let client = ::atat::Client::new($tx, res_c, urc_c, com_p, $timer, $config);
 
         (client, parser)
