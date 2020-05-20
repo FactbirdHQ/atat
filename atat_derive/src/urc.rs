@@ -61,6 +61,7 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
         impl #impl_generics atat::AtatUrc for #ident #ty_generics #where_clause {
             type Response = #ident;
 
+            #[inline]
             fn parse(resp: &[u8]) -> ::core::result::Result<Self::Response, atat::Error> {
                 if let Some(index) = resp.iter().position(|&x| x == b':') {
                     Ok(match &resp[..index] {

@@ -6,14 +6,40 @@ use serde::ser;
 
 use heapless::{consts::*, String, Vec};
 
-use self::struct_::SerializeStruct;
-
 mod struct_;
+mod enum_;
+
+use self::struct_::SerializeStruct;
+use self::enum_::{SerializeStructVariant, SerializeTupleVariant};
 
 /// Serialization result
 pub type Result<T> = ::core::result::Result<T, Error>;
 
-#[derive(Clone)]
+/// Wrapper type to allow serializing a byte slice as bytes, rather than as a
+/// sequence (array)
+///
+/// Example:
+/// ```
+/// use serde_at::{to_string, SerializeOptions, Bytes};
+/// use heapless::{consts, String};
+/// use serde_derive::Serialize;
+///
+/// #[derive(Clone, PartialEq, Serialize)]
+/// pub struct WithBytes<'a> {
+///     s: Bytes<'a>
+/// };
+///
+/// let slice = b"Some bytes";
+/// let b = WithBytes { s: Bytes(&slice[..]) };
+/// let s: String<consts::U32> = to_string(
+///     &b,
+///     String::<consts::U32>::from("+CMD"),
+///     SerializeOptions::default(),
+/// ).unwrap();
+///
+/// assert_eq!(s, String::<consts::U32>::from("AT+CMD=Some bytes\r\n"));
+/// ```
+#[derive(Clone, PartialEq)]
 pub struct Bytes<'a>(pub &'a [u8]);
 
 impl<'a> serde::Serialize for Bytes<'a> {
@@ -25,9 +51,20 @@ impl<'a> serde::Serialize for Bytes<'a> {
     }
 }
 
+/// Options used by the serializer, to customize the resulting string
 pub struct SerializeOptions<'a> {
+    /// Wether or not to include `=` as a seperator between the at command, and
+    /// the parameters (serialized struct fields)
+    ///
+    /// **default**: true
     pub value_sep: bool,
+    /// The prefix, added before the command.
+    ///
+    /// **default**: "AT"
     pub cmd_prefix: &'a str,
+    /// The termination characters to add after the last serialized parameter.
+    ///
+    /// **default**: "\r\n"
     pub termination: &'a str,
 }
 
@@ -41,7 +78,8 @@ impl<'a> Default for SerializeOptions<'a> {
     }
 }
 
-/// This type represents all possible errors that can occur when serializing AT Command strings
+/// This type represents all possible errors that can occur when serializing AT
+/// Command strings
 #[derive(Debug)]
 pub enum Error {
     /// Buffer is full
@@ -169,10 +207,10 @@ where
     type SerializeSeq = Unreachable;
     type SerializeTuple = Unreachable;
     type SerializeTupleStruct = Unreachable;
-    type SerializeTupleVariant = Unreachable;
+    type SerializeTupleVariant = SerializeTupleVariant<'a, 'b, B, C>;
     type SerializeMap = Unreachable;
     type SerializeStruct = SerializeStruct<'a, 'b, B, C>;
-    type SerializeStructVariant = Unreachable;
+    type SerializeStructVariant = SerializeStructVariant<'a, 'b, B, C>;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok> {
         if v {
@@ -232,8 +270,11 @@ where
         serialize_fmt!(self, U32, "{:e}", v)
     }
 
-    fn serialize_char(self, _v: char) -> Result<Self::Ok> {
-        unreachable!()
+    fn serialize_char(self, v: char) -> Result<Self::Ok> {
+        self.buf.push(b'"')?;
+        self.buf.push(v as u8)?;
+        self.buf.push(b'"')?;
+        Ok(())
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
@@ -323,11 +364,13 @@ where
     fn serialize_tuple_variant(
         self,
         _name: &'static str,
-        _variant_index: u32,
+        variant_index: u32,
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        unreachable!()
+        self.serialize_u32(variant_index)?;
+        self.buf.push(b',')?;
+        Ok(SerializeTupleVariant::new(self))
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
@@ -344,11 +387,13 @@ where
     fn serialize_struct_variant(
         self,
         _name: &'static str,
-        _variant_index: u32,
+        variant_index: u32,
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        unreachable!()
+        self.serialize_u32(variant_index)?;
+        self.buf.push(b',')?;
+        Ok(SerializeStructVariant::new(self))
     }
 
     fn collect_str<T: ?Sized>(self, _value: &T) -> Result<Self::Ok> {
@@ -409,19 +454,6 @@ impl ser::SerializeTupleStruct for Unreachable {
     }
 }
 
-impl ser::SerializeTupleVariant for Unreachable {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T: ?Sized>(&mut self, _value: &T) -> Result<()> {
-        unreachable!()
-    }
-
-    fn end(self) -> Result<Self::Ok> {
-        unreachable!()
-    }
-}
-
 impl ser::SerializeMap for Unreachable {
     type Ok = ();
     type Error = Error;
@@ -434,22 +466,6 @@ impl ser::SerializeMap for Unreachable {
     }
 
     fn serialize_value<T: ?Sized>(&mut self, _value: &T) -> Result<()>
-    where
-        T: ser::Serialize,
-    {
-        unreachable!()
-    }
-
-    fn end(self) -> Result<Self::Ok> {
-        unreachable!()
-    }
-}
-
-impl ser::SerializeStructVariant for Unreachable {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T: ?Sized>(&mut self, _key: &'static str, _value: &T) -> Result<()>
     where
         T: ser::Serialize,
     {

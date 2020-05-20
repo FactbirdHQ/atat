@@ -39,6 +39,7 @@ mod len;
 mod parse;
 mod resp;
 mod urc;
+mod helpers;
 
 use crate::proc_macro::TokenStream;
 
@@ -72,6 +73,30 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 /// Furthermore it automatically implements [`atat::AtatLen`], based on the data
 /// type given in the container attribute.
 ///
+/// **NOTE**: When using this derive macro with struct or tuple variants in the enum, one
+/// should take extra care to avoid large size variations of the variants, as the
+/// resulting AtatLen of the enum will be the length of the representation
+/// (see `#[at_enum(..)]`) together with the largest sum of field values in the variant.
+///
+/// Eg.
+/// ```
+/// use heapless::{consts, String};
+///
+/// #[derive(AtatEnum)]
+/// pub enum LargeSizeVariations {
+///     #[at_arg(value = 0)]
+///     VariantOne,
+///     #[at_arg(value = 1)]
+///     VariantTwo(u8),
+///     #[at_arg(value = 2)]
+///     VariantThree(String<consts::U1024>)
+///     #[at_arg(value = 2)]
+///     VariantFour(String<consts::U10>, String<consts::U10>, String<consts::U10>)
+/// }
+/// ```
+/// will result in `<LargeSizeVariations as AtatLen>::Len == consts::U1026`, even for
+/// `LargeSizeVariations::VariantOne`
+///
 /// ### Container attribute (`#[at_enum(..)]`)
 /// The AtatEnum derive macro comes with an option of annotating the struct with
 /// a container attribute `#[at_enum(..)]`.
@@ -79,8 +104,9 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 /// The container attribute only allows specifying a single parameter, that is
 /// non-optional if the container attribute is present. The parameter allows
 /// describing the underlying data type of the enum, and thus the maximum
-/// allowed value of the fields. Only integer types are allowed (`u8`, `u16`, `u32`,
-/// `u64`, `u128`, `i8`, `i16`, `i32`, `i64`, `i128`, `usize`, `isize`). Eg. `#[at_enum(u16)]`.
+/// allowed value of the fields. Only integer types are allowed (`u8`, `u16`,
+/// `u32`, `u64`, `u128`, `i8`, `i16`, `i32`, `i64`, `i128`, `usize`, `isize`).
+/// Eg. `#[at_enum(u16)]`.
 ///
 /// **Note**: `at_enum` defaults to `u8`
 ///

@@ -572,8 +572,7 @@ mod test {
         };
 
         let response = Vec::<u8, TestRxBufLen>::from_slice(b"+CUN: 22,16,22").unwrap();
-        let resp: Result<Vec<u8, TestRxBufLen>, Error> = Ok(response);
-        p.enqueue(resp).unwrap();
+        p.enqueue(Ok(response)).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::ParseString)));
