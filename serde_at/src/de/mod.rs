@@ -5,7 +5,7 @@ use core::{fmt, str};
 
 use serde::de::{self, Visitor};
 
-use self::enum_::UnitVariantAccess;
+use self::enum_::VariantAccess;
 use self::map::MapAccess;
 use self::seq::SeqAccess;
 
@@ -19,9 +19,6 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// This type represents all possible errors that can occur when deserializing AT Command strings
 #[derive(Debug, PartialEq)]
 pub enum Error {
-    /// EOF while parsing a list.
-    EofWhileParsingList,
-
     /// EOF while parsing an object.
     EofWhileParsingObject,
 
@@ -33,15 +30,6 @@ pub enum Error {
 
     /// EOF while parsing an AT Command string.
     EofWhileParsingValue,
-
-    /// Expected this character to be a `':'`.
-    ExpectedColon,
-
-    /// Expected this character to be either a `','` or a `']'`.
-    ExpectedListCommaOrEnd,
-
-    /// Expected this character to be either a `','` or a `'}'`.
-    ExpectedObjectCommaOrEnd,
 
     /// Expected to parse either a `true`, `false`, or a `null`.
     ExpectedSomeIdent,
@@ -57,9 +45,6 @@ pub enum Error {
 
     /// Invalid unicode code point.
     InvalidUnicodeCodePoint,
-
-    /// Object key is not a string.
-    KeyMustBeAString,
 
     /// AT Command string has non-whitespace trailing characters after the value.
     TrailingCharacters,
@@ -536,7 +521,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
-        visitor.visit_enum(UnitVariantAccess::new(self))
+        visitor.visit_enum(VariantAccess::new(self))
     }
 
     fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value>
@@ -593,21 +578,9 @@ impl fmt::Display for Error {
             f,
             "{}",
             match self {
-                Error::EofWhileParsingList => "EOF while parsing a list.",
                 Error::EofWhileParsingObject => "EOF while parsing an object.",
                 Error::EofWhileParsingString => "EOF while parsing a string.",
                 Error::EofWhileParsingValue => "EOF while parsing an AT Command string.",
-                Error::ExpectedColon => "Expected this character to be a `':'`.",
-                Error::ExpectedListCommaOrEnd => {
-                    "Expected this character to be either a `','` or\
-                     a \
-                     `']'`."
-                }
-                Error::ExpectedObjectCommaOrEnd => {
-                    "Expected this character to be either a `','` \
-                     or a \
-                     `'}'`."
-                }
                 Error::ExpectedSomeIdent => {
                     "Expected to parse either a `true`, `false`, or a \
                      `null`."
@@ -617,14 +590,11 @@ impl fmt::Display for Error {
                 Error::InvalidNumber => "Invalid number.",
                 Error::InvalidType => "Invalid type",
                 Error::InvalidUnicodeCodePoint => "Invalid unicode code point.",
-                Error::KeyMustBeAString => "Object key is not a string.",
                 Error::TrailingCharacters => {
                     "AT Command string has non-whitespace trailing characters after \
                      the \
                      value."
                 }
-                Error::TrailingComma =>
-                    "AT Command string has a comma after the last value in an array or map.",
                 Error::CustomError =>
                     "AT Command string does not match deserializer’s expected format.",
                 #[cfg(feature = "custom-error-messages")]
