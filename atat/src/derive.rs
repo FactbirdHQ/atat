@@ -105,10 +105,7 @@ mod tests {
             d: SimpleEnum,
         },
         #[at_arg(value = 6)]
-        SingleSimpleTupleLifetime(
-            #[at_arg(len = 10)]
-            &'a str
-        ),
+        SingleSimpleTupleLifetime(#[at_arg(len = 10)] &'a str),
     }
 
     #[derive(Debug, PartialEq, AtatCmd)]
@@ -249,9 +246,7 @@ mod tests {
         );
 
         assert_eq!(
-            Ok(MixedEnum::SingleSimpleTupleLifetime(
-                "abc"
-            )),
+            Ok(MixedEnum::SingleSimpleTupleLifetime("abc")),
             from_str::<MixedEnum>(":6,\"abc\"")
         );
     }

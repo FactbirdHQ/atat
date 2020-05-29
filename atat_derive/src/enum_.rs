@@ -92,7 +92,6 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
     let (serialize_impl_generics, serialize_ty_generics, serialize_where_clause) =
         serialize_generics.split_for_impl();
 
-
     for (i, variant) in variants.iter().enumerate() {
         let variant_ident = variant.ident.clone().unwrap();
         let variant_ident_str = variant_ident.to_string();
@@ -236,7 +235,6 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         ident: anon_ident,
         fields: anon_fields,
     } = anonymous_enum;
-
 
     let (atat_len_impl_generics, atat_len_ty_generics, atat_len_where_clause) =
         atat_len_generics.split_for_impl();
