@@ -23,7 +23,6 @@ where
     }
 }
 
-
 impl<'a, 'b, B, C> ser::SerializeTupleVariant for SerializeTupleVariant<'a, 'b, B, C>
 where
     B: ArrayLength<u8>,
@@ -49,7 +48,6 @@ where
         Ok(())
     }
 }
-
 
 pub struct SerializeStructVariant<'a, 'b, B, C>
 where

@@ -313,6 +313,8 @@ impl Config {
     }
 }
 
+pub struct ClientBuilder {}
+
 /// Macro to ease the setup of queues, [`Client`] and [`IngressManager`]
 ///
 #[macro_export]
@@ -324,7 +326,7 @@ macro_rules! driver {
         driver!($tx, $timer, $config, $matcher, consts::U256)
     };
     ($tx:expr, $timer:expr, $config:expr, $rxbuflen:ty) => {
-        driver!($tx, $timer, $config, None, $rxbuflen,)
+        driver!($tx, $timer, $config, None, $rxbuflen)
     };
     ($tx:expr, $timer:expr, $config:expr, $matcher:expr, $rxbuflen:ty) => {
         driver!(

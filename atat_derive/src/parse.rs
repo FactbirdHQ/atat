@@ -2,7 +2,7 @@ use proc_macro2::Span;
 use syn::parse::{Error, Parse, ParseStream, Parser, Result};
 use syn::{
     parenthesized, Attribute, Data, DataEnum, DataStruct, DeriveInput, Fields, Generics, Ident,
-    Lit, LitByteStr, Type, Path
+    Lit, LitByteStr, Path, Type,
 };
 
 #[derive(Clone)]
@@ -194,9 +194,7 @@ impl Parse for ArgAttributes {
                 }
             } else if name_value.path.is_ident("len") {
                 match name_value.lit.clone() {
-                    Lit::Int(v) => {
-                        attrs.len = Some(v.base10_parse().unwrap())
-                    },
+                    Lit::Int(v) => attrs.len = Some(v.base10_parse().unwrap()),
                     _ => {
                         return Err(Error::new(
                             Span::call_site(),

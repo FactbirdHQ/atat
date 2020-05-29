@@ -55,7 +55,10 @@ pub fn add_type_parameter_bound(
         bounds: vec![trait_bound].iter().cloned().collect(),
         lifetimes: None,
     };
-    generics.make_where_clause().predicates.push(where_type.into());
+    generics
+        .make_where_clause()
+        .predicates
+        .push(where_type.into());
 }
 
 pub fn deserialize_struct(

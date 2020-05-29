@@ -6,11 +6,11 @@ use serde::ser;
 
 use heapless::{consts::*, String, Vec};
 
-mod struct_;
 mod enum_;
+mod struct_;
 
-use self::struct_::SerializeStruct;
 use self::enum_::{SerializeStructVariant, SerializeTupleVariant};
+use self::struct_::SerializeStruct;
 
 /// Serialization result
 pub type Result<T> = ::core::result::Result<T, Error>;
