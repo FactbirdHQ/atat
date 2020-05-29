@@ -18,6 +18,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 /// This type represents all possible errors that can occur when deserializing AT Command strings
 #[derive(Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Error {
     /// EOF while parsing an object.
     EofWhileParsingObject,
@@ -58,9 +59,6 @@ pub enum Error {
     /// Error with a custom message that was preserved.
     #[cfg(feature = "custom-error-messages")]
     CustomErrorWithMessage(heapless::String<heapless::consts::U128>),
-
-    #[doc(hidden)]
-    __Extensible,
 }
 
 pub(crate) struct Deserializer<'b> {
@@ -653,16 +651,6 @@ mod tests {
         pub ccid: u128,
     }
 
-    #[derive(Clone, Debug, Deserialize, PartialEq)]
-    pub struct StringTest {
-        pub string: String<consts::U32>,
-    }
-
-    #[derive(Debug, Deserialize, PartialEq)]
-    struct VecTest {
-        vec: Vec<u8, consts::U32>,
-    }
-
     #[derive(Clone, Debug, PartialEq, Deserialize)]
     struct Handle(pub usize);
 
@@ -708,6 +696,11 @@ mod tests {
     }
     #[test]
     fn simple_string() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct StringTest {
+            pub string: String<consts::U32>,
+        }
+
         assert_eq!(
             crate::from_str("+CCID: \"89883030000005421166\""),
             Ok(StringTest {
@@ -717,11 +710,17 @@ mod tests {
     }
 
     #[test]
+    // Not sure if this is the way it should actually be implemented?!
     #[ignore]
     fn simple_vec() {
-        let mut vec = Vec::new();
-        vec.extend_from_slice(&[8, 9, 8, 8, 3, 0, 3, 0, 0, 0, 0, 0, 0, 5, 4, 2, 1, 1, 6, 6])
-            .unwrap();
+        #[derive(Debug, Deserialize, PartialEq)]
+        struct VecTest {
+            vec: Vec<u8, consts::U32>,
+        }
+
+        let vec =
+            Vec::from_slice(&[8, 9, 8, 8, 3, 0, 3, 0, 0, 0, 0, 0, 0, 5, 4, 2, 1, 1, 6, 6]).unwrap();
+
         assert_eq!(
             crate::from_slice("+CCID: \"89883030000005421166\"".as_bytes()),
             Ok(VecTest { vec })
