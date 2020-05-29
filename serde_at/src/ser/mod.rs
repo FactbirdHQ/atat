@@ -81,11 +81,10 @@ impl<'a> Default for SerializeOptions<'a> {
 /// This type represents all possible errors that can occur when serializing AT
 /// Command strings
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// Buffer is full
     BufferFull,
-    #[doc(hidden)]
-    __Extensible,
 }
 
 impl From<()> for Error {
