@@ -328,15 +328,15 @@ where
     ResCapacity: ArrayLength<ResItem<BufLen>>,
     UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
-    res_queue: (
+    pub res_queue: (
         ResProducer<BufLen, ResCapacity>,
         ResConsumer<BufLen, ResCapacity>,
     ),
-    urc_queue: (
+    pub urc_queue: (
         UrcProducer<BufLen, UrcCapacity>,
         UrcConsumer<BufLen, UrcCapacity>,
     ),
-    com_queue: (ComProducer<ComCapacity>, ComConsumer<ComCapacity>),
+    pub com_queue: (ComProducer<ComCapacity>, ComConsumer<ComCapacity>),
 }
 
 /// Builder to set up a [`Client`] and [`IngressManager`] pair.
@@ -351,6 +351,7 @@ pub struct ClientBuilder<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity
     timer: T,
     config: Config,
     custom_urc_matcher: Option<U>,
+    #[doc(hidden)]
     _internal: core::marker::PhantomData<(BufLen, ComCapacity, ResCapacity, UrcCapacity)>,
 }
 
@@ -380,6 +381,7 @@ where
             timer,
             config,
             custom_urc_matcher: None,
+            #[doc(hidden)]
             _internal: core::marker::PhantomData,
         }
     }
