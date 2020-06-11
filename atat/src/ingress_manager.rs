@@ -389,16 +389,15 @@ where
         self.handle_com();
 
         // Trim leading whitespace
-        if let Some(c) = self.buf.get(0) {
-            if c == &self.line_term_char || c == &self.format_char {
-                self.buf = Vec::from_slice(self.buf.trim_start(&[
-                        b'\t',
-                        b' ',
-                        self.format_char,
-                        self.line_term_char,
-                    ]))
-                    .unwrap();
-            }
+        if self.buf.starts_with(&[self.line_term_char]) || self.buf.starts_with(&[self.format_char])
+        {
+            self.buf = Vec::from_slice(self.buf.trim_start(&[
+                b'\t',
+                b' ',
+                self.format_char,
+                self.line_term_char,
+            ]))
+            .unwrap();
         }
 
         #[cfg(feature = "logging")]

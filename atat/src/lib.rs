@@ -199,7 +199,9 @@ pub use self::derive::AtatLen;
 
 pub use self::client::Client;
 pub use self::error::Error;
-pub use self::ingress_manager::{IngressManager, NoopUrcMatcher, UrcMatcher, UrcMatcherResult, get_line};
+pub use self::ingress_manager::{
+    get_line, IngressManager, NoopUrcMatcher, UrcMatcher, UrcMatcherResult,
+};
 pub use self::queues::{ComQueue, ResQueue, UrcQueue};
 pub use self::traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 
