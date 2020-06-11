@@ -27,7 +27,7 @@ use hal::{
     timer::{Event, Timer},
 };
 
-use atat::{driver, prelude::*};
+use atat::{prelude::*, ClientBuilder, ComQueue, Queues, ResQueue, UrcQueue};
 
 use heapless::{consts, spsc::Queue, String};
 
@@ -76,8 +76,19 @@ fn main() -> ! {
 
     serial.listen(Rxne);
 
+    static mut RES_QUEUE: ResQueue<consts::U256, consts::U5> = Queue(heapless::i::Queue::u8());
+    static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
+    static mut COM_QUEUE: ComQueue<consts::U3> = Queue(heapless::i::Queue::u8());
+
+    let queues = Queues {
+        res_queue: unsafe { RES_QUEUE.split() },
+        urc_queue: unsafe { URC_QUEUE.split() },
+        com_queue: unsafe { COM_QUEUE.split() },
+    };
+
     let (tx, rx) = serial.split();
-    let (mut client, ingress) = driver!(tx, at_timer, atat::Config::new(atat::Mode::Timeout));
+    let (mut client, ingress) =
+        ClientBuilder::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout)).build(queues);
 
     unsafe { INGRESS = Some(ingress) };
     unsafe { RX = Some(rx) };
