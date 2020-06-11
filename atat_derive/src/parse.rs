@@ -37,7 +37,7 @@ pub struct ArgAttributes {
 /// Parsed attributes of `#[at_urc(..)]`
 #[derive(Clone)]
 pub struct UrcAttributes {
-    pub code: LitStr,
+    pub code: LitByteStr,
 }
 
 /// Parsed attributes of `#[at_enum(..)]`
@@ -213,8 +213,8 @@ impl Parse for ArgAttributes {
 impl Parse for UrcAttributes {
     fn parse(input: ParseStream) -> Result<Self> {
         let code = match input.parse::<syn::Lit>()? {
-            // Lit::ByteStr(b) => b,
-            Lit::Str(s) => s,
+            Lit::ByteStr(b) => b,
+            Lit::Str(s) => LitByteStr::new(s.value().as_bytes(), input.span()),
             _ => {
                 return Err(Error::new(
                     input.span(),

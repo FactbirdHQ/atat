@@ -338,7 +338,7 @@ mod test {
 
     #[derive(Clone, AtatUrc)]
     pub enum Urc {
-        #[at_urc(b"+UMWI")]
+        #[at_urc("+UMWI")]
         MessageWaitingIndication(MessageWaitingIndication),
     }
 
