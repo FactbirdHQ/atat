@@ -80,7 +80,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         })
         .unzip();
 
-    let struct_len = crate::len::struct_len(variants);
+    let struct_len = crate::len::struct_len(variants, n_fields.checked_sub(1).unwrap_or(n_fields));
 
     TokenStream::from(quote! {
         #[automatically_derived]
@@ -93,6 +93,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             type Response = #resp;
             type CommandLen = <<Self as atat::AtatLen>::Len as core::ops::Add<::heapless::consts::#cmd_len_ident>>::Output;
 
+            #[inline]
             fn as_bytes(&self) -> ::heapless::Vec<u8, Self::CommandLen> {
                 let s: ::heapless::String<::heapless::consts::#subcmd_len_ident> = ::heapless::String::from(#cmd);
                 match serde_at::to_vec(self, s, serde_at::SerializeOptions {
@@ -105,6 +106,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
                 }
             }
 
+            #[inline]
             fn parse(&self, resp: &[u8]) -> core::result::Result<#resp, atat::Error> {
                 serde_at::from_slice::<#resp>(resp).map_err(|e| {
                     atat::Error::ParseString
@@ -120,6 +122,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
         #[automatically_derived]
         impl #impl_generics serde::Serialize for #ident #ty_generics #where_clause {
+            #[inline]
             fn serialize<S>(
                 &self,
                 serializer: S,

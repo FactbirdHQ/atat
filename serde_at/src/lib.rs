@@ -12,7 +12,7 @@ pub use serde;
 #[doc(inline)]
 pub use self::de::{from_slice, from_str};
 #[doc(inline)]
-pub use self::ser::{to_string, to_vec, SerializeOptions};
+pub use self::ser::{to_string, to_vec, Bytes, SerializeOptions};
 
 unsafe fn uninitialized<T>() -> T {
     core::mem::MaybeUninit::uninit().assume_init()

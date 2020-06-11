@@ -2,7 +2,7 @@ use proc_macro2::Span;
 use syn::parse::{Error, Parse, ParseStream, Parser, Result};
 use syn::{
     parenthesized, Attribute, Data, DataEnum, DataStruct, DeriveInput, Fields, Generics, Ident,
-    Lit, LitByteStr, Type,
+    Lit, LitByteStr, Path, Type,
 };
 
 #[derive(Clone)]
@@ -18,7 +18,7 @@ pub struct ParseInput {
 #[derive(Clone)]
 pub struct CmdAttributes {
     pub cmd: String,
-    pub resp: Ident,
+    pub resp: Path,
     pub timeout_ms: Option<u32>,
     pub abortable: Option<bool>,
     pub force_receive_state: Option<bool>,
@@ -46,6 +46,7 @@ pub struct EnumAttributes {
     pub repr: Ident,
 }
 
+/// Parsed field level attributes
 #[derive(Clone)]
 pub struct FieldAttributes {
     pub at_urc: Option<UrcAttributes>,
@@ -65,7 +66,7 @@ pub struct Variant {
 }
 
 /// Parse valid field attributes
-fn parse_field_attr(attributes: Vec<Attribute>) -> Result<FieldAttributes> {
+pub fn parse_field_attr(attributes: Vec<Attribute>) -> Result<FieldAttributes> {
     let mut attrs = FieldAttributes {
         at_urc: None,
         at_arg: None,
@@ -231,7 +232,7 @@ impl Parse for CmdAttributes {
         let call_site = Span::call_site();
         let cmd = input.parse::<syn::LitStr>()?;
         let _comma = input.parse::<syn::token::Comma>()?;
-        let response_ident = input.parse::<syn::Ident>()?;
+        let response_ident = input.parse::<Path>()?;
 
         let mut at_cmd = CmdAttributes {
             cmd: cmd.value(),

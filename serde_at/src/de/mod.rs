@@ -5,7 +5,7 @@ use core::{fmt, str};
 
 use serde::de::{self, Visitor};
 
-use self::enum_::UnitVariantAccess;
+use self::enum_::VariantAccess;
 use self::map::MapAccess;
 use self::seq::SeqAccess;
 
@@ -18,10 +18,8 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 /// This type represents all possible errors that can occur when deserializing AT Command strings
 #[derive(Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Error {
-    /// EOF while parsing a list.
-    EofWhileParsingList,
-
     /// EOF while parsing an object.
     EofWhileParsingObject,
 
@@ -33,15 +31,6 @@ pub enum Error {
 
     /// EOF while parsing an AT Command string.
     EofWhileParsingValue,
-
-    /// Expected this character to be a `':'`.
-    ExpectedColon,
-
-    /// Expected this character to be either a `','` or a `']'`.
-    ExpectedListCommaOrEnd,
-
-    /// Expected this character to be either a `','` or a `'}'`.
-    ExpectedObjectCommaOrEnd,
 
     /// Expected to parse either a `true`, `false`, or a `null`.
     ExpectedSomeIdent,
@@ -58,9 +47,6 @@ pub enum Error {
     /// Invalid unicode code point.
     InvalidUnicodeCodePoint,
 
-    /// Object key is not a string.
-    KeyMustBeAString,
-
     /// AT Command string has non-whitespace trailing characters after the value.
     TrailingCharacters,
 
@@ -73,9 +59,6 @@ pub enum Error {
     /// Error with a custom message that was preserved.
     #[cfg(feature = "custom-error-messages")]
     CustomErrorWithMessage(heapless::String<heapless::consts::U128>),
-
-    #[doc(hidden)]
-    __Extensible,
 }
 
 pub(crate) struct Deserializer<'b> {
@@ -536,7 +519,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
-        visitor.visit_enum(UnitVariantAccess::new(self))
+        visitor.visit_enum(VariantAccess::new(self))
     }
 
     fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value>
@@ -593,21 +576,9 @@ impl fmt::Display for Error {
             f,
             "{}",
             match self {
-                Error::EofWhileParsingList => "EOF while parsing a list.",
                 Error::EofWhileParsingObject => "EOF while parsing an object.",
                 Error::EofWhileParsingString => "EOF while parsing a string.",
                 Error::EofWhileParsingValue => "EOF while parsing an AT Command string.",
-                Error::ExpectedColon => "Expected this character to be a `':'`.",
-                Error::ExpectedListCommaOrEnd => {
-                    "Expected this character to be either a `','` or\
-                     a \
-                     `']'`."
-                }
-                Error::ExpectedObjectCommaOrEnd => {
-                    "Expected this character to be either a `','` \
-                     or a \
-                     `'}'`."
-                }
                 Error::ExpectedSomeIdent => {
                     "Expected to parse either a `true`, `false`, or a \
                      `null`."
@@ -617,14 +588,11 @@ impl fmt::Display for Error {
                 Error::InvalidNumber => "Invalid number.",
                 Error::InvalidType => "Invalid type",
                 Error::InvalidUnicodeCodePoint => "Invalid unicode code point.",
-                Error::KeyMustBeAString => "Object key is not a string.",
                 Error::TrailingCharacters => {
                     "AT Command string has non-whitespace trailing characters after \
                      the \
                      value."
                 }
-                Error::TrailingComma =>
-                    "AT Command string has a comma after the last value in an array or map.",
                 Error::CustomError =>
                     "AT Command string does not match deserializer’s expected format.",
                 #[cfg(feature = "custom-error-messages")]
@@ -683,16 +651,6 @@ mod tests {
         pub ccid: u128,
     }
 
-    #[derive(Clone, Debug, Deserialize, PartialEq)]
-    pub struct StringTest {
-        pub string: String<consts::U32>,
-    }
-
-    #[derive(Debug, Deserialize, PartialEq)]
-    struct VecTest {
-        vec: Vec<u8, consts::U32>,
-    }
-
     #[derive(Clone, Debug, PartialEq, Deserialize)]
     struct Handle(pub usize);
 
@@ -738,6 +696,11 @@ mod tests {
     }
     #[test]
     fn simple_string() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct StringTest {
+            pub string: String<consts::U32>,
+        }
+
         assert_eq!(
             crate::from_str("+CCID: \"89883030000005421166\""),
             Ok(StringTest {
@@ -747,11 +710,17 @@ mod tests {
     }
 
     #[test]
+    // Not sure if this is the way it should actually be implemented?!
     #[ignore]
     fn simple_vec() {
-        let mut vec = Vec::new();
-        vec.extend_from_slice(&[8, 9, 8, 8, 3, 0, 3, 0, 0, 0, 0, 0, 0, 5, 4, 2, 1, 1, 6, 6])
-            .unwrap();
+        #[derive(Debug, Deserialize, PartialEq)]
+        struct VecTest {
+            vec: Vec<u8, consts::U32>,
+        }
+
+        let vec =
+            Vec::from_slice(&[8, 9, 8, 8, 3, 0, 3, 0, 0, 0, 0, 0, 0, 5, 4, 2, 1, 1, 6, 6]).unwrap();
+
         assert_eq!(
             crate::from_slice("+CCID: \"89883030000005421166\"".as_bytes()),
             Ok(VecTest { vec })
