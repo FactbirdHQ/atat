@@ -1,7 +1,7 @@
 use heapless::{consts, ArrayLength, Vec};
 
 use crate::error::Error;
-use crate::queues::{ComConsumer, ResProducer, UrcProducer};
+use crate::queues::{ComConsumer, ComItem, ResItem, ResProducer, UrcItem, UrcProducer};
 use crate::{Command, Config};
 
 use core::iter::FromIterator;
@@ -54,7 +54,7 @@ impl SliceExt for [u8] {
 /// assert_eq!(response, heapless::String::from("+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n"));
 /// assert_eq!(buf, heapless::String::from("AT+GMR\r\r\n"));
 /// ```
-pub(crate) fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
+pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     buf: &mut Vec<u8, I>,
     needle: &[u8],
     line_term_char: u8,
@@ -160,10 +160,7 @@ pub enum UrcMatcherResult<L: ArrayLength<u8>> {
 ///     }
 /// }
 /// ```
-pub trait UrcMatcher {
-    /// The max length that an URC might have (e.g. `heapless::consts::U256`)
-    type MaxLen: ArrayLength<u8>;
-
+pub trait UrcMatcher<BufLen: ArrayLength<u8>> {
     /// Take a look at `buf`. Then:
     ///
     /// - If the buffer contains a full URC, remove these bytes from the buffer
@@ -174,7 +171,7 @@ pub trait UrcMatcher {
     /// [`Complete`]: enum.UrcMatcherResult.html#variant.Complete
     /// [`Incomplete`]: enum.UrcMatcherResult.html#variant.Incomplete
     /// [`NotHandled`]: enum.UrcMatcherResult.html#variant.NotHandled
-    fn process(&mut self, buf: &mut ByteVec<consts::U256>) -> UrcMatcherResult<Self::MaxLen>;
+    fn process(&mut self, buf: &mut ByteVec<BufLen>) -> UrcMatcherResult<BufLen>;
 }
 
 /// A URC matcher that does nothing (it always returns [`NotHandled`][nothandled]).
@@ -182,26 +179,37 @@ pub trait UrcMatcher {
 /// [nothandled]: enum.UrcMatcherResult.html#variant.NotHandled
 pub struct NoopUrcMatcher {}
 
-impl UrcMatcher for NoopUrcMatcher {
-    type MaxLen = consts::U256;
-    fn process(&mut self, _: &mut ByteVec<consts::U256>) -> UrcMatcherResult<Self::MaxLen> {
+impl<BufLen: ArrayLength<u8>> UrcMatcher<BufLen> for NoopUrcMatcher {
+    fn process(&mut self, _: &mut ByteVec<BufLen>) -> UrcMatcherResult<BufLen> {
         UrcMatcherResult::NotHandled
     }
 }
 
-pub struct IngressManager<U: UrcMatcher = NoopUrcMatcher> {
+pub struct IngressManager<
+    BufLen = consts::U256,
+    U = NoopUrcMatcher,
+    ComCapacity = consts::U3,
+    ResCapacity = consts::U5,
+    UrcCapacity = consts::U10,
+> where
+    BufLen: ArrayLength<u8>,
+    U: UrcMatcher<BufLen>,
+    ComCapacity: ArrayLength<ComItem>,
+    ResCapacity: ArrayLength<ResItem<BufLen>>,
+    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
+{
     /// Buffer holding incoming bytes.
-    buf: ByteVec<consts::U256>,
+    buf: ByteVec<BufLen>,
     /// A flag that is set to `true` when the buffer is cleared
     /// with an incomplete response.
     buf_incomplete: bool,
 
     /// The response producer sends responses to the client
-    res_p: ResProducer,
+    res_p: ResProducer<BufLen, ResCapacity>,
     /// The URC producer sends URCs to the client
-    urc_p: UrcProducer,
+    urc_p: UrcProducer<BufLen, UrcCapacity>,
     /// The command consumer receives commands from the client
-    com_c: ComConsumer,
+    com_c: ComConsumer<ComCapacity>,
 
     /// Current processing state.
     state: State,
@@ -215,20 +223,37 @@ pub struct IngressManager<U: UrcMatcher = NoopUrcMatcher> {
     custom_urc_matcher: Option<U>,
 }
 
-impl IngressManager<NoopUrcMatcher> {
-    pub fn new(res_p: ResProducer, urc_p: UrcProducer, com_c: ComConsumer, config: Config) -> Self {
+impl<BufLen, ComCapacity, ResCapacity, UrcCapacity>
+    IngressManager<BufLen, NoopUrcMatcher, ComCapacity, ResCapacity, UrcCapacity>
+where
+    BufLen: ArrayLength<u8>,
+    ComCapacity: ArrayLength<ComItem>,
+    ResCapacity: ArrayLength<ResItem<BufLen>>,
+    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
+{
+    pub fn new(
+        res_p: ResProducer<BufLen, ResCapacity>,
+        urc_p: UrcProducer<BufLen, UrcCapacity>,
+        com_c: ComConsumer<ComCapacity>,
+        config: Config,
+    ) -> Self {
         Self::with_custom_urc_matcher(res_p, urc_p, com_c, config, None)
     }
 }
 
-impl<U> IngressManager<U>
+impl<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>
+    IngressManager<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>
 where
-    U: UrcMatcher<MaxLen = consts::U256>,
+    U: UrcMatcher<BufLen>,
+    BufLen: ArrayLength<u8>,
+    ComCapacity: ArrayLength<ComItem>,
+    ResCapacity: ArrayLength<ResItem<BufLen>>,
+    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
     pub fn with_custom_urc_matcher(
-        res_p: ResProducer,
-        urc_p: UrcProducer,
-        com_c: ComConsumer,
+        res_p: ResProducer<BufLen, ResCapacity>,
+        urc_p: UrcProducer<BufLen, UrcCapacity>,
+        com_c: ComConsumer<ComCapacity>,
         config: Config,
         custom_urc_matcher: Option<U>,
     ) -> Self {
@@ -255,20 +280,18 @@ where
     pub fn write(&mut self, data: &[u8]) {
         #[cfg(feature = "logging")]
         log::trace!("Receiving {} bytes", data.len());
-        for byte in data {
-            match self.buf.push(*byte) {
-                Ok(_) => {}
-                Err(_) => {
-                    self.notify_response(Err(Error::Overflow));
-                    break;
-                }
+
+        match self.buf.extend_from_slice(data) {
+            Ok(_) => {}
+            Err(_) => {
+                self.notify_response(Err(Error::Overflow));
             }
         }
     }
 
     /// Notify the client that an appropriate response code, or error has been
     /// received
-    fn notify_response(&mut self, resp: Result<ByteVec<consts::U256>, Error>) {
+    fn notify_response(&mut self, resp: Result<ByteVec<BufLen>, Error>) {
         #[cfg(feature = "logging")]
         match &resp {
             Ok(r) => crate::log_str!(debug, "Received response: {:?}", r),
@@ -283,7 +306,7 @@ where
 
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
-    fn notify_urc(&mut self, resp: ByteVec<consts::U256>) {
+    fn notify_urc(&mut self, resp: ByteVec<BufLen>) {
         #[cfg(feature = "logging")]
         crate::log_str!(debug, "Received URC: {:?}", &resp);
 
@@ -335,7 +358,7 @@ where
             #[cfg(feature = "logging")]
             log::trace!("Cleared complete buffer");
         } else {
-            let removed = get_line::<consts::U128, _>(
+            let removed = get_line::<BufLen, _>(
                 &mut self.buf,
                 &[self.line_term_char],
                 self.line_term_char,
@@ -393,7 +416,7 @@ where
 
                 // Handle AT echo responses
                 if !self.buf_incomplete && self.buf.get(0..2) == Some(b"AT") {
-                    if get_line::<consts::U256, _>(
+                    if get_line::<BufLen, _>(
                         &mut self.buf,
                         &[self.line_term_char],
                         self.line_term_char,
@@ -464,7 +487,7 @@ where
                 }
             }
             State::ReceivingResponse => {
-                let resp = if let Some(mut line) = get_line::<consts::U256, _>(
+                let resp = if let Some(mut line) = get_line::<BufLen, _>(
                     &mut self.buf,
                     b"OK",
                     self.line_term_char,
@@ -481,7 +504,7 @@ where
                         true,
                     )
                     .unwrap_or_else(Vec::new))
-                } else if get_line::<consts::U256, _>(
+                } else if get_line::<BufLen, _>(
                     &mut self.buf,
                     b"ERROR",
                     self.line_term_char,
@@ -492,7 +515,7 @@ where
                 .is_some()
                 {
                     Err(Error::InvalidResponse)
-                } else if get_line::<consts::U256, _>(
+                } else if get_line::<BufLen, _>(
                     &mut self.buf,
                     b">",
                     self.line_term_char,
@@ -501,7 +524,7 @@ where
                     false,
                 )
                 .is_some()
-                    || get_line::<consts::U256, _>(
+                    || get_line::<BufLen, _>(
                         &mut self.buf,
                         b"@",
                         self.line_term_char,
@@ -534,13 +557,20 @@ mod test {
     use atat::Mode;
     use heapless::{consts, spsc::Queue};
 
+    type TestRxBufLen = consts::U256;
+    type TestComCapacity = consts::U3;
+    type TestResCapacity = consts::U5;
+    type TestUrcCapacity = consts::U10;
+
     macro_rules! setup {
         ($config:expr, $urch:expr) => {{
-            static mut RES_Q: ResQueue = Queue(heapless::i::Queue::u8());
+            static mut RES_Q: ResQueue<TestRxBufLen, TestResCapacity> =
+                Queue(heapless::i::Queue::u8());
             let (res_p, res_c) = unsafe { RES_Q.split() };
-            static mut URC_Q: UrcQueue = Queue(heapless::i::Queue::u8());
+            static mut URC_Q: UrcQueue<TestRxBufLen, TestUrcCapacity> =
+                Queue(heapless::i::Queue::u8());
             let (urc_p, urc_c) = unsafe { URC_Q.split() };
-            static mut COM_Q: ComQueue = Queue(heapless::i::Queue::u8());
+            static mut COM_Q: ComQueue<TestComCapacity> = Queue(heapless::i::Queue::u8());
             let (_com_p, com_c) = unsafe { COM_Q.split() };
             (
                 IngressManager::with_custom_urc_matcher(res_p, urc_p, com_c, $config, $urch),
@@ -549,7 +579,17 @@ mod test {
             )
         }};
         ($config:expr) => {{
-            let val: (IngressManager<NoopUrcMatcher>, _, _) = setup!($config, None);
+            let val: (
+                IngressManager<
+                    TestRxBufLen,
+                    NoopUrcMatcher,
+                    TestComCapacity,
+                    TestResCapacity,
+                    TestUrcCapacity,
+                >,
+                _,
+                _,
+            ) = setup!($config, None);
             val
         }};
     }
@@ -586,7 +626,7 @@ mod test {
 
         {
             let expectation =
-                Vec::<_, consts::U256>::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
+                Vec::<_, TestRxBufLen>::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
                     .unwrap();
             assert_eq!(at_pars.buf, expectation);
         }
@@ -594,16 +634,16 @@ mod test {
         at_pars.write(b"OK\r\n");
         {
             let expectation =
-                Vec::<_, consts::U256>::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n")
+                Vec::<_, TestRxBufLen>::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n")
                     .unwrap();
             assert_eq!(at_pars.buf, expectation);
         }
         at_pars.digest();
-        assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
+        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
         assert_eq!(at_pars.state, State::Idle);
         {
             let expectation =
-                Vec::<_, consts::U256>::from_slice(b"+USORD: 3,16,\"16 bytes of data\"").unwrap();
+                Vec::<_, TestRxBufLen>::from_slice(b"+USORD: 3,16,\"16 bytes of data\"").unwrap();
             assert_eq!(res_c.dequeue().unwrap(), Ok(expectation));
         }
     }
@@ -621,10 +661,10 @@ mod test {
         at_pars.write(b"AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19\r\nOK\r\n");
         at_pars.digest();
 
-        assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
+        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
         assert_eq!(at_pars.state, State::Idle);
         {
-            let expectation = Vec::<_, consts::U256>::from_slice(b"AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19").unwrap();
+            let expectation = Vec::<_, TestRxBufLen>::from_slice(b"AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19").unwrap();
             assert_eq!(res_c.dequeue().unwrap(), Ok(expectation));
         }
     }
@@ -638,7 +678,7 @@ mod test {
 
         at_pars.write(b"+UUSORD: 3,16,\"16 bytes of data\"\r\n");
         at_pars.digest();
-        assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
+        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
         assert_eq!(at_pars.state, State::Idle);
     }
 
@@ -664,7 +704,7 @@ mod test {
 
         assert_eq!(at_pars.state, State::Idle);
 
-        assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
+        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
         at_pars.write(b"OK\r\n");
         at_pars.digest();
 
@@ -689,7 +729,7 @@ mod test {
         at_pars.digest();
 
         assert_eq!(at_pars.state, State::Idle);
-        assert_eq!(at_pars.buf, Vec::<_, consts::U256>::new());
+        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
         assert_eq!(res_c.dequeue().unwrap(), Err(Error::InvalidResponse));
     }
 
@@ -809,12 +849,11 @@ mod test {
         let conf = Config::new(Mode::Timeout);
 
         struct MyUrcMatcher {}
-        impl UrcMatcher for MyUrcMatcher {
-            type MaxLen = consts::U256;
+        impl UrcMatcher<TestRxBufLen> for MyUrcMatcher {
             fn process(
                 &mut self,
-                buf: &mut ByteVec<consts::U256>,
-            ) -> UrcMatcherResult<Self::MaxLen> {
+                buf: &mut ByteVec<TestRxBufLen>,
+            ) -> UrcMatcherResult<TestRxBufLen> {
                 if buf.len() >= 6 && buf.get(0..6) == Some(b"+match") {
                     let data = buf.clone();
                     buf.truncate(0);

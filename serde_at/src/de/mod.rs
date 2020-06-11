@@ -661,7 +661,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use heapless::{consts, String};
+    use heapless::{consts, String, Vec};
     use serde_derive::Deserialize;
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -686,6 +686,11 @@ mod tests {
     #[derive(Clone, Debug, Deserialize, PartialEq)]
     pub struct StringTest {
         pub string: String<consts::U32>,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct VecTest {
+        vec: Vec<u8, consts::U32>,
     }
 
     #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -738,6 +743,18 @@ mod tests {
             Ok(StringTest {
                 string: String::from("89883030000005421166")
             })
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn simple_vec() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(&[8, 9, 8, 8, 3, 0, 3, 0, 0, 0, 0, 0, 0, 5, 4, 2, 1, 1, 6, 6])
+            .unwrap();
+        assert_eq!(
+            crate::from_slice("+CCID: \"89883030000005421166\"".as_bytes()),
+            Ok(VecTest { vec })
         );
     }
 

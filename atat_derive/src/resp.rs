@@ -53,7 +53,7 @@ pub fn atat_resp(input: TokenStream) -> TokenStream {
             "'de",
             Span::call_site(),
         ))));
-    let (serde_impl_generics, _, _) = serde_generics.split_for_impl();
+    let (serde_impl_generics, serde_ty_generics, _) = serde_generics.split_for_impl();
 
     TokenStream::from(quote! {
         #[automatically_derived]
@@ -152,12 +152,12 @@ pub fn atat_resp(input: TokenStream) -> TokenStream {
                         serde::Deserializer::deserialize_identifier(deserializer, #field_visitor)
                     }
                 }
-                struct #visitor<'de> {
-                    marker: serde::export::PhantomData<#ident>,
+                struct #visitor #serde_impl_generics {
+                    marker: serde::export::PhantomData<#ident #ty_generics>,
                     lifetime: serde::export::PhantomData<&'de ()>,
                 }
-                impl<'de> serde::de::Visitor<'de> for #visitor<'de> {
-                    type Value = #ident;
+                impl #serde_impl_generics serde::de::Visitor<'de> for #visitor #serde_ty_generics {
+                    type Value = #ident #ty_generics;
                     fn expecting(
                         &self,
                         formatter: &mut serde::export::Formatter,
@@ -273,7 +273,7 @@ pub fn atat_resp(input: TokenStream) -> TokenStream {
                     #ident_str,
                     FIELDS,
                     #visitor {
-                        marker: serde::export::PhantomData::<#ident>,
+                        marker: serde::export::PhantomData::<#ident #ty_generics>,
                         lifetime: serde::export::PhantomData,
                     },
                 )

@@ -9,7 +9,7 @@
 //!
 //! [`AtatCmd`]: trait.AtatCmd.html
 //! [`AtatResp`]: trait.AtatResp.html
-//! [`atat_derive`]: ../atat_derive/index.html
+//! [`atat_derive`]: https://crates.io/crates/atat_derive
 //!
 //! # Examples
 //!
@@ -97,7 +97,7 @@
 //!     timer::{Event, Timer},
 //! };
 //!
-//! use atat::prelude::*;
+//! use atat::{driver, prelude::*};
 //!
 //! use heapless::{consts, spsc::Queue, String};
 //!
@@ -134,8 +134,7 @@
 //!     serial.listen(Rxne);
 //!
 //!     let (tx, rx) = serial.split();
-//!     let (mut client, ingress) =
-//!         atat::ClientBuilder::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout)).build();
+//!     let (mut client, ingress) = driver!(tx, at_timer, atat::Config::new(atat::Mode::Timeout));
 //!
 //!     unsafe { INGRESS = Some(ingress) };
 //!     unsafe { RX = Some(rx) };
@@ -198,14 +197,16 @@ pub mod derive;
 #[cfg(feature = "derive")]
 pub use self::derive::AtatLen;
 
-use embedded_hal::{serial, timer::CountDown};
-use heapless::{consts, spsc::Queue};
-
 pub use self::client::Client;
 pub use self::error::Error;
-pub use self::ingress_manager::{IngressManager, NoopUrcMatcher, UrcMatcher, UrcMatcherResult};
-use self::queues::{ComQueue, ResQueue, UrcQueue};
+pub use self::ingress_manager::{
+    get_line, IngressManager, NoopUrcMatcher, UrcMatcher, UrcMatcherResult,
+};
+pub use self::queues::{ComQueue, ResQueue, UrcQueue};
 pub use self::traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
+
+use heapless::ArrayLength;
+use queues::*;
 
 pub mod prelude {
     //! The prelude is a collection of all the traits in this crate
@@ -264,7 +265,7 @@ pub enum Command {
 /// parameters can be changed on the fly, through issuing a [`Command`] from the
 /// client.
 ///
-/// [`Command`]: #Command
+/// [`Command`]: enum.Command.html
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct Config {
     mode: Mode,
@@ -315,7 +316,28 @@ impl Config {
     }
 }
 
-type ClientParser<Tx, T, U> = (Client<Tx, T>, IngressManager<U>);
+type ClientParser<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity> = (
+    Client<Tx, T, BufLen, ComCapacity, ResCapacity, UrcCapacity>,
+    IngressManager<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>,
+);
+
+pub struct Queues<BufLen, ComCapacity, ResCapacity, UrcCapacity>
+where
+    BufLen: ArrayLength<u8>,
+    ComCapacity: ArrayLength<ComItem>,
+    ResCapacity: ArrayLength<ResItem<BufLen>>,
+    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
+{
+    pub res_queue: (
+        ResProducer<BufLen, ResCapacity>,
+        ResConsumer<BufLen, ResCapacity>,
+    ),
+    pub urc_queue: (
+        UrcProducer<BufLen, UrcCapacity>,
+        UrcConsumer<BufLen, UrcCapacity>,
+    ),
+    pub com_queue: (ComProducer<ComCapacity>, ComConsumer<ComCapacity>),
+}
 
 /// Builder to set up a [`Client`] and [`IngressManager`] pair.
 ///
@@ -324,19 +346,26 @@ type ClientParser<Tx, T, U> = (Client<Tx, T>, IngressManager<U>);
 /// [`Client`]: struct.Client.html
 /// [`IngressManager`]: struct.IngressManager.html
 /// [`new`]: #method.new
-pub struct ClientBuilder<Tx, T, U> {
+pub struct ClientBuilder<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity> {
     serial_tx: Tx,
     timer: T,
     config: Config,
     custom_urc_matcher: Option<U>,
+    #[doc(hidden)]
+    _internal: core::marker::PhantomData<(BufLen, ComCapacity, ResCapacity, UrcCapacity)>,
 }
 
-impl<Tx, T, U> ClientBuilder<Tx, T, U>
+impl<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity>
+    ClientBuilder<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity>
 where
-    Tx: serial::Write<u8>,
-    T: CountDown,
+    Tx: embedded_hal::serial::Write<u8>,
+    T: embedded_hal::timer::CountDown,
     T::Time: From<u32>,
-    U: UrcMatcher<MaxLen = consts::U256>,
+    U: UrcMatcher<BufLen>,
+    BufLen: ArrayLength<u8>,
+    ComCapacity: ArrayLength<ComItem>,
+    ResCapacity: ArrayLength<ResItem<BufLen>>,
+    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
     /// Create a builder for new Atat client instance.
     ///
@@ -352,6 +381,8 @@ where
             timer,
             config,
             custom_urc_matcher: None,
+            #[doc(hidden)]
+            _internal: core::marker::PhantomData,
         }
     }
 
@@ -367,21 +398,25 @@ where
     ///
     /// [`Client`]: struct.Client.html
     /// [`IngressManager`]: struct.IngressManager.html
-    pub fn build(self) -> ClientParser<Tx, T, U> {
-        static mut RES_QUEUE: ResQueue = Queue(heapless::i::Queue::u8());
-        static mut URC_QUEUE: UrcQueue = Queue(heapless::i::Queue::u8());
-        static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
-        let (res_p, res_c) = unsafe { RES_QUEUE.split() };
-        let (urc_p, urc_c) = unsafe { URC_QUEUE.split() };
-        let (com_p, com_c) = unsafe { COM_QUEUE.split() };
+    pub fn build(
+        self,
+        queues: Queues<BufLen, ComCapacity, ResCapacity, UrcCapacity>,
+    ) -> ClientParser<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity> {
         let parser = IngressManager::with_custom_urc_matcher(
-            res_p,
-            urc_p,
-            com_c,
+            queues.res_queue.0,
+            queues.urc_queue.0,
+            queues.com_queue.1,
             self.config,
             self.custom_urc_matcher,
         );
-        let client = Client::new(self.serial_tx, res_c, urc_c, com_p, self.timer, self.config);
+        let client = Client::new(
+            self.serial_tx,
+            queues.res_queue.1,
+            queues.urc_queue.1,
+            queues.com_queue.0,
+            self.timer,
+            self.config,
+        );
 
         (client, parser)
     }

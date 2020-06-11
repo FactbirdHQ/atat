@@ -23,7 +23,7 @@ use hal::{
     timer::{Event, Timer},
 };
 
-use atat::prelude::*;
+use atat::{prelude::*, ClientBuilder, ComQueue, Queues, ResQueue, UrcQueue};
 use rtfm::{app, export::wfi};
 
 use heapless::{consts, spsc::Queue, String};
@@ -31,12 +31,16 @@ use heapless::{consts, spsc::Queue, String};
 #[app(device = hal::pac, peripherals = true)]
 const APP: () = {
     struct Resources {
-        ingress: atat::IngressManager<atat::NoopUrcMatcher>,
+        ingress: atat::IngressManager<consts::U256, atat::NoopUrcMatcher>,
         rx: Rx<USART2>,
     }
 
     #[init(spawn = [at_loop])]
     fn init(ctx: init::Context) -> init::LateResources {
+        static mut RES_QUEUE: ResQueue<consts::U256, consts::U5> = Queue(heapless::i::Queue::u8());
+        static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
+        static mut COM_QUEUE: ComQueue<consts::U3> = Queue(heapless::i::Queue::u8());
+
         let p = Peripherals::take().unwrap();
 
         let mut flash = p.FLASH.constrain();
@@ -74,9 +78,15 @@ const APP: () = {
 
         serial.listen(Rxne);
 
+        let queues = Queues {
+            res_queue: unsafe { RES_QUEUE.split() },
+            urc_queue: unsafe { URC_QUEUE.split() },
+            com_queue: unsafe { COM_QUEUE.split() },
+        };
+
         let (tx, rx) = serial.split();
         let (mut client, ingress) =
-            atat::ClientBuilder::new(tx, timer, atat::Config::new(atat::Mode::Timeout)).build();
+            ClientBuilder::new(tx, timer, atat::Config::new(atat::Mode::Timeout)).build(queues);
 
         ctx.spawn.at_loop().unwrap();
 

@@ -2,6 +2,9 @@ use core::ops::Mul;
 use heapless::{consts, ArrayLength, String, Vec};
 use typenum::Unsigned;
 
+/// Trait used by [`atat_derive`] to estimate lengths of the serialized commands, at compile time.
+///
+/// [`atat_derive`]: https://crates.io/crates/atat_derive
 pub trait AtatLen {
     type Len: ArrayLength<u8>;
 }
@@ -36,6 +39,10 @@ impl<T: ArrayLength<u8>> AtatLen for String<T> {
 }
 
 impl<T: AtatLen> AtatLen for Option<T> {
+    type Len = T::Len;
+}
+
+impl<T: AtatLen> AtatLen for &T {
     type Len = T::Len;
 }
 
