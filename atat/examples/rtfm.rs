@@ -23,7 +23,7 @@ use hal::{
     timer::{Event, Timer},
 };
 
-use atat::{ClientBuilder, prelude::*, ResQueue, UrcQueue, ComQueue, Queues};
+use atat::{prelude::*, ClientBuilder, ComQueue, Queues, ResQueue, UrcQueue};
 use rtfm::{app, export::wfi};
 
 use heapless::{consts, spsc::Queue, String};
