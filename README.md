@@ -54,6 +54,14 @@ Furthermore I have used the crate to build initial WIP drivers for uBlox cellula
 [ublox-short-range-rs]: https://github.com/BlackbirdHQ/ublox-short-range-rs
 [ublox-cellular-rs]: https://github.com/BlackbirdHQ/ublox-cellular-rs
 
+## Releasing to crates.io
+
+This workspace uses `cargo-release` to do workspace releases to crates.io. It can be installed through cargo with `cargo install cargo-release`. The steps involved in a new release are:
+1. Bump the version of all three crates in their respective Cargo.toml, and also in their dependency list (eg `atat` depends on `serde-at` and `atat_derive`, so bump both of these)
+2. Commit the changes to git
+3. Run `cargo release --dry-run`, and verify the output
+4. Run `cargo release`, to release
+
 ## About
 
   - Minimum rustc version 1.31
