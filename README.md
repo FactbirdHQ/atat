@@ -9,6 +9,7 @@
 [![Crates.io Version][crates-io-badge]][crates-io]
 [![Crates.io Downloads][crates-io-download-badge]][crates-io-download]
 [![chat][chat-badge]][chat]
+![No Std][no-std-badge]
 
 ---
 
@@ -73,6 +74,7 @@ The following dependent crates provide platform-agnostic device drivers built on
 |-------------|-------------|--------------|
 | [ublox-short-range-rs] | Driver crate for U-Blox host-based short range devices (wifi and BT) with AT-command interface | <!--[![crates.io][ublox-short-range-rs-crate-img]][ublox-short-range-rs] [![docs.rs][ublox-short-range-rs-docs-img]][ublox-short-range-rs-docs] --> |
 | [ublox-cellular-rs] | Driver crate for U-Blox host-based cellular devices with AT-command interface | <!--[![crates.io][ublox-cellular-rs-crate-img]][ublox-cellular-rs] [![docs.rs][ublox-cellular-rs-docs-img]][ublox-cellular-rs-docs] --> |
+| [espresso] | AT based driver crate for ESP8266 WiFi modules | <!--[![crates.io][espresso-crate-img]][espresso] [![docs.rs][espresso-docs-img]][espresso-docs] --> |
 
 [ublox-short-range-rs]: https://github.com/BlackbirdHQ/ublox-short-range-rs
 <!-- [ublox-short-range-rs-crate-img]: https://img.shields.io/crates/v/ublox-short-range-rs.svg
@@ -83,6 +85,11 @@ The following dependent crates provide platform-agnostic device drivers built on
 <!-- [ublox-cellular-rs-crate-img]: https://img.shields.io/crates/v/ublox-cellular-rs.svg
 [ublox-cellular-rs-docs-img]: https://docs.rs/ublox-cellular-rs/badge.svg
 [ublox-cellular-rs-docs]: https://docs.rs/ublox-cellular-rs/ -->
+
+[espresso]: https://github.com/dbrgn/espresso
+<!-- [espresso-crate-img]: https://img.shields.io/crates/v/espresso.svg
+[espresso-docs-img]: https://docs.rs/espresso/badge.svg
+[espresso-docs]: https://docs.rs/espresso/ -->
 
 ## Features
 
@@ -118,3 +125,4 @@ dual licensed as above, without any additional terms or conditions.
 [crates-io-badge]: https://img.shields.io/crates/v/atat.svg?maxAge=3600
 [crates-io-download]: https://crates.io/crates/atat
 [crates-io-download-badge]: https://img.shields.io/crates/d/atat.svg?maxAge=3600
+[no-std-badge]: https://img.shields.io/badge/no__std-yes-blue
