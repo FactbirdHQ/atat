@@ -31,7 +31,7 @@ typenum = "^1"
 [dev-dependencies]
 cortex-m = "0.6.2"
 cortex-m-rt = "0.6.12"
-cortex-m-rtfm = "0.5.1"
+cortex-m-rtic = "0.5.3"
 panic-halt = "0.2.0"
 stm32l4xx-hal = { git = "https://github.com/stm32-rs/stm32l4xx-hal", features = ["stm32l4x5", "rt"] }
 

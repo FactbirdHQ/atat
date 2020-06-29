@@ -43,14 +43,14 @@ This crate attempts to work from these AT best practices:
 
 
 ## Examples
-The crate has examples for usage with [cortex-m-rt] and [cortex-m-rtfm] crates.
+The crate has examples for usage with [cortex-m-rt] and [cortex-m-rtic] crates.
 
-The samples can be built using `cargo build --example cortex-m-rt --target thumbv7em-none-eabihf` and `cargo build --example rtfm --target thumbv7em-none-eabihf`.
+The samples can be built using `cargo build --example cortex-m-rt --target thumbv7em-none-eabihf` and `cargo build --example rtic --target thumbv7em-none-eabihf`.
 
 Furthermore I have used the crate to build initial WIP drivers for uBlox cellular modules ([ublox-cellular-rs]) and uBlox short-range modules ([ublox-short-range-rs])
 
 [cortex-m-rt]: https://crates.io/crates/cortex-m-rt
-[cortex-m-rtfm]: https://crates.io/crates/cortex-m-rtfm
+[cortex-m-rtic]: https://crates.io/crates/cortex-m-rtic
 [ublox-short-range-rs]: https://github.com/BlackbirdHQ/ublox-short-range-rs
 [ublox-cellular-rs]: https://github.com/BlackbirdHQ/ublox-cellular-rs
 

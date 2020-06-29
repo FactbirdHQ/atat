@@ -24,7 +24,7 @@ use hal::{
 };
 
 use atat::{prelude::*, ClientBuilder, ComQueue, Queues, ResQueue, UrcQueue};
-use rtfm::{app, export::wfi};
+use rtic::{app, export::wfi};
 
 use heapless::{consts, spsc::Queue, String};
 
