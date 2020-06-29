@@ -1,9 +1,4 @@
-<div>
-  <img style="vertical-align:middle; padding-bottom: 20px; padding-right: 40px;"  src="https://w7.pngwing.com/pngs/154/828/png-transparent-star-wars-patent-all-terrain-armored-transport-printmaking-atat-uuml-rk-monochrome-film-mecha.png" alt="ATAT" width="150" />
-  <span style="font-size: 40px;">ATAT</span>
-</div>
-
-> no_std crate for parsing AT commands
+# ATAT
 
 ![CI][workflow]
 [![Crates.io Version][crates-io-badge]][crates-io]
@@ -11,13 +6,17 @@
 [![chat][chat-badge]][chat]
 ![No Std][no-std-badge]
 
----
+<div>
+  <img style="vertical-align:middle; padding-bottom: 20px; padding-right: 40px;"  src="https://w7.pngwing.com/pngs/154/828/png-transparent-star-wars-patent-all-terrain-armored-transport-printmaking-atat-uuml-rk-monochrome-film-mecha.png" alt="ATAT" width="250" />
+</div>
+
+`#![no_std]` crate for parsing AT commands
 
 A driver support crate for AT-command based serial modules, using the [embedded-hal] traits.
 
 [embedded-hal]: https://crates.io/crates/embedded-hal
 
-**AT Best practices**
+## AT Best practices
 
 This crate attempts to work from these AT best practices:
 
