@@ -123,7 +123,7 @@ impl<'a> Deserializer<'a> {
         loop {
             match self.peek() {
                 Some(c) => {
-                    if (c as char).is_alphanumeric() {
+                    if (c as char).is_alphanumeric() || (c as char).is_whitespace() {
                         self.eat_char()
                     } else {
                         return Err(Error::EofWhileParsingString);
