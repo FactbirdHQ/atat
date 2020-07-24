@@ -16,8 +16,8 @@
 //! ### Command and response example without atat_derive:
 //! ```
 //! use atat::{AtatCmd, AtatResp, Error};
-//! use heapless::{String, Vec, consts};
 //! use core::fmt::Write;
+//! use heapless::{consts, String, Vec};
 //!
 //! pub struct SetGreetingText<'a> {
 //!     pub text: &'a str,
@@ -70,7 +70,7 @@
 //! ### Same example with atat_derive:
 //! ```
 //! use atat::atat_derive::{AtatCmd, AtatResp};
-//! use heapless::{String, consts};
+//! use heapless::{consts, String};
 //!
 //! #[derive(Clone, AtatCmd)]
 //! #[at_cmd("+CSGT", NoResponse)]
@@ -95,7 +95,7 @@
 //!
 //! ### Basic usage example (More available in examples folder):
 //! ```ignore
-//!
+//! 
 //! use cortex_m::asm;
 //! use hal::{
 //!     gpio::{
