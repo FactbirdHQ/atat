@@ -18,7 +18,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: thumbv7m-none-eabi
+          target: thumbv7m-none-eabi
           override: true
 
       - name: Install grcov
