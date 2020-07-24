@@ -23,7 +23,7 @@ nb = "^0.1"
 void = { version = "^1", default-features = false }
 heapless = { version = "0.5.5", features = ["serde"] }
 serde_at = { path = "../serde_at", version = "^0.4.3-alpha.0"}
-atat_derive = { path = "../atat_derive", version = "^0.4.2-alpha.0", optional = true }
+atat_derive = { path = "../atat_derive", version = "^0.4.3-alpha.0", optional = true }
 serde = {version = "^1", default-features = false}
 log = { version = "^0.4", default-features = false, optional = true }
 typenum = "^1"
