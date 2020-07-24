@@ -112,7 +112,7 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     }
 }
 
-/// State of the IngressManager, used to distiguish URCs from solicited
+/// State of the `IngressManager`, used to distiguish URCs from solicited
 /// responses
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum State {
@@ -240,6 +240,7 @@ where
     ResCapacity: ArrayLength<ResItem<BufLen>>,
     UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
+    #[must_use]
     pub fn new(
         res_p: ResProducer<BufLen, ResCapacity>,
         urc_p: UrcProducer<BufLen, UrcCapacity>,
@@ -290,11 +291,8 @@ where
         #[cfg(feature = "logging")]
         log::trace!("Receiving {} bytes", data.len());
 
-        match self.buf.extend_from_slice(data) {
-            Ok(_) => {}
-            Err(_) => {
-                self.notify_response(Err(Error::Overflow));
-            }
+        if self.buf.extend_from_slice(data).is_err() {
+            self.notify_response(Err(Error::Overflow));
         }
     }
 
@@ -375,17 +373,13 @@ where
                 false,
                 false,
             );
-            match removed {
-                #[allow(unused)]
-                Some(r) => {
-                    #[cfg(feature = "logging")]
-                    crate::log_str!(trace, "Cleared partial buffer, removed {:?}", r);
-                }
-                None => {
-                    self.buf.clear();
-                    #[cfg(feature = "logging")]
-                    log::trace!("Cleared partial buffer, removed everything");
-                }
+            if let Some(r) = removed {
+                #[cfg(feature = "logging")]
+                crate::log_str!(trace, "Cleared partial buffer, removed {:?}", r);
+            } else {
+                self.buf.clear();
+                #[cfg(feature = "logging")]
+                log::trace!("Cleared partial buffer, removed everything");
             }
         }
     }

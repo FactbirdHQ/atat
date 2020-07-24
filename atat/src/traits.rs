@@ -104,7 +104,7 @@ pub trait AtatClient {
     ///
     /// This function will block until a response is received, if in Timeout or
     /// Blocking mode. In Nonblocking mode, the send can be called until it no
-    /// longer returns nb::Error::WouldBlock, or `self.check_response(cmd)` can
+    /// longer returns `nb::Error::WouldBlock`, or `self.check_response(cmd)` can
     /// be called, with the same result.
     ///
     /// This function will also make sure that atleast `self.config.cmd_cooldown`
@@ -154,8 +154,8 @@ pub trait AtatClient {
     /// Get the configured mode of the client.
     ///
     /// Options are:
-    /// - NonBlocking
-    /// - Blocking
-    /// - Timeout
+    /// - `NonBlocking`
+    /// - `Blocking`
+    /// - `Timeout`
     fn get_mode(&self) -> Mode;
 }

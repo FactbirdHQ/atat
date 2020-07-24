@@ -2,6 +2,8 @@
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
 #![deny(warnings)]
+#![allow(clippy::multiple_crate_versions)]
+#![allow(clippy::missing_errors_doc)]
 #![cfg_attr(not(test), no_std)]
 
 pub mod de;

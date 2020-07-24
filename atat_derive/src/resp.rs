@@ -17,7 +17,7 @@ pub fn atat_resp(input: TokenStream) -> TokenStream {
     helpers::add_lifetime(&mut serde_generics, "'de");
     let (serde_impl_generics, _, _) = serde_generics.split_for_impl();
 
-    let deserialize_struct = helpers::deserialize_struct(ident.clone(), variants, &generics);
+    let deserialize_struct = helpers::deserialize_struct(&ident, &variants, &generics);
 
     TokenStream::from(quote! {
         #[automatically_derived]
