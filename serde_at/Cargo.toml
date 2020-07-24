@@ -3,6 +3,7 @@ authors = ["Mathias Koch <mk@blackbird.online>"]
 edition = "2018"
 categories = ["no-std"]
 description = "serde serializer/deserializer for AT commands"
+readme = "../README.md"
 documentation = "https://docs.rs/serde_at"
 repository = "https://github.com/BlackbirdHQ/atat"
 keywords = ["serde", "AT"]

@@ -8,10 +8,10 @@ pub trait AtatErr {}
 ///
 /// Example:
 /// ```
-/// use atat::prelude::*;
+/// use atat::AtatResp;
 ///
 /// pub struct GreetingText {
-///     pub text: heapless::String<heapless::consts::U64>
+///     pub text: heapless::String<heapless::consts::U64>,
 /// }
 ///
 /// impl AtatResp for GreetingText {}
@@ -34,24 +34,30 @@ pub trait AtatUrc {
 ///
 /// Example:
 /// ```
-/// use atat::prelude::*;
+/// use atat::{AtatCmd, AtatResp, Error};
+/// use core::fmt::Write;
+/// use heapless::Vec;
 ///
 /// pub struct SetGreetingText<'a> {
-///     pub text: &'a str
+///     pub text: &'a str,
 /// }
+///
+/// pub struct NoResponse;
+///
+/// impl AtatResp for NoResponse {};
 ///
 /// impl<'a> AtatCmd for SetGreetingText<'a> {
 ///     type CommandLen = heapless::consts::U64;
 ///     type Response = NoResponse;
 ///
 ///     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
-///         let buf: Vec<u8, Self::CommandLen> = Vec::new();
+///         let mut buf: Vec<u8, Self::CommandLen> = Vec::new();
 ///         write!(buf, "AT+CSGT={}", self.text);
 ///         buf
 ///     }
 ///
-///     fn parse(&self, resp: &str) -> Result<Self::Response> {
-///         NoResponse
+///     fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error> {
+///         Ok(NoResponse)
 ///     }
 /// }
 /// ```
@@ -98,7 +104,7 @@ pub trait AtatClient {
     ///
     /// This function will block until a response is received, if in Timeout or
     /// Blocking mode. In Nonblocking mode, the send can be called until it no
-    /// longer returns nb::Error::WouldBlock, or `self.check_response(cmd)` can
+    /// longer returns `nb::Error::WouldBlock`, or `self.check_response(cmd)` can
     /// be called, with the same result.
     ///
     /// This function will also make sure that atleast `self.config.cmd_cooldown`
@@ -111,7 +117,7 @@ pub trait AtatClient {
     ///
     /// Example:
     /// ```
-    /// /// use atat::prelude::*;
+    /// use atat::atat_derive::{AtatResp, AtatUrc};
     ///
     /// #[derive(Clone, AtatResp)]
     /// pub struct MessageWaitingIndication {
@@ -127,11 +133,11 @@ pub trait AtatClient {
     ///     MessageWaitingIndication(MessageWaitingIndication),
     /// }
     ///
-    /// match client.check_urc::<Urc>() {
-    ///     Some(Urc::MessageWaitingIndication(MessageWaitingIndication { status, code })) => {
-    ///         // Do something to act on `+UMWI` URC
-    ///     }
-    /// }
+    /// // match client.check_urc::<Urc>() {
+    /// //     Some(Urc::MessageWaitingIndication(MessageWaitingIndication { status, code })) => {
+    /// //         // Do something to act on `+UMWI` URC
+    /// //     }
+    /// // }
     /// ```
     fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Response>;
 
@@ -148,8 +154,8 @@ pub trait AtatClient {
     /// Get the configured mode of the client.
     ///
     /// Options are:
-    /// - NonBlocking
-    /// - Blocking
-    /// - Timeout
+    /// - `NonBlocking`
+    /// - `Blocking`
+    /// - `Timeout`
     fn get_mode(&self) -> Mode;
 }

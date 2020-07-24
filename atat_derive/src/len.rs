@@ -6,8 +6,8 @@ use crate::parse::{parse_field_attr, ArgAttributes, FieldAttributes, ParseInput,
 
 /// Calculate the serialized length of a struct
 ///
-/// Use #[at_arg(len = xxx)], with a fallback to
-/// types AtatLen implementation, allowing overwriting the max length of all
+/// Use `#[at_arg(len = xxx)]`, with a fallback to
+/// types `AtatLen` implementation, allowing overwriting the max length of all
 /// types, including borrowed data
 pub fn struct_len(variants: Vec<Variant>, init_len: usize) -> proc_macro2::TokenStream {
     let init_len_ident = format_ident!("U{}", init_len);
@@ -29,8 +29,8 @@ pub fn struct_len(variants: Vec<Variant>, init_len: usize) -> proc_macro2::Token
 
 /// Calculate the serialized length of an enum, as the longest of all variants
 ///
-/// Use #[at_arg(len = xxx)], with a fallback to
-/// types AtatLen implementation, allowing overwriting the max length of all
+/// Use `#[at_arg(len = xxx)]`, with a fallback to
+/// types `AtatLen` implementation, allowing overwriting the max length of all
 /// types, including borrowed data
 pub fn enum_len(
     variants: Vec<Variant>,
@@ -50,7 +50,7 @@ pub fn enum_len(
                             position,
                         }),
                     ..
-                }) = parse_field_attr(field.attrs)
+                }) = parse_field_attr(&field.attrs)
                 {
                     if value.is_some() {
                         panic!("value is not allowed in this position");

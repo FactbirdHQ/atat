@@ -1,10 +1,12 @@
 # ATAT
 
-![CI][workflow]
+![Test][test]
+[![Code coverage][codecov-badge]][codecov]
 [![Crates.io Version][crates-io-badge]][crates-io]
 [![Crates.io Downloads][crates-io-download-badge]][crates-io-download]
 [![chat][chat-badge]][chat]
 ![No Std][no-std-badge]
+
 
 <div>
   <img style="vertical-align:middle; padding-bottom: 20px; padding-right: 40px;"  src="https://w7.pngwing.com/pngs/154/828/png-transparent-star-wars-patent-all-terrain-armored-transport-printmaking-atat-uuml-rk-monochrome-film-mecha.png" alt="ATAT" width="250" />
@@ -117,7 +119,7 @@ for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
 
 <!-- Badges -->
-[workflow]: https://github.com/BlackbirdHQ/atat/workflows/CI/badge.svg
+[test]: https://github.com/BlackbirdHQ/atat/workflows/Test/badge.svg
 [crates-io]: https://crates.io/crates/atat
 [chat]: https://matrix.to/#/!ocRyOwQJhEWrphujkM:matrix.org?via=chat.berline.rs&via=matrix.org
 [chat-badge]: https://img.shields.io/badge/chat-atat%3Amatrix.org-brightgreen
@@ -125,3 +127,5 @@ dual licensed as above, without any additional terms or conditions.
 [crates-io-download]: https://crates.io/crates/atat
 [crates-io-download-badge]: https://img.shields.io/crates/d/atat.svg?maxAge=3600
 [no-std-badge]: https://img.shields.io/badge/no__std-yes-blue
+[codecov-badge]: https://codecov.io/gh/BlackbirdHQ/atat/branch/master/graph/badge.svg
+[codecov]: https://codecov.io/gh/BlackbirdHQ/atat

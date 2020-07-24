@@ -2,6 +2,7 @@ use serde::de;
 
 use crate::de::{Deserializer, Error};
 
+#[allow(clippy::module_name_repetitions)]
 pub struct MapAccess<'a, 'b> {
     de: &'a mut Deserializer<'b>,
     first: bool,

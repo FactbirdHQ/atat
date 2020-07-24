@@ -4,6 +4,7 @@ use heapless::ArrayLength;
 
 use crate::ser::{Error, Result, Serializer};
 
+#[allow(clippy::module_name_repetitions)]
 pub struct SerializeStruct<'a, 'b, B, C>
 where
     B: ArrayLength<u8>,

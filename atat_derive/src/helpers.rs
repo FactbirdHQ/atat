@@ -20,10 +20,10 @@ pub fn add_type_generic(generics: &mut Generics, type_param: syn::TypeParam) {
     generics.params.push(GenericParam::Type(type_param));
 }
 
-/// Takes a syn::Generics ('a), a lifetime bound ('b) and returns a new
-/// syn::Generics with <'a: 'b, 'b>
+/// Takes a `syn::Generics` ('a), a lifetime bound ('b) and returns a new
+/// `syn::Generics` with <'a: 'b, 'b>
 #[inline]
-pub fn add_lifetime_bound(generics: &mut Generics, bound: Lifetime) {
+pub fn add_lifetime_bound(generics: &mut Generics, bound: &Lifetime) {
     for mut param in &mut generics.params {
         match &mut param {
             GenericParam::Lifetime(param) => {
@@ -61,11 +61,7 @@ pub fn add_type_parameter_bound(
         .push(where_type.into());
 }
 
-pub fn deserialize_struct(
-    ident: Ident,
-    variants: Vec<Variant>,
-    generics: &Generics,
-) -> TokenStream {
+pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generics) -> TokenStream {
     let ident_str = ident.to_string();
 
     let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants

@@ -2,13 +2,14 @@ use serde::de;
 
 use crate::de::{Deserializer, Error, Result};
 
-pub(crate) struct SeqAccess<'a, 'b> {
+#[allow(clippy::module_name_repetitions)]
+pub struct SeqAccess<'a, 'b> {
     first: bool,
     de: &'a mut Deserializer<'b>,
 }
 
 impl<'a, 'b> SeqAccess<'a, 'b> {
-    pub fn new(de: &'a mut Deserializer<'b>) -> Self {
+    pub(crate) fn new(de: &'a mut Deserializer<'b>) -> Self {
         SeqAccess { de, first: true }
     }
 }

@@ -179,7 +179,6 @@ where
 }
 
 #[cfg(test)]
-#[cfg_attr(tarpaulin, skip)]
 mod test {
     use super::*;
     use crate as atat;

@@ -39,7 +39,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
                 }
             }
         }
-        _ => quote! {},
+        None => quote! {},
     };
 
     let abortable = match abortable {
@@ -50,7 +50,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
                 }
             }
         }
-        _ => quote! {},
+        None => quote! {},
     };
 
     let force_receive = match force_receive_state {
@@ -61,7 +61,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
                 }
             }
         }
-        _ => quote! {},
+        None => quote! {},
     };
 
     let subcmd_len_ident = format_ident!("U{}", cmd.len());

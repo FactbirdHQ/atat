@@ -4,7 +4,10 @@ use core::fmt::{self, Write};
 
 use serde::ser;
 
-use heapless::{consts::*, String, Vec};
+use heapless::{
+    consts::{U16, U32},
+    String, Vec,
+};
 
 mod enum_;
 mod struct_;
@@ -20,22 +23,25 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 ///
 /// Example:
 /// ```
-/// use serde_at::{to_string, SerializeOptions, Bytes};
 /// use heapless::{consts, String};
+/// use serde_at::{to_string, Bytes, SerializeOptions};
 /// use serde_derive::Serialize;
 ///
 /// #[derive(Clone, PartialEq, Serialize)]
 /// pub struct WithBytes<'a> {
-///     s: Bytes<'a>
+///     s: Bytes<'a>,
 /// };
 ///
 /// let slice = b"Some bytes";
-/// let b = WithBytes { s: Bytes(&slice[..]) };
+/// let b = WithBytes {
+///     s: Bytes(&slice[..]),
+/// };
 /// let s: String<consts::U32> = to_string(
 ///     &b,
 ///     String::<consts::U32>::from("+CMD"),
 ///     SerializeOptions::default(),
-/// ).unwrap();
+/// )
+/// .unwrap();
 ///
 /// assert_eq!(s, String::<consts::U32>::from("AT+CMD=Some bytes\r\n"));
 /// ```
@@ -88,14 +94,14 @@ pub enum Error {
 }
 
 impl From<()> for Error {
-    fn from(_: ()) -> Error {
-        Error::BufferFull
+    fn from(_: ()) -> Self {
+        Self::BufferFull
     }
 }
 
 impl From<u8> for Error {
-    fn from(_: u8) -> Error {
-        Error::BufferFull
+    fn from(_: u8) -> Self {
+        Self::BufferFull
     }
 }
 
@@ -307,7 +313,7 @@ where
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok> {
         self.buf
             .extend_from_slice(self.options.cmd_prefix.as_bytes())?;
-        self.buf.extend_from_slice(&self.cmd.as_bytes())?;
+        self.buf.extend_from_slice(self.cmd.as_bytes())?;
         self.buf
             .extend_from_slice(self.options.termination.as_bytes())?;
         Ok(())
@@ -379,7 +385,7 @@ where
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
         self.buf
             .extend_from_slice(self.options.cmd_prefix.as_bytes())?;
-        self.buf.extend_from_slice(&self.cmd.as_bytes())?;
+        self.buf.extend_from_slice(self.cmd.as_bytes())?;
         Ok(SerializeStruct::new(self))
     }
 
@@ -438,6 +444,7 @@ impl ser::Error for Error {
     }
 }
 
+#[allow(clippy::empty_enum)]
 pub(crate) enum Unreachable {}
 
 impl ser::SerializeTupleStruct for Unreachable {

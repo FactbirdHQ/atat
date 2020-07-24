@@ -1,5 +1,6 @@
 tab_spaces = 4
 format_strings = false
 reorder_imports = true
-report_todo = "Always"
-report_fixme = "Always"
+report_todo = "Never"
+report_fixme = "Never"
+format_code_in_doc_comments = true

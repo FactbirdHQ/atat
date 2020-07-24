@@ -13,8 +13,12 @@
 //!
 //! # Examples
 //!
-//! ### Command and response example without atat_derive:
+//! ### Command and response example without `atat_derive`:
 //! ```
+//! use atat::{AtatCmd, AtatResp, Error};
+//! use core::fmt::Write;
+//! use heapless::{consts, String, Vec};
+//!
 //! pub struct SetGreetingText<'a> {
 //!     pub text: &'a str,
 //! }
@@ -23,46 +27,55 @@
 //!
 //! pub struct NoResponse;
 //!
+//! impl AtatResp for NoResponse {};
+//!
 //! pub struct GreetingText {
-//!     pub text: String<consts::U64>
+//!     pub text: String<consts::U64>,
 //! };
+//!
+//! impl AtatResp for GreetingText {};
 //!
 //! impl<'a> AtatCmd for SetGreetingText<'a> {
 //!     type CommandLen = consts::U64;
 //!     type Response = NoResponse;
 //!
-//!     fn as_str(&self) -> String<Self::CommandLen> {
-//!         let buf: String<Self::CommandLen> = String::new();
+//!     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+//!         let mut buf: Vec<u8, Self::CommandLen> = Vec::new();
 //!         write!(buf, "AT+CSGT={}", self.text);
 //!         buf
 //!     }
 //!
-//!     fn parse(&self, resp: &str) -> Result<Self::Response> {
-//!         NoResponse
+//!     fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error> {
+//!         Ok(NoResponse)
 //!     }
 //! }
 //!
-//! impl AtatCmd for GetGreetingText<'a> {
+//! impl AtatCmd for GetGreetingText {
 //!     type CommandLen = consts::U8;
 //!     type Response = GreetingText;
 //!
-//!     fn as_str(&self) -> String<Self::CommandLen> {
-//!         String::from("AT+CSGT?")
+//!     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+//!         Vec::from_slice(b"AT+CSGT?").unwrap()
 //!     }
 //!
-//!     fn parse(&self, resp: &str) -> Result<Self::Response> {
+//!     fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error> {
 //!         // Parse resp into `GreetingText`
-//!         GreetingText { text: String::from(resp) }
+//!         Ok(GreetingText {
+//!             text: String::from(core::str::from_utf8(resp).unwrap()),
+//!         })
 //!     }
 //! }
 //! ```
 //!
-//! ### Same example with atat_derive:
+//! ### Same example with `atat_derive`:
 //! ```
+//! use atat::atat_derive::{AtatCmd, AtatResp};
+//! use heapless::{consts, String};
+//!
 //! #[derive(Clone, AtatCmd)]
 //! #[at_cmd("+CSGT", NoResponse)]
 //! pub struct SetGreetingText<'a> {
-//!     #[at_arg(position = 0)]
+//!     #[at_arg(position = 0, len = 32)]
 //!     pub text: &'a str,
 //! }
 //!
@@ -76,15 +89,13 @@
 //! #[derive(Clone, AtatResp)]
 //! pub struct GreetingText {
 //!     #[at_arg(position = 0)]
-//!     pub text: String<consts::U64>
+//!     pub text: String<consts::U64>,
 //! };
-//!
 //! ```
 //!
 //! ### Basic usage example (More available in examples folder):
-//! ```
-//! mod common;
-//!
+//! ```ignore
+//! 
 //! use cortex_m::asm;
 //! use hal::{
 //!     gpio::{
@@ -97,13 +108,21 @@
 //!     timer::{Event, Timer},
 //! };
 //!
-//! use atat::{driver, prelude::*};
+//! use atat::{driver, atat_derive::{AtatResp, AtatCmd}};
 //!
 //! use heapless::{consts, spsc::Queue, String};
 //!
 //! use crate::rt::entry;
 //! static mut INGRESS: Option<atat::IngressManager> = None;
 //! static mut RX: Option<Rx<USART2>> = None;
+//!
+//!
+//! #[derive(Clone, AtatResp)]
+//! pub struct NoResponse;
+//!
+//! #[derive(Clone, AtatCmd)]
+//! #[at_cmd("", NoResponse, timeout_ms = 1000)]
+//! pub struct AT;
 //!
 //! #[entry]
 //! fn main() -> ! {
@@ -149,7 +168,7 @@
 //!     loop {
 //!         asm::wfi();
 //!
-//!         match client.send(&common::AT) {
+//!         match client.send(&AT) {
 //!             Ok(response) => {
 //!                 // Do something with response here
 //!             }
@@ -180,6 +199,12 @@
 //! - **`logging`** *(disabled by default)* — Prints useful logging information,
 //!   including incoming and outgoing bytes on the `TRACE` level.
 
+#![deny(rust_2018_compatibility)]
+#![deny(rust_2018_idioms)]
+#![deny(warnings)]
+#![allow(clippy::multiple_crate_versions)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::too_many_lines)]
 #![cfg_attr(not(test), no_std)]
 
 mod client;
@@ -206,7 +231,10 @@ pub use self::queues::{ComQueue, ResQueue, UrcQueue};
 pub use self::traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 
 use heapless::ArrayLength;
-use queues::*;
+use queues::{
+    ComConsumer, ComItem, ComProducer, ResConsumer, ResItem, ResProducer, UrcConsumer, UrcItem,
+    UrcProducer,
+};
 
 pub mod prelude {
     //! The prelude is a collection of all the traits in this crate
@@ -276,8 +304,8 @@ pub struct Config {
 }
 
 impl Default for Config {
-    fn default() -> Config {
-        Config {
+    fn default() -> Self {
+        Self {
             mode: Mode::Blocking,
             line_term_char: b'\r',
             format_char: b'\n',
@@ -288,29 +316,34 @@ impl Default for Config {
 }
 
 impl Config {
+    #[must_use]
     pub fn new(mode: Mode) -> Self {
-        Config {
+        Self {
             mode,
-            ..Config::default()
+            ..Self::default()
         }
     }
 
-    pub fn with_line_term(mut self, c: u8) -> Self {
+    #[must_use]
+    pub const fn with_line_term(mut self, c: u8) -> Self {
         self.line_term_char = c;
         self
     }
 
-    pub fn with_format_char(mut self, c: u8) -> Self {
+    #[must_use]
+    pub const fn with_format_char(mut self, c: u8) -> Self {
         self.format_char = c;
         self
     }
 
-    pub fn with_at_echo(mut self, e: bool) -> Self {
+    #[must_use]
+    pub const fn with_at_echo(mut self, e: bool) -> Self {
         self.at_echo_enabled = e;
         self
     }
 
-    pub fn cmd_cooldown(mut self, ms: u32) -> Self {
+    #[must_use]
+    pub const fn cmd_cooldown(mut self, ms: u32) -> Self {
         self.cmd_cooldown = ms;
         self
     }
@@ -369,7 +402,7 @@ where
 {
     /// Create a builder for new Atat client instance.
     ///
-    /// The `serial_tx` type must implement the embedded_hal
+    /// The `serial_tx` type must implement the `embedded_hal`
     /// [`serial::Write<u8>`][serialwrite] trait while the timer must implement
     /// the [`timer::CountDown`][timercountdown] trait.
     ///

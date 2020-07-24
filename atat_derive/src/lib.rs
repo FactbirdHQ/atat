@@ -12,13 +12,13 @@
 //!
 //! # Examples
 //!
-//! ### AtatCmd
+//! ### `AtatCmd`
 //! See [`AtatCmd`] for descriptions and documentation on required and allowed
 //! attributes
 //!
 //! [`AtatCmd`]: derive.AtatCmd.html
 //!
-//! ```
+//! ```ignore
 //! // Serializing the following struct, results in `AT+USORD=<socket>,<length>\r\n`
 //! #[derive(AtatCmd)]
 //! #[at_cmd("+USORD", SocketData)]
@@ -29,6 +29,12 @@
 //!     pub length: usize,
 //! }
 //! ```
+#![deny(warnings)]
+#![allow(clippy::multiple_crate_versions)]
+#![allow(clippy::cognitive_complexity)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::similar_names)]
 
 extern crate proc_macro;
 extern crate proc_macro2;
@@ -46,7 +52,6 @@ use crate::proc_macro::TokenStream;
 /// Automatically derive [`atat::AtatResp`] trait
 ///
 /// [`atat::AtatResp`]: ../atat/trait.AtatResp.html
-///
 #[proc_macro_derive(AtatResp, attributes(at_arg))]
 pub fn derive_atat_resp(input: TokenStream) -> TokenStream {
     resp::atat_resp(input)
@@ -55,7 +60,6 @@ pub fn derive_atat_resp(input: TokenStream) -> TokenStream {
 /// Automatically derive [`atat::AtatUrc`] trait
 ///
 /// [`atat::AtatUrc`]: ../atat/trait.AtatUrc.html
-///
 #[proc_macro_derive(AtatUrc, attributes(at_urc))]
 pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
     urc::atat_urc(input)
@@ -67,7 +71,7 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 /// [`atat::AtatLen`]: ../atat/trait.AtatLen.html
 ///
 /// This trait implementation is equivalent to using
-/// [serde_repr](https://docs.rs/serde_repr/0.1.5/serde_repr/), thus removing
+/// [`serde_repr`](https://docs.rs/serde_repr/0.1.5/serde_repr/), thus removing
 /// the need for this package in the Atat context.
 ///
 /// Furthermore it automatically implements [`atat::AtatLen`], based on the data
@@ -75,11 +79,11 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 ///
 /// **NOTE**: When using this derive macro with struct or tuple variants in the enum, one
 /// should take extra care to avoid large size variations of the variants, as the
-/// resulting AtatLen of the enum will be the length of the representation
+/// resulting `AtatLen` of the enum will be the length of the representation
 /// (see `#[at_enum(..)]`) together with the largest sum of field values in the variant.
 ///
 /// Eg.
-/// ```
+/// ```ignore
 /// use heapless::{consts, String};
 ///
 /// #[derive(AtatEnum)]
@@ -98,7 +102,7 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 /// `LargeSizeVariations::VariantOne`
 ///
 /// ### Container attribute (`#[at_enum(..)]`)
-/// The AtatEnum derive macro comes with an option of annotating the struct with
+/// The `AtatEnum` derive macro comes with an option of annotating the struct with
 /// a container attribute `#[at_enum(..)]`.
 ///
 /// The container attribute only allows specifying a single parameter, that is
@@ -111,12 +115,11 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 /// **Note**: `at_enum` defaults to `u8`
 ///
 /// ### Field attribute (`#[at_arg(..)]`)
-/// The AtatEnum derive macro comes with an optional field attribute
+/// The `AtatEnum` derive macro comes with an optional field attribute
 /// `#[at_arg(..)]`, that can be specified o some or all of the fields.
 ///
 /// Allowed options for `at_arg` are:
 /// - `value` **integer** The value of the serialized field
-///
 #[proc_macro_derive(AtatEnum, attributes(at_enum, at_arg))]
 pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
     enum_::atat_enum(input)
@@ -128,7 +131,7 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 ///
 ///
 /// ### Container attribute (`#[at_cmd(..)]`)
-/// The AtatCmd derive macro comes with a requirement of annotating the struct
+/// The `AtatCmd` derive macro comes with a requirement of annotating the struct
 /// with a container attribute `#[at_cmd(..)]`.
 ///
 /// This container attribute requires specifying at least a command and an
@@ -155,7 +158,7 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 ///   (default '\r\n'). Can also be set to '' (empty).
 ///
 /// ### Field attribute (`#[at_arg(..)]`)
-/// The AtatCmd derive macro comes with an optional field attribute
+/// The `AtatCmd` derive macro comes with an optional field attribute
 /// `#[at_arg(..)]`, that can be specified on some or all of the fields.
 ///
 /// Allowed options for `at_arg` are:
@@ -163,7 +166,6 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 ///   string. (eg. for command `AT+CMD=a,b`, field `a` would have `position = 1`
 ///   and field `b` would have `position = 2`) (defaults to order of the fields
 ///   in the struct)
-///
 #[proc_macro_derive(AtatCmd, attributes(at_cmd, at_arg))]
 pub fn derive_atat_cmd(input: TokenStream) -> TokenStream {
     cmd::atat_cmd(input)

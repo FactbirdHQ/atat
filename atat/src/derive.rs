@@ -1,5 +1,5 @@
 use core::ops::Mul;
-use heapless::{consts, ArrayLength, String, Vec};
+use heapless::{ArrayLength, String, Vec};
 use typenum::Unsigned;
 
 /// Trait used by [`atat_derive`] to estimate lengths of the serialized commands, at compile time.
@@ -10,9 +10,10 @@ pub trait AtatLen {
 }
 
 macro_rules! impl_length {
-    ($type:ty,$len:ident) => {
+    ($type:ty, $len:ident) => {
+        #[allow(clippy::use_self)]
         impl AtatLen for $type {
-            type Len = consts::$len;
+            type Len = heapless::consts::$len;
         }
     };
 }
@@ -148,11 +149,11 @@ mod tests {
         // (fields) + (n_fields - 1)
         // (3 + 128 + 2 + 150 + 3 + 10 + 3 + (10*5)) + 7
         assert_eq!(
-            <LengthTester as AtatLen>::Len::to_usize(),
+            <LengthTester<'_> as AtatLen>::Len::to_usize(),
             (3 + 128 + 2 + 150 + 3 + 10 + 3) + 6
         );
         assert_eq!(
-            <MixedEnum as AtatLen>::Len::to_usize(),
+            <MixedEnum<'_> as AtatLen>::Len::to_usize(),
             (3 + 3 + 10 + 20 + 10) + 4
         );
     }
@@ -230,10 +231,10 @@ mod tests {
             String::<consts::U50>::from("4,77,\"whaat\",88,1")
         );
 
-        assert_eq!(Ok(MixedEnum::UnitVariant), from_str::<MixedEnum>(":0"));
+        assert_eq!(Ok(MixedEnum::UnitVariant), from_str::<MixedEnum<'_>>(":0"));
         assert_eq!(
             Ok(MixedEnum::SingleSimpleTuple(67)),
-            from_str::<MixedEnum>(":1,67")
+            from_str::<MixedEnum<'_>>(":1,67")
         );
         assert_eq!(
             Ok(MixedEnum::AdvancedTuple(
@@ -242,12 +243,12 @@ mod tests {
                 -43,
                 SimpleEnumU32::C
             )),
-            from_str::<MixedEnum>(":2,251,\"deser\",-43,2")
+            from_str::<MixedEnum<'_>>(":2,251,\"deser\",-43,2")
         );
 
         assert_eq!(
             Ok(MixedEnum::SingleSimpleTupleLifetime("abc")),
-            from_str::<MixedEnum>(":6,\"abc\"")
+            from_str::<MixedEnum<'_>>(":6,\"abc\"")
         );
     }
 }

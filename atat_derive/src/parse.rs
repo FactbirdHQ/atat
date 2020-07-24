@@ -66,12 +66,12 @@ pub struct Variant {
 }
 
 /// Parse valid field attributes
-pub fn parse_field_attr(attributes: Vec<Attribute>) -> Result<FieldAttributes> {
+pub fn parse_field_attr(attributes: &[Attribute]) -> Result<FieldAttributes> {
     let mut attrs = FieldAttributes {
         at_urc: None,
         at_arg: None,
     };
-    for attr in &attributes {
+    for attr in attributes {
         if attr.path.is_ident("at_arg") {
             fn at_arg(input: ParseStream) -> Result<ArgAttributes> {
                 let content;
@@ -111,7 +111,7 @@ fn sorted_variants(data: Data) -> Result<Vec<Variant>> {
                             ident: f.ident,
                             ty: Some(f.ty),
                             fields: None,
-                            attrs: parse_field_attr(f.attrs)?,
+                            attrs: parse_field_attr(&f.attrs)?,
                         },
                     ))
                 })
@@ -127,7 +127,7 @@ fn sorted_variants(data: Data) -> Result<Vec<Variant>> {
                         ident: Some(v.ident.clone()),
                         ty: None,
                         fields: Some(v.fields.clone()),
-                        attrs: parse_field_attr(v.attrs)?,
+                        attrs: parse_field_attr(&v.attrs)?,
                     },
                 ))
             })
@@ -164,7 +164,7 @@ fn sorted_variants(data: Data) -> Result<Vec<Variant>> {
 
 impl Parse for ArgAttributes {
     fn parse(input: ParseStream) -> Result<Self> {
-        let mut attrs = ArgAttributes {
+        let mut attrs = Self {
             value: None,
             position: None,
             len: None,
@@ -223,7 +223,7 @@ impl Parse for UrcAttributes {
             }
         };
 
-        Ok(UrcAttributes { code })
+        Ok(Self { code })
     }
 }
 
@@ -234,7 +234,7 @@ impl Parse for CmdAttributes {
         let _comma = input.parse::<syn::token::Comma>()?;
         let response_ident = input.parse::<Path>()?;
 
-        let mut at_cmd = CmdAttributes {
+        let mut at_cmd = Self {
             cmd: cmd.value(),
             resp: response_ident,
             timeout_ms: None,
@@ -344,7 +344,7 @@ impl Parse for ParseInput {
             }
         }
 
-        Ok(ParseInput {
+        Ok(Self {
             ident: derive_input.ident,
             generics: derive_input.generics,
             at_cmd,

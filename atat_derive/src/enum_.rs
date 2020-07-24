@@ -64,9 +64,9 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
 
     helpers::add_lifetime(&mut deserialize_generics, "'de");
     for lt in generics.lifetimes() {
-        helpers::add_lifetime_bound(&mut deserialize_generics, lt.lifetime.clone());
-        helpers::add_lifetime_bound(&mut serialize_generics, lt.lifetime.clone());
-        helpers::add_lifetime_bound(&mut atat_len_generics, lt.lifetime.clone());
+        helpers::add_lifetime_bound(&mut deserialize_generics, &lt.lifetime);
+        helpers::add_lifetime_bound(&mut serialize_generics, &lt.lifetime);
+        helpers::add_lifetime_bound(&mut atat_len_generics, &lt.lifetime);
     }
     for tp in generics.type_params() {
         helpers::add_type_parameter_bound(

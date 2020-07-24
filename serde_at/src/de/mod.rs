@@ -17,6 +17,7 @@ mod seq;
 pub type Result<T> = core::result::Result<T, Error>;
 
 /// This type represents all possible errors that can occur when deserializing AT Command strings
+#[allow(clippy::pub_enum_variant_names)]
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Error {
@@ -67,7 +68,7 @@ pub(crate) struct Deserializer<'b> {
 }
 
 impl<'a> Deserializer<'a> {
-    fn new(slice: &'a [u8]) -> Deserializer<'_> {
+    const fn new(slice: &'a [u8]) -> Deserializer<'_> {
         Deserializer { slice, index: 0 }
     }
 
@@ -121,18 +122,15 @@ impl<'a> Deserializer<'a> {
     fn parse_bytes(&mut self) -> Result<&'a [u8]> {
         let start = self.index;
         loop {
-            match self.peek() {
-                Some(c) => {
-                    if (c as char).is_alphanumeric() || (c as char).is_whitespace() {
-                        self.eat_char()
-                    } else {
-                        return Err(Error::EofWhileParsingString);
-                    }
+            if let Some(c) = self.peek() {
+                if (c as char).is_alphanumeric() || (c as char).is_whitespace() {
+                    self.eat_char()
+                } else {
+                    return Err(Error::EofWhileParsingString);
                 }
-                None => {
-                    let end = self.index;
-                    return Ok(&self.slice[start..end]);
-                }
+            } else {
+                let end = self.index;
+                return Ok(&self.slice[start..end]);
             }
         }
     }
@@ -557,7 +555,7 @@ impl de::Error for Error {
     {
         #[cfg(not(feature = "custom-error-messages"))]
         {
-            Error::CustomError
+            Self::CustomError
         }
         #[cfg(feature = "custom-error-messages")]
         {
@@ -565,7 +563,7 @@ impl de::Error for Error {
 
             let mut string = heapless::String::new();
             write!(string, "{:.64}", msg).unwrap();
-            Error::CustomErrorWithMessage(string)
+            Self::CustomErrorWithMessage(string)
         }
     }
 }
@@ -576,27 +574,26 @@ impl fmt::Display for Error {
             f,
             "{}",
             match self {
-                Error::EofWhileParsingObject => "EOF while parsing an object.",
-                Error::EofWhileParsingString => "EOF while parsing a string.",
-                Error::EofWhileParsingValue => "EOF while parsing an AT Command string.",
-                Error::ExpectedSomeIdent => {
+                Self::EofWhileParsingObject => "EOF while parsing an object.",
+                Self::EofWhileParsingString => "EOF while parsing a string.",
+                Self::EofWhileParsingValue => "EOF while parsing an AT Command string.",
+                Self::ExpectedSomeIdent => {
                     "Expected to parse either a `true`, `false`, or a \
                      `null`."
                 }
-                Error::ExpectedSomeValue =>
-                    "Expected this character to start an AT Command string.",
-                Error::InvalidNumber => "Invalid number.",
-                Error::InvalidType => "Invalid type",
-                Error::InvalidUnicodeCodePoint => "Invalid unicode code point.",
-                Error::TrailingCharacters => {
+                Self::ExpectedSomeValue => "Expected this character to start an AT Command string.",
+                Self::InvalidNumber => "Invalid number.",
+                Self::InvalidType => "Invalid type",
+                Self::InvalidUnicodeCodePoint => "Invalid unicode code point.",
+                Self::TrailingCharacters => {
                     "AT Command string has non-whitespace trailing characters after \
                      the \
                      value."
                 }
-                Error::CustomError =>
-                    "AT Command string does not match deserializer’s expected format.",
+                Self::CustomError =>
+                    "AT Command string does not match deserializer\u{2019}s expected format.",
                 #[cfg(feature = "custom-error-messages")]
-                Error::CustomErrorWithMessage(msg) => msg.as_str(),
+                Self::CustomErrorWithMessage(msg) => msg.as_str(),
                 _ => "Invalid AT Command string",
             }
         )
