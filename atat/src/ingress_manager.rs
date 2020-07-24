@@ -373,6 +373,7 @@ where
                 false,
                 false,
             );
+            #[allow(unused_variables)]
             if let Some(r) = removed {
                 #[cfg(feature = "logging")]
                 crate::log_str!(trace, "Cleared partial buffer, removed {:?}", r);
