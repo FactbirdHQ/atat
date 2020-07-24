@@ -20,22 +20,25 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 ///
 /// Example:
 /// ```
-/// use serde_at::{to_string, SerializeOptions, Bytes};
 /// use heapless::{consts, String};
+/// use serde_at::{to_string, Bytes, SerializeOptions};
 /// use serde_derive::Serialize;
 ///
 /// #[derive(Clone, PartialEq, Serialize)]
 /// pub struct WithBytes<'a> {
-///     s: Bytes<'a>
+///     s: Bytes<'a>,
 /// };
 ///
 /// let slice = b"Some bytes";
-/// let b = WithBytes { s: Bytes(&slice[..]) };
+/// let b = WithBytes {
+///     s: Bytes(&slice[..]),
+/// };
 /// let s: String<consts::U32> = to_string(
 ///     &b,
 ///     String::<consts::U32>::from("+CMD"),
 ///     SerializeOptions::default(),
-/// ).unwrap();
+/// )
+/// .unwrap();
 ///
 /// assert_eq!(s, String::<consts::U32>::from("AT+CMD=Some bytes\r\n"));
 /// ```

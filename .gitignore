@@ -7,3 +7,4 @@ target/
 application/Debug/bin/
 application/Debug/obj/
 .vscode
+lcov.info

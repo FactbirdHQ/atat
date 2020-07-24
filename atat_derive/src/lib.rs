@@ -18,7 +18,7 @@
 //!
 //! [`AtatCmd`]: derive.AtatCmd.html
 //!
-//! ```
+//! ```ignore
 //! // Serializing the following struct, results in `AT+USORD=<socket>,<length>\r\n`
 //! #[derive(AtatCmd)]
 //! #[at_cmd("+USORD", SocketData)]
@@ -46,7 +46,6 @@ use crate::proc_macro::TokenStream;
 /// Automatically derive [`atat::AtatResp`] trait
 ///
 /// [`atat::AtatResp`]: ../atat/trait.AtatResp.html
-///
 #[proc_macro_derive(AtatResp, attributes(at_arg))]
 pub fn derive_atat_resp(input: TokenStream) -> TokenStream {
     resp::atat_resp(input)
@@ -55,7 +54,6 @@ pub fn derive_atat_resp(input: TokenStream) -> TokenStream {
 /// Automatically derive [`atat::AtatUrc`] trait
 ///
 /// [`atat::AtatUrc`]: ../atat/trait.AtatUrc.html
-///
 #[proc_macro_derive(AtatUrc, attributes(at_urc))]
 pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
     urc::atat_urc(input)
@@ -79,7 +77,7 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 /// (see `#[at_enum(..)]`) together with the largest sum of field values in the variant.
 ///
 /// Eg.
-/// ```
+/// ```ignore
 /// use heapless::{consts, String};
 ///
 /// #[derive(AtatEnum)]
@@ -116,7 +114,6 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 ///
 /// Allowed options for `at_arg` are:
 /// - `value` **integer** The value of the serialized field
-///
 #[proc_macro_derive(AtatEnum, attributes(at_enum, at_arg))]
 pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
     enum_::atat_enum(input)
@@ -163,7 +160,6 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 ///   string. (eg. for command `AT+CMD=a,b`, field `a` would have `position = 1`
 ///   and field `b` would have `position = 2`) (defaults to order of the fields
 ///   in the struct)
-///
 #[proc_macro_derive(AtatCmd, attributes(at_cmd, at_arg))]
 pub fn derive_atat_cmd(input: TokenStream) -> TokenStream {
     cmd::atat_cmd(input)

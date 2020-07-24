@@ -49,10 +49,21 @@ impl SliceExt for [u8] {
 ///
 /// Example:
 /// ```
-/// let mut buf = heapless::String::from("+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\nAT+GMR\r\r\n");
-/// let response: heapless::String<heapless::consts::U64> = get_line(&mut buf, "OK", b'\r', b'\n', false, false);
-/// assert_eq!(response, heapless::String::from("+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n"));
-/// assert_eq!(buf, heapless::String::from("AT+GMR\r\r\n"));
+/// use atat::get_line;
+/// use heapless::{consts, Vec};
+///
+/// let mut buf: Vec<u8, consts::U128> =
+///     Vec::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\nAT+GMR\r\r\n").unwrap();
+/// let response: Option<Vec<u8, consts::U64>> =
+///     get_line(&mut buf, b"OK", b'\r', b'\n', false, false);
+/// assert_eq!(
+///     response,
+///     Some(Vec::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n").unwrap())
+/// );
+/// assert_eq!(
+///     buf,
+///     Vec::<u8, consts::U128>::from_slice(b"AT+GMR\r\r\n").unwrap()
+/// );
 /// ```
 pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     buf: &mut Vec<u8, I>,
@@ -131,20 +142,18 @@ pub enum UrcMatcherResult<L: ArrayLength<u8>> {
 ///
 /// ```
 /// use atat::{UrcMatcher, UrcMatcherResult};
-/// use heapless::{consts, String};
+/// use heapless::{consts, ArrayLength, Vec};
 ///
-/// struct FooUrcMatcher { }
+/// struct FooUrcMatcher {}
 ///
-/// impl UrcMatcher for FooUrcMatcher {
-///     type MaxLen = consts::U9;
-///
-///     fn process(&mut self, buf: &mut String<consts::U256>) -> UrcMatcherResult<Self::MaxLen> {
-///         if buf.starts_with("+FOO,") {
+/// impl<BufLen: ArrayLength<u8>> UrcMatcher<BufLen> for FooUrcMatcher {
+///     fn process(&mut self, buf: &mut Vec<u8, BufLen>) -> UrcMatcherResult<BufLen> {
+///         if buf.starts_with(b"+FOO,") {
 ///             if buf.len() >= 9 {
-///                 if &buf[7..9] == "\r\n" {
+///                 if &buf[7..9] == b"\r\n" {
 ///                     // URC is complete
-///                     let data = String::from(&buf[..9]);
-///                     *buf = String::from(&buf[9..]);
+///                     let data = Vec::from_slice(&buf[..9]).unwrap();
+///                     *buf = Vec::from_slice(&buf[9..]).unwrap();
 ///                     UrcMatcherResult::Complete(data)
 ///                 } else {
 ///                     // Invalid, reject
@@ -549,7 +558,6 @@ where
 }
 
 #[cfg(test)]
-#[cfg_attr(tarpaulin, skip)]
 mod test {
     use super::*;
     use crate as atat;
