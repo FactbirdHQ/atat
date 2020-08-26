@@ -94,8 +94,14 @@ The following dependent crates provide platform-agnostic device drivers built on
 
 ## Features
 
- - `logging`: Disabled by default. Add log statements on various log levels to aid debugging.
  - `derive`: Enabled by default. Re-exports `atat_derive` to allow deriving `Atat__` traits.
+ - `log-logging`: Disabled by default. Enable log statements on various log levels to aid debugging. Powered by `log`.
+ - `defmt-default`: Disabled by default. Enable log statements at INFO, or TRACE, level and up, to aid debugging. Powered by `defmt`.
+ - `defmt-trace`: Disabled by default. Enable log statements at TRACE level and up, to aid debugging. Powered by `defmt`.
+ - `defmt-debug`: Disabled by default. Enable log statements at DEBUG level and up, to aid debugging. Powered by `defmt`.
+ - `defmt-info`: Disabled by default. Enable log statements at INFO level and up, to aid debugging. Powered by `defmt`.
+ - `defmt-warn`: Disabled by default. Enable log statements at WARN level and up, to aid debugging. Powered by `defmt`.
+ - `defmt-error`: Disabled by default. Enable log statements at ERROR level and up, to aid debugging. Powered by `defmt`.
 
 ## Chat / Getting Help
 

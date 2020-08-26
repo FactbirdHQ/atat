@@ -1,5 +1,6 @@
 /// Errors returned by, or used within the crate
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt_logging", derive(defmt::Format))]
 pub enum Error {
     /// Serial read error
     Read,

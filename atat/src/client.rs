@@ -1,5 +1,6 @@
 use embedded_hal::{serial, timer::CountDown};
 
+use crate::atat_log;
 use crate::error::Error;
 use crate::queues::{ComItem, ComProducer, ResConsumer, ResItem, UrcConsumer, UrcItem};
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
@@ -105,8 +106,8 @@ where
                     .is_err()
             {
                 // TODO: Consider how to act in this situation.
-                #[cfg(feature = "logging")]
-                log::error!(
+                atat_log!(
+                    error,
                     "Failed to signal parser to force state transition to 'ReceivingResponse'!"
                 );
             }
@@ -116,8 +117,7 @@ where
             // command
             nb::block!(self.timer.wait()).ok();
             let cmd_buf = cmd.as_bytes();
-            #[cfg(feature = "logging")]
-            crate::log_str!(debug, "Sending command: {:?}", cmd_buf);
+            // log_str!(debug, "Sending command: {:?}", cmd_buf);
             for c in cmd_buf {
                 nb::block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
             }
@@ -164,8 +164,7 @@ where
                 // Tell the parser to clear the buffer due to timeout
                 if self.com_p.enqueue(Command::ClearBuffer).is_err() {
                     // TODO: Consider how to act in this situation.
-                    #[cfg(feature = "logging")]
-                    log::error!("Failed to signal parser to clear buffer on timeout!");
+                    atat_log!(error, "Failed to signal parser to clear buffer on timeout!");
                 }
                 return Err(nb::Error::Other(Error::Timeout));
             }

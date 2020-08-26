@@ -1,5 +1,6 @@
 use heapless::{consts, ArrayLength, Vec};
 
+use crate::atat_log;
 use crate::error::Error;
 use crate::queues::{ComConsumer, ComItem, ResItem, ResProducer, UrcItem, UrcProducer};
 use crate::{Command, Config};
@@ -115,6 +116,7 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
 /// State of the `IngressManager`, used to distiguish URCs from solicited
 /// responses
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt_logging", derive(defmt::Format))]
 pub enum State {
     Idle,
     ReceivingResponse,
@@ -288,8 +290,7 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        #[cfg(feature = "logging")]
-        log::trace!("Receiving {} bytes", data.len());
+        atat_log!(trace, "Receiving {:?} bytes", data.len());
 
         if self.buf.extend_from_slice(data).is_err() {
             self.notify_response(Err(Error::Overflow));
@@ -299,10 +300,9 @@ where
     /// Notify the client that an appropriate response code, or error has been
     /// received
     fn notify_response(&mut self, resp: Result<ByteVec<BufLen>, Error>) {
-        #[cfg(feature = "logging")]
         match &resp {
-            Ok(r) => crate::log_str!(debug, "Received response: {:?}", r),
-            e @ Err(_) => log::error!("Received response: {:?}", e),
+            Ok(_r) => atat_log!(debug, "Received response"),
+            Err(_e) => atat_log!(error, "Received error response: {:?}", _e),
         }
         if self.res_p.ready() {
             unsafe { self.res_p.enqueue_unchecked(resp) };
@@ -314,8 +314,7 @@ where
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
     fn notify_urc(&mut self, resp: ByteVec<BufLen>) {
-        #[cfg(feature = "logging")]
-        crate::log_str!(debug, "Received URC: {:?}", &resp);
+        // log_str!(debug, "Received URC: {:?}", &resp);
 
         if self.urc_p.ready() {
             unsafe { self.urc_p.enqueue_unchecked(resp) };
@@ -331,13 +330,11 @@ where
                 Command::ClearBuffer => {
                     self.state = State::Idle;
                     self.buf_incomplete = false;
-                    #[cfg(feature = "logging")]
-                    crate::log_str!(debug, "Clearing buffer on timeout / {:?}", &self.buf);
+                    // log_str!(debug, "Clearing buffer on timeout / {:?}", &self.buf);
                     self.clear_buf(true);
                 }
                 Command::ForceState(state) => {
-                    #[cfg(feature = "logging")]
-                    log::trace!("Switching to state {:?}", state);
+                    atat_log!(trace, "Switching to state {:?}", state);
                     self.buf_incomplete = false;
                     self.state = state;
                 }
@@ -362,8 +359,7 @@ where
     fn clear_buf(&mut self, complete: bool) {
         if complete {
             self.buf.clear();
-            #[cfg(feature = "logging")]
-            log::trace!("Cleared complete buffer");
+            atat_log!(trace, "Cleared complete buffer");
         } else {
             let removed = get_line::<BufLen, _>(
                 &mut self.buf,
@@ -375,12 +371,10 @@ where
             );
             #[allow(unused_variables)]
             if let Some(r) = removed {
-                #[cfg(feature = "logging")]
-                crate::log_str!(trace, "Cleared partial buffer, removed {:?}", r);
+                // log_str!(trace, "Cleared partial buffer, removed {:?}", r);
             } else {
                 self.buf.clear();
-                #[cfg(feature = "logging")]
-                log::trace!("Cleared partial buffer, removed everything");
+                atat_log!(trace, "Cleared partial buffer, removed everything");
             }
         }
     }
@@ -404,8 +398,7 @@ where
             .unwrap();
         }
 
-        #[cfg(feature = "logging")]
-        crate::log_str!(trace, "Digest / {:?}", self.buf);
+        // log_str!(trace, "Digest / {:?}", self.buf);
 
         match self.state {
             State::Idle => {
@@ -432,8 +425,7 @@ where
                     {
                         self.state = State::ReceivingResponse;
                         self.buf_incomplete = false;
-                        #[cfg(feature = "logging")]
-                        log::trace!("Switching to state ReceivingResponse");
+                        atat_log!(trace, "Switching to state ReceivingResponse");
                     }
 
                 // Handle URCs
@@ -469,11 +461,11 @@ where
                 // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
                 // ensure that we don't accidentally break a valid response.
                 } else if self.buf_incomplete || self.buf.len() > min_length {
-                    #[cfg(feature = "logging")]
-                    log::trace!(
-                        "Clearing buffer with invalid response (incomplete: {}, buflen: {})",
+                    atat_log!(
+                        trace,
+                        "Clearing buffer with invalid response (incomplete: {:?}, buflen: {:?})",
                         self.buf_incomplete,
-                        self.buf.len(),
+                        self.buf.len()
                     );
                     self.buf_incomplete = self.buf.is_empty()
                         || (self.buf.len() > 0
@@ -544,8 +536,7 @@ where
                 };
 
                 self.notify_response(resp);
-                #[cfg(feature = "logging")]
-                log::trace!("Switching to state Idle");
+                atat_log!(trace, "Switching to state Idle");
                 self.state = State::Idle;
             }
         }
