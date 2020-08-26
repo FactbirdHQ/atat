@@ -31,12 +31,9 @@ impl SliceExt for [u8] {
 
     fn trim_start(&self, whitespaces: &[u8]) -> &[u8] {
         let is_not_whitespace = |c| !whitespaces.contains(c);
-
-        if let Some(first) = self.iter().position(is_not_whitespace) {
-            &self[first..]
-        } else {
-            &[]
-        }
+        self.iter()
+            .position(is_not_whitespace)
+            .map_or(&[], |first| &self[first..])
     }
 }
 
@@ -431,17 +428,16 @@ where
                 // Handle URCs
                 } else if !self.buf_incomplete && self.buf.get(0) == Some(&b'+') {
                     // Try to apply the custom URC matcher
-                    let handled = if let Some(ref mut matcher) = self.custom_urc_matcher {
-                        match matcher.process(&mut self.buf) {
+                    let handled = match self.custom_urc_matcher {
+                        Some(ref mut matcher) => match matcher.process(&mut self.buf) {
                             UrcMatcherResult::NotHandled => false,
                             UrcMatcherResult::Incomplete => true,
                             UrcMatcherResult::Complete(urc) => {
                                 self.notify_urc(urc);
                                 true
                             }
-                        }
-                    } else {
-                        false
+                        },
+                        None => false,
                     };
                     if !handled {
                         if let Some(line) = get_line(

@@ -95,7 +95,7 @@
 //!
 //! ### Basic usage example (More available in examples folder):
 //! ```ignore
-//! 
+//!
 //! use cortex_m::asm;
 //! use hal::{
 //!     gpio::{
@@ -298,17 +298,30 @@ macro_rules! atat_log {
         defmt::$level!($($arg)+);
     }
 }
-#[cfg(not(any(
-    any(
-        feature = "defmt-default",
-        feature = "defmt-trace",
-        feature = "defmt-debug",
-        feature = "defmt-info",
-        feature = "defmt-warn",
-        feature = "defmt-error"
+#[cfg(any(
+    all(
+        any(
+            feature = "defmt-default",
+            feature = "defmt-trace",
+            feature = "defmt-debug",
+            feature = "defmt-info",
+            feature = "defmt-warn",
+            feature = "defmt-error"
+        ),
+        feature = "log-logging"
     ),
-    feature = "log-logging"
-)))]
+    not(any(
+        any(
+            feature = "defmt-default",
+            feature = "defmt-trace",
+            feature = "defmt-debug",
+            feature = "defmt-info",
+            feature = "defmt-warn",
+            feature = "defmt-error"
+        ),
+        feature = "log-logging"
+    ))
+))]
 #[macro_export]
 macro_rules! atat_log {
     ($level:ident, $($arg:tt)+) => {
