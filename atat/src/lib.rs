@@ -95,7 +95,7 @@
 //!
 //! ### Basic usage example (More available in examples folder):
 //! ```ignore
-//!
+//! 
 //! use cortex_m::asm;
 //! use hal::{
 //!     gpio::{
