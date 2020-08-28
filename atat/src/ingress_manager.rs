@@ -321,12 +321,13 @@ where
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
     fn notify_urc(&mut self, resp: ByteVec<BufLen>) {
+        #[allow(clippy::single_match)]
         match core::str::from_utf8(&resp) {
-            Ok(s) => {
+            Ok(_s) => {
                 #[cfg(not(feature = "log-logging"))]
-                atat_log!(debug, "Received URC: {:str}", s);
+                atat_log!(debug, "Received URC: {:str}", _s);
                 #[cfg(feature = "log-logging")]
-                atat_log!(debug, "Received URC: {:?}", s);
+                atat_log!(debug, "Received URC: {:?}", _s);
             }
             Err(_) => atat_log!(
                 debug,
@@ -349,12 +350,13 @@ where
                 Command::ClearBuffer => {
                     self.state = State::Idle;
                     self.buf_incomplete = false;
+                    #[allow(clippy::single_match)]
                     match core::str::from_utf8(&self.buf) {
-                        Ok(s) => {
+                        Ok(_s) => {
                             #[cfg(not(feature = "log-logging"))]
-                            atat_log!(debug, "Clearing buffer on timeout / {:str}", s);
+                            atat_log!(debug, "Clearing buffer on timeout / {:str}", _s);
                             #[cfg(feature = "log-logging")]
-                            atat_log!(debug, "Clearing buffer on timeout / {:?}", s);
+                            atat_log!(debug, "Clearing buffer on timeout / {:?}", _s);
                         }
                         Err(_) => atat_log!(
                             debug,
@@ -403,12 +405,13 @@ where
             );
             #[allow(unused_variables)]
             if let Some(r) = removed {
+                #[allow(clippy::single_match)]
                 match core::str::from_utf8(&r) {
-                    Ok(s) => {
+                    Ok(_s) => {
                         #[cfg(not(feature = "log-logging"))]
-                        atat_log!(trace, "Cleared partial buffer, removed {:str}", s);
+                        atat_log!(trace, "Cleared partial buffer, removed {:str}", _s);
                         #[cfg(feature = "log-logging")]
-                        atat_log!(trace, "Cleared partial buffer, removed {:?}", s);
+                        atat_log!(trace, "Cleared partial buffer, removed {:?}", _s);
                     }
                     Err(_) => atat_log!(
                         trace,
@@ -442,12 +445,13 @@ where
             .unwrap();
         }
 
+        #[allow(clippy::single_match)]
         match core::str::from_utf8(&self.buf) {
-            Ok(s) => {
+            Ok(_s) => {
                 #[cfg(not(feature = "log-logging"))]
-                atat_log!(trace, "Digest / {:str}", s);
+                atat_log!(trace, "Digest / {:str}", _s);
                 #[cfg(feature = "log-logging")]
-                atat_log!(trace, "Digest / {:?}", s);
+                atat_log!(trace, "Digest / {:?}", _s);
             }
             Err(_) => atat_log!(
                 trace,

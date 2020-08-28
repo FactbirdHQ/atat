@@ -118,12 +118,13 @@ where
             nb::block!(self.timer.wait()).ok();
             let cmd_buf = cmd.as_bytes();
 
+            #[allow(clippy::single_match)]
             match core::str::from_utf8(&cmd_buf) {
-                Ok(s) => {
+                Ok(_s) => {
                     #[cfg(not(feature = "log-logging"))]
-                    atat_log!(debug, "Sending command: {:str}", s);
+                    atat_log!(debug, "Sending command: {:str}", _s);
                     #[cfg(feature = "log-logging")]
-                    atat_log!(debug, "Sending command: {:?}", s);
+                    atat_log!(debug, "Sending command: {:?}", _s);
                 }
                 Err(_) => atat_log!(
                     debug,
