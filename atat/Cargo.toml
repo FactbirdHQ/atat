@@ -33,12 +33,12 @@ defmt = { git = "https://github.com/knurling-rs/defmt", branch = "main", optiona
 [dev-dependencies]
 cortex-m = "0.6.3"
 cortex-m-rt = "0.6.12"
-cortex-m-rtic = "0.5.3"
+cortex-m-rtic = "0.5.4"
 panic-halt = "0.2.0"
 stm32l4xx-hal = { git = "https://github.com/stm32-rs/stm32l4xx-hal", features = ["stm32l4x5", "rt"] }
 
 [features]
-default = ["derive"]
+default = ["derive", "defmt-trace"]
 derive = ["atat_derive"]
 
 log-logging = ["log"]

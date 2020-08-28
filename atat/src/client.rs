@@ -117,7 +117,21 @@ where
             // command
             nb::block!(self.timer.wait()).ok();
             let cmd_buf = cmd.as_bytes();
-            // log_str!(debug, "Sending command: {:?}", cmd_buf);
+
+            match core::str::from_utf8(&cmd_buf) {
+                Ok(s) => {
+                    #[cfg(not(feature = "log-logging"))]
+                    atat_log!(debug, "Sending command: {:str}", s);
+                    #[cfg(feature = "log-logging")]
+                    atat_log!(debug, "Sending command: {:?}", s);
+                }
+                Err(_) => atat_log!(
+                    debug,
+                    "Sending command: {:?}",
+                    core::convert::AsRef::<[u8]>::as_ref(&cmd_buf)
+                ),
+            };
+
             for c in cmd_buf {
                 nb::block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
             }

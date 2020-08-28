@@ -254,16 +254,6 @@ pub mod prelude {
     pub use crate::AtatLen as _atat_AtatLen;
 }
 
-#[macro_export]
-macro_rules! log_str {
-    ($level:ident, $fmt:expr, $buf:expr) => {
-        match core::str::from_utf8(&$buf) {
-            Ok(_s) => atat_log!($level, $fmt, _s),
-            Err(_) => atat_log!($level, $fmt, $buf),
-        };
-    };
-}
-
 #[cfg(all(
     feature = "log-logging",
     not(any(

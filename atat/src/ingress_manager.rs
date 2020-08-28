@@ -113,7 +113,17 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
 /// State of the `IngressManager`, used to distiguish URCs from solicited
 /// responses
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-#[cfg_attr(feature = "defmt_logging", derive(defmt::Format))]
+#[cfg_attr(
+    any(
+        feature = "defmt-default",
+        feature = "defmt-trace",
+        feature = "defmt-debug",
+        feature = "defmt-info",
+        feature = "defmt-warn",
+        feature = "defmt-error"
+    ),
+    derive(defmt::Format)
+)]
 pub enum State {
     Idle,
     ReceivingResponse,
@@ -311,7 +321,19 @@ where
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
     fn notify_urc(&mut self, resp: ByteVec<BufLen>) {
-        // log_str!(debug, "Received URC: {:?}", &resp);
+        match core::str::from_utf8(&resp) {
+            Ok(s) => {
+                #[cfg(not(feature = "log-logging"))]
+                atat_log!(debug, "Received URC: {:str}", s);
+                #[cfg(feature = "log-logging")]
+                atat_log!(debug, "Received URC: {:?}", s);
+            }
+            Err(_) => atat_log!(
+                debug,
+                "Received URC: {:?}",
+                core::convert::AsRef::<[u8]>::as_ref(&resp)
+            ),
+        };
 
         if self.urc_p.ready() {
             unsafe { self.urc_p.enqueue_unchecked(resp) };
@@ -327,7 +349,20 @@ where
                 Command::ClearBuffer => {
                     self.state = State::Idle;
                     self.buf_incomplete = false;
-                    // log_str!(debug, "Clearing buffer on timeout / {:?}", &self.buf);
+                    match core::str::from_utf8(&self.buf) {
+                        Ok(s) => {
+                            #[cfg(not(feature = "log-logging"))]
+                            atat_log!(debug, "Clearing buffer on timeout / {:str}", s);
+                            #[cfg(feature = "log-logging")]
+                            atat_log!(debug, "Clearing buffer on timeout / {:?}", s);
+                        }
+                        Err(_) => atat_log!(
+                            debug,
+                            "Clearing buffer on timeout / {:?}",
+                            core::convert::AsRef::<[u8]>::as_ref(&self.buf)
+                        ),
+                    };
+
                     self.clear_buf(true);
                 }
                 Command::ForceState(state) => {
@@ -368,7 +403,19 @@ where
             );
             #[allow(unused_variables)]
             if let Some(r) = removed {
-                // log_str!(trace, "Cleared partial buffer, removed {:?}", r);
+                match core::str::from_utf8(&r) {
+                    Ok(s) => {
+                        #[cfg(not(feature = "log-logging"))]
+                        atat_log!(trace, "Cleared partial buffer, removed {:str}", s);
+                        #[cfg(feature = "log-logging")]
+                        atat_log!(trace, "Cleared partial buffer, removed {:?}", s);
+                    }
+                    Err(_) => atat_log!(
+                        trace,
+                        "Cleared partial buffer, removed {:?}",
+                        core::convert::AsRef::<[u8]>::as_ref(&r)
+                    ),
+                };
             } else {
                 self.buf.clear();
                 atat_log!(trace, "Cleared partial buffer, removed everything");
@@ -395,7 +442,19 @@ where
             .unwrap();
         }
 
-        // log_str!(trace, "Digest / {:?}", self.buf);
+        match core::str::from_utf8(&self.buf) {
+            Ok(s) => {
+                #[cfg(not(feature = "log-logging"))]
+                atat_log!(trace, "Digest / {:str}", s);
+                #[cfg(feature = "log-logging")]
+                atat_log!(trace, "Digest / {:?}", s);
+            }
+            Err(_) => atat_log!(
+                trace,
+                "Digest / {:?}",
+                core::convert::AsRef::<[u8]>::as_ref(&self.buf)
+            ),
+        };
 
         match self.state {
             State::Idle => {
