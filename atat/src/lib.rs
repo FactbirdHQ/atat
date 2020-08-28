@@ -194,10 +194,14 @@
 //! ```
 //! # Optional Cargo Features
 //!
-//! - **`derive`** *(enabled by default)* — Enables and re-exports
-//!   [`atat_derive`].
-//! - **`logging`** *(disabled by default)* — Prints useful logging information,
-//!   including incoming and outgoing bytes on the `TRACE` level.
+//! - **`derive`** *(enabled by default)* - Re-exports [`atat_derive`] to allow deriving `Atat__` traits.
+//! - **`log-logging`** *(disabled by default)* - Enable log statements on various log levels to aid debugging. Powered by `log`.
+//! - **`defmt-default`** *(disabled by default)* - Enable log statements at INFO, or TRACE, level and up, to aid debugging. Powered by `defmt`.
+//! - **`defmt-trace`** *(disabled by default)* - Enable log statements at TRACE level and up, to aid debugging. Powered by `defmt`.
+//! - **`defmt-debug`** *(disabled by default)* - Enable log statements at DEBUG level and up, to aid debugging. Powered by `defmt`.
+//! - **`defmt-info`** *(disabled by default)* - Enable log statements at INFO level and up, to aid debugging. Powered by `defmt`.
+//! - **`defmt-warn`** *(disabled by default)* - Enable log statements at WARN level and up, to aid debugging. Powered by `defmt`.
+//! - **`defmt-error`** *(disabled by default)* - Enable log statements at ERROR level and up, to aid debugging. Powered by `defmt`.
 
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
@@ -250,14 +254,68 @@ pub mod prelude {
     pub use crate::AtatLen as _atat_AtatLen;
 }
 
-#[cfg(feature = "logging")]
+#[cfg(all(
+    feature = "log-logging",
+    not(any(
+        feature = "defmt-default",
+        feature = "defmt-trace",
+        feature = "defmt-debug",
+        feature = "defmt-info",
+        feature = "defmt-warn",
+        feature = "defmt-error"
+    ))
+))]
 #[macro_export]
-macro_rules! log_str {
-    ($level:ident, $fmt:expr, $buf:expr) => {
-        match core::str::from_utf8(&$buf) {
-            Ok(s) => log::$level!($fmt, s),
-            Err(_) => log::$level!($fmt, $buf),
-        }
+macro_rules! atat_log {
+    ($level:ident, $($arg:tt)+) => {
+        log::$level!($($arg)+);
+    }
+}
+#[cfg(all(
+    any(
+        feature = "defmt-default",
+        feature = "defmt-trace",
+        feature = "defmt-debug",
+        feature = "defmt-info",
+        feature = "defmt-warn",
+        feature = "defmt-error"
+    ),
+    not(feature = "log-logging")
+))]
+#[macro_export]
+macro_rules! atat_log {
+    ($level:ident, $($arg:tt)+) => {
+        defmt::$level!($($arg)+);
+    }
+}
+#[cfg(any(
+    all(
+        any(
+            feature = "defmt-default",
+            feature = "defmt-trace",
+            feature = "defmt-debug",
+            feature = "defmt-info",
+            feature = "defmt-warn",
+            feature = "defmt-error"
+        ),
+        feature = "log-logging"
+    ),
+    not(any(
+        any(
+            feature = "defmt-default",
+            feature = "defmt-trace",
+            feature = "defmt-debug",
+            feature = "defmt-info",
+            feature = "defmt-warn",
+            feature = "defmt-error"
+        ),
+        feature = "log-logging"
+    ))
+))]
+#[macro_export]
+macro_rules! atat_log {
+    ($level:ident, $($arg:tt)+) => {
+        ();
     };
 }
 

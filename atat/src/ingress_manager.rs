@@ -1,5 +1,6 @@
 use heapless::{consts, ArrayLength, Vec};
 
+use crate::atat_log;
 use crate::error::Error;
 use crate::queues::{ComConsumer, ComItem, ResItem, ResProducer, UrcItem, UrcProducer};
 use crate::{Command, Config};
@@ -30,12 +31,9 @@ impl SliceExt for [u8] {
 
     fn trim_start(&self, whitespaces: &[u8]) -> &[u8] {
         let is_not_whitespace = |c| !whitespaces.contains(c);
-
-        if let Some(first) = self.iter().position(is_not_whitespace) {
-            &self[first..]
-        } else {
-            &[]
-        }
+        self.iter()
+            .position(is_not_whitespace)
+            .map_or(&[], |first| &self[first..])
     }
 }
 
@@ -115,6 +113,17 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
 /// State of the `IngressManager`, used to distiguish URCs from solicited
 /// responses
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[cfg_attr(
+    any(
+        feature = "defmt-default",
+        feature = "defmt-trace",
+        feature = "defmt-debug",
+        feature = "defmt-info",
+        feature = "defmt-warn",
+        feature = "defmt-error"
+    ),
+    derive(defmt::Format)
+)]
 pub enum State {
     Idle,
     ReceivingResponse,
@@ -288,8 +297,7 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        #[cfg(feature = "logging")]
-        log::trace!("Receiving {} bytes", data.len());
+        atat_log!(trace, "Receiving {:?} bytes", data.len());
 
         if self.buf.extend_from_slice(data).is_err() {
             self.notify_response(Err(Error::Overflow));
@@ -299,10 +307,9 @@ where
     /// Notify the client that an appropriate response code, or error has been
     /// received
     fn notify_response(&mut self, resp: Result<ByteVec<BufLen>, Error>) {
-        #[cfg(feature = "logging")]
         match &resp {
-            Ok(r) => crate::log_str!(debug, "Received response: {:?}", r),
-            e @ Err(_) => log::error!("Received response: {:?}", e),
+            Ok(_r) => atat_log!(debug, "Received response"),
+            Err(_e) => atat_log!(error, "Received error response: {:?}", _e),
         }
         if self.res_p.ready() {
             unsafe { self.res_p.enqueue_unchecked(resp) };
@@ -314,8 +321,20 @@ where
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
     fn notify_urc(&mut self, resp: ByteVec<BufLen>) {
-        #[cfg(feature = "logging")]
-        crate::log_str!(debug, "Received URC: {:?}", &resp);
+        #[allow(clippy::single_match)]
+        match core::str::from_utf8(&resp) {
+            Ok(_s) => {
+                #[cfg(not(feature = "log-logging"))]
+                atat_log!(debug, "Received URC: {:str}", _s);
+                #[cfg(feature = "log-logging")]
+                atat_log!(debug, "Received URC: {:?}", _s);
+            }
+            Err(_) => atat_log!(
+                debug,
+                "Received URC: {:?}",
+                core::convert::AsRef::<[u8]>::as_ref(&resp)
+            ),
+        };
 
         if self.urc_p.ready() {
             unsafe { self.urc_p.enqueue_unchecked(resp) };
@@ -331,13 +350,25 @@ where
                 Command::ClearBuffer => {
                     self.state = State::Idle;
                     self.buf_incomplete = false;
-                    #[cfg(feature = "logging")]
-                    crate::log_str!(debug, "Clearing buffer on timeout / {:?}", &self.buf);
+                    #[allow(clippy::single_match)]
+                    match core::str::from_utf8(&self.buf) {
+                        Ok(_s) => {
+                            #[cfg(not(feature = "log-logging"))]
+                            atat_log!(debug, "Clearing buffer on timeout / {:str}", _s);
+                            #[cfg(feature = "log-logging")]
+                            atat_log!(debug, "Clearing buffer on timeout / {:?}", _s);
+                        }
+                        Err(_) => atat_log!(
+                            debug,
+                            "Clearing buffer on timeout / {:?}",
+                            core::convert::AsRef::<[u8]>::as_ref(&self.buf)
+                        ),
+                    };
+
                     self.clear_buf(true);
                 }
                 Command::ForceState(state) => {
-                    #[cfg(feature = "logging")]
-                    log::trace!("Switching to state {:?}", state);
+                    atat_log!(trace, "Switching to state {:?}", state);
                     self.buf_incomplete = false;
                     self.state = state;
                 }
@@ -362,8 +393,7 @@ where
     fn clear_buf(&mut self, complete: bool) {
         if complete {
             self.buf.clear();
-            #[cfg(feature = "logging")]
-            log::trace!("Cleared complete buffer");
+            atat_log!(trace, "Cleared complete buffer");
         } else {
             let removed = get_line::<BufLen, _>(
                 &mut self.buf,
@@ -375,12 +405,23 @@ where
             );
             #[allow(unused_variables)]
             if let Some(r) = removed {
-                #[cfg(feature = "logging")]
-                crate::log_str!(trace, "Cleared partial buffer, removed {:?}", r);
+                #[allow(clippy::single_match)]
+                match core::str::from_utf8(&r) {
+                    Ok(_s) => {
+                        #[cfg(not(feature = "log-logging"))]
+                        atat_log!(trace, "Cleared partial buffer, removed {:str}", _s);
+                        #[cfg(feature = "log-logging")]
+                        atat_log!(trace, "Cleared partial buffer, removed {:?}", _s);
+                    }
+                    Err(_) => atat_log!(
+                        trace,
+                        "Cleared partial buffer, removed {:?}",
+                        core::convert::AsRef::<[u8]>::as_ref(&r)
+                    ),
+                };
             } else {
                 self.buf.clear();
-                #[cfg(feature = "logging")]
-                log::trace!("Cleared partial buffer, removed everything");
+                atat_log!(trace, "Cleared partial buffer, removed everything");
             }
         }
     }
@@ -404,8 +445,20 @@ where
             .unwrap();
         }
 
-        #[cfg(feature = "logging")]
-        crate::log_str!(trace, "Digest / {:?}", self.buf);
+        #[allow(clippy::single_match)]
+        match core::str::from_utf8(&self.buf) {
+            Ok(_s) => {
+                #[cfg(not(feature = "log-logging"))]
+                atat_log!(trace, "Digest / {:str}", _s);
+                #[cfg(feature = "log-logging")]
+                atat_log!(trace, "Digest / {:?}", _s);
+            }
+            Err(_) => atat_log!(
+                trace,
+                "Digest / {:?}",
+                core::convert::AsRef::<[u8]>::as_ref(&self.buf)
+            ),
+        };
 
         match self.state {
             State::Idle => {
@@ -432,24 +485,22 @@ where
                     {
                         self.state = State::ReceivingResponse;
                         self.buf_incomplete = false;
-                        #[cfg(feature = "logging")]
-                        log::trace!("Switching to state ReceivingResponse");
+                        atat_log!(trace, "Switching to state ReceivingResponse");
                     }
 
                 // Handle URCs
                 } else if !self.buf_incomplete && self.buf.get(0) == Some(&b'+') {
                     // Try to apply the custom URC matcher
-                    let handled = if let Some(ref mut matcher) = self.custom_urc_matcher {
-                        match matcher.process(&mut self.buf) {
+                    let handled = match self.custom_urc_matcher {
+                        Some(ref mut matcher) => match matcher.process(&mut self.buf) {
                             UrcMatcherResult::NotHandled => false,
                             UrcMatcherResult::Incomplete => true,
                             UrcMatcherResult::Complete(urc) => {
                                 self.notify_urc(urc);
                                 true
                             }
-                        }
-                    } else {
-                        false
+                        },
+                        None => false,
                     };
                     if !handled {
                         if let Some(line) = get_line(
@@ -469,11 +520,11 @@ where
                 // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
                 // ensure that we don't accidentally break a valid response.
                 } else if self.buf_incomplete || self.buf.len() > min_length {
-                    #[cfg(feature = "logging")]
-                    log::trace!(
-                        "Clearing buffer with invalid response (incomplete: {}, buflen: {})",
+                    atat_log!(
+                        trace,
+                        "Clearing buffer with invalid response (incomplete: {:?}, buflen: {:?})",
                         self.buf_incomplete,
-                        self.buf.len(),
+                        self.buf.len()
                     );
                     self.buf_incomplete = self.buf.is_empty()
                         || (self.buf.len() > 0
@@ -544,8 +595,7 @@ where
                 };
 
                 self.notify_response(resp);
-                #[cfg(feature = "logging")]
-                log::trace!("Switching to state Idle");
+                atat_log!(trace, "Switching to state Idle");
                 self.state = State::Idle;
             }
         }
