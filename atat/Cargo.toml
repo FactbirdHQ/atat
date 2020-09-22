@@ -28,7 +28,7 @@ serde = {version = "^1", default-features = false}
 typenum = "^1"
 
 log = { version = "^0.4", default-features = false, optional = true }
-defmt = { git = "https://github.com/knurling-rs/defmt", branch = "main", optional = true }
+defmt = { git = "https://github.com/knurling-rs/defmt", branch = "main" }
 
 [dev-dependencies]
 cortex-m = "0.6.3"
@@ -43,9 +43,9 @@ derive = ["atat_derive"]
 
 log-logging = ["log"]
 
-defmt-default = ["defmt"]
-defmt-trace = ["defmt"]
-defmt-debug = ["defmt"]
-defmt-info = ["defmt"]
-defmt-warn = ["defmt"]
-defmt-error = ["defmt"]
+defmt-default = []
+defmt-trace = []
+defmt-debug = []
+defmt-info = []
+defmt-warn = []
+defmt-error = []

@@ -112,18 +112,7 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
 
 /// State of the `IngressManager`, used to distiguish URCs from solicited
 /// responses
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-#[cfg_attr(
-    any(
-        feature = "defmt-default",
-        feature = "defmt-trace",
-        feature = "defmt-debug",
-        feature = "defmt-info",
-        feature = "defmt-warn",
-        feature = "defmt-error"
-    ),
-    derive(defmt::Format)
-)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, defmt::Format)]
 pub enum State {
     Idle,
     ReceivingResponse,
