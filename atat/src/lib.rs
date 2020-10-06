@@ -8,7 +8,7 @@
 //! This can be simplified alot using the [`atat_derive`] crate!
 //!
 //! [`AtatCmd`]: trait.AtatCmd.html [`AtatResp`]: trait.AtatResp.html
-//! [`atat_derive`]: https://crates.io/crates/atat_derive
+//! [`atat_derive`]: <https://crates.io/crates/atat_derive>
 //!
 //! # Examples
 //!
@@ -94,7 +94,7 @@
 //!
 //! ### Basic usage example (More available in examples folder):
 //! ```ignore
-//! 
+//!
 //! use cortex_m::asm;
 //! use hal::{
 //!     gpio::{
