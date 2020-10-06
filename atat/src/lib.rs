@@ -8,7 +8,7 @@
 //! This can be simplified alot using the [`atat_derive`] crate!
 //!
 //! [`AtatCmd`]: trait.AtatCmd.html [`AtatResp`]: trait.AtatResp.html
-//! [`atat_derive`]: https://crates.io/crates/atat_derive
+//! [`atat_derive`]: <https://crates.io/crates/atat_derive>
 //!
 //! # Examples
 //!
