@@ -95,7 +95,7 @@
 //!
 //! ### Basic usage example (More available in examples folder):
 //! ```ignore
-//! 
+//!
 //! use cortex_m::asm;
 //! use hal::{
 //!     gpio::{
@@ -225,6 +225,9 @@ pub mod derive;
 
 #[cfg(feature = "derive")]
 pub use self::derive::AtatLen;
+
+#[cfg(feature = "derive")]
+pub use serde_at;
 
 pub use self::client::Client;
 pub use self::error::Error;
