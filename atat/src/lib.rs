@@ -229,6 +229,9 @@ pub use self::derive::AtatLen;
 #[cfg(feature = "derive")]
 pub use serde_at;
 
+#[cfg(feature = "derive")]
+pub use typenum;
+
 pub use self::client::Client;
 pub use self::error::Error;
 pub use self::ingress_manager::{
