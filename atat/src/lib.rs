@@ -7,8 +7,7 @@
 //!
 //! This can be simplified alot using the [`atat_derive`] crate!
 //!
-//! [`AtatCmd`]: trait.AtatCmd.html
-//! [`AtatResp`]: trait.AtatResp.html
+//! [`AtatCmd`]: trait.AtatCmd.html [`AtatResp`]: trait.AtatResp.html
 //! [`atat_derive`]: https://crates.io/crates/atat_derive
 //!
 //! # Examples
@@ -95,7 +94,7 @@
 //!
 //! ### Basic usage example (More available in examples folder):
 //! ```ignore
-//! 
+//!
 //! use cortex_m::asm;
 //! use hal::{
 //!     gpio::{
@@ -108,7 +107,7 @@
 //!     timer::{Event, Timer},
 //! };
 //!
-//! use atat::{driver, atat_derive::{AtatResp, AtatCmd}};
+//! use atat::{atat_derive::{AtatResp, AtatCmd}};
 //!
 //! use heapless::{consts, spsc::Queue, String};
 //!
@@ -152,8 +151,19 @@
 //!
 //!     serial.listen(Rxne);
 //!
+//!     static mut RES_QUEUE: ResQueue<consts::U256, consts::U5> = Queue(heapless::i::Queue::u8());
+//!     static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
+//!     static mut COM_QUEUE: ComQueue<consts::U3> = Queue(heapless::i::Queue::u8());
+//!
+//!     let queues = Queues {
+//!         res_queue: unsafe { RES_QUEUE.split() },
+//!         urc_queue: unsafe { URC_QUEUE.split() },
+//!         com_queue: unsafe { COM_QUEUE.split() },
+//!     };
+//!
 //!     let (tx, rx) = serial.split();
-//!     let (mut client, ingress) = driver!(tx, at_timer, atat::Config::new(atat::Mode::Timeout));
+//!     let (mut client, ingress) =
+//!         ClientBuilder::new(tx, timer, atat::Config::new(atat::Mode::Timeout)).build(queues);
 //!
 //!     unsafe { INGRESS = Some(ingress) };
 //!     unsafe { RX = Some(rx) };
@@ -194,14 +204,22 @@
 //! ```
 //! # Optional Cargo Features
 //!
-//! - **`derive`** *(enabled by default)* - Re-exports [`atat_derive`] to allow deriving `Atat__` traits.
-//! - **`log-logging`** *(disabled by default)* - Enable log statements on various log levels to aid debugging. Powered by `log`.
-//! - **`defmt-default`** *(disabled by default)* - Enable log statements at INFO, or TRACE, level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-trace`** *(disabled by default)* - Enable log statements at TRACE level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-debug`** *(disabled by default)* - Enable log statements at DEBUG level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-info`** *(disabled by default)* - Enable log statements at INFO level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-warn`** *(disabled by default)* - Enable log statements at WARN level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-error`** *(disabled by default)* - Enable log statements at ERROR level and up, to aid debugging. Powered by `defmt`.
+//! - **`derive`** *(enabled by default)* - Re-exports [`atat_derive`] to allow
+//!   deriving `Atat__` traits.
+//! - **`log-logging`** *(disabled by default)* - Enable log statements on
+//!   various log levels to aid debugging. Powered by `log`.
+//! - **`defmt-default`** *(disabled by default)* - Enable log statements at
+//!   INFO, or TRACE, level and up, to aid debugging. Powered by `defmt`.
+//! - **`defmt-trace`** *(disabled by default)* - Enable log statements at TRACE
+//!   level and up, to aid debugging. Powered by `defmt`.
+//! - **`defmt-debug`** *(disabled by default)* - Enable log statements at DEBUG
+//!   level and up, to aid debugging. Powered by `defmt`.
+//! - **`defmt-info`** *(disabled by default)* - Enable log statements at INFO
+//!   level and up, to aid debugging. Powered by `defmt`.
+//! - **`defmt-warn`** *(disabled by default)* - Enable log statements at WARN
+//!   level and up, to aid debugging. Powered by `defmt`.
+//! - **`defmt-error`** *(disabled by default)* - Enable log statements at ERROR
+//!   level and up, to aid debugging. Powered by `defmt`.
 
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]

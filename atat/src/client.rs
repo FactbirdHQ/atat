@@ -18,11 +18,6 @@ enum ClientState {
 /// some spsc queue consumers, where any received responses can be dequeued. The
 /// Client also has an spsc producer, to allow signaling commands like
 /// `clearBuffer` to the ingress-manager.
-///
-/// Don't create a `Client` instance directly. Instead, use the
-/// [`driver!`] macro.
-///
-/// [`driver!`]: macro.driver.html
 pub struct Client<
     Tx,
     T,
