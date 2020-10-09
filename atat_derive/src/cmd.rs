@@ -94,8 +94,8 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             type CommandLen = <<Self as atat::AtatLen>::Len as core::ops::Add<::heapless::consts::#cmd_len_ident>>::Output;
 
             #[inline]
-            fn as_bytes(&self) -> ::heapless::Vec<u8, Self::CommandLen> {
-                let s: ::heapless::String<::heapless::consts::#subcmd_len_ident> = ::heapless::String::from(#cmd);
+            fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
+                let s: atat::heapless::String<::heapless::consts::#subcmd_len_ident> = atat::heapless::String::from(#cmd);
                 match atat::serde_at::to_vec(self, s, atat::serde_at::SerializeOptions {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,
