@@ -600,6 +600,9 @@ impl fmt::Display for Error {
     }
 }
 
+#[cfg(any(test, feature = "std"))]
+impl std::error::Error for Error {}
+
 /// Deserializes an instance of type `T` from bytes of AT Response text
 pub fn from_slice<'a, T>(v: &'a [u8]) -> Result<T>
 where

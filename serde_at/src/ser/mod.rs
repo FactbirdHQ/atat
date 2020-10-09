@@ -111,6 +111,9 @@ impl fmt::Display for Error {
     }
 }
 
+#[cfg(any(test, feature = "std"))]
+impl std::error::Error for Error {}
+
 pub(crate) struct Serializer<'a, B, C>
 where
     B: heapless::ArrayLength<u8>,
