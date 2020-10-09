@@ -22,11 +22,29 @@ jobs:
           target: thumbv7m-none-eabi
           override: true
 
-      - name: Build
+      - name: Build (native)
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --all --all-features --target thumbv7m-none-eabi
+          args: --all --all-features
+
+      - name: Build (ARM)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          # every feature except std. Can't specify --features in the root so
+          # directly specify just the atat crate
+          args: --manifest-path=atat/Cargo.toml
+            --target thumbv7m-none-eabi
+            --features "
+              derive
+              log-logging
+              defmt-default
+              defmt-trace
+              defmt-debug
+              defmt-info
+              defmt-warn
+              defmt-error"
 
       - name: Test
         uses: actions-rs/cargo@v1
