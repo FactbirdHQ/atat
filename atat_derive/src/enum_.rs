@@ -72,12 +72,12 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         helpers::add_type_parameter_bound(
             &mut deserialize_generics,
             tp.clone(),
-            parse_quote!(serde::Deserialize<'de>),
+            parse_quote!(atat::serde_at::serde::Deserialize<'de>),
         );
         helpers::add_type_parameter_bound(
             &mut serialize_generics,
             tp.clone(),
-            parse_quote!(serde::Serialize),
+            parse_quote!(atat::serde_at::serde::Serialize),
         );
         helpers::add_type_parameter_bound(
             &mut atat_len_generics,
@@ -178,7 +178,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                                     )? {
                                         atat::serde_at::serde::export::Some(__value) => __value,
                                         atat::serde_at::serde::export::None => {
-                                            return atat::serde_at::serde::export::Err(serde::de::Error::invalid_length(0usize, &"tuple variant tester::tupleTwo with 3 elements"));
+                                            return atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::invalid_length(0usize, &"tuple variant tester::tupleTwo with 3 elements"));
                                         }
                                     };
                                 )*
@@ -248,7 +248,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         #[automatically_derived]
         impl #serialize_impl_generics atat::serde_at::serde::Serialize for #ident #serialize_ty_generics #serialize_where_clause {
             #[inline]
-            fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
+            fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
             where
                 S: atat::serde_at::serde::Serializer
             {
@@ -288,7 +288,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                     {
                         match value {
                             #(#identifier_match_arms,)*
-                            _ => atat::serde_at::serde::export::Err(serde::de::Error::invalid_value(
+                            _ => atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::invalid_value(
                                 atat::serde_at::serde::de::Unexpected::Signed(value),
                                 &#invalid_val_err,
                             )),
@@ -330,7 +330,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                     {
                         match atat::serde_at::serde::de::EnumAccess::variant(__data)? {
                             #(#deserialize_match_arms,)*
-                            _ => atat::serde_at::serde::export::Err(serde::de::Error::unknown_variant("__variant", VARIANTS)),
+                            _ => atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::unknown_variant("__variant", VARIANTS)),
                         }
                     }
                 }
