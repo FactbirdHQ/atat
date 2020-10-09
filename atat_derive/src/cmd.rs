@@ -96,7 +96,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             #[inline]
             fn as_bytes(&self) -> ::heapless::Vec<u8, Self::CommandLen> {
                 let s: ::heapless::String<::heapless::consts::#subcmd_len_ident> = ::heapless::String::from(#cmd);
-                match serde_at::to_vec(self, s, serde_at::SerializeOptions {
+                match atat::serde_at::to_vec(self, s, atat::serde_at::SerializeOptions {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,
                     termination: #termination
@@ -108,7 +108,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
             #[inline]
             fn parse(&self, resp: &[u8]) -> core::result::Result<#resp, atat::Error> {
-                serde_at::from_slice::<#resp>(resp).map_err(|e| {
+                atat::serde_at::from_slice::<#resp>(resp).map_err(|e| {
                     atat::Error::ParseString
                 })
             }

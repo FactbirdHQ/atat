@@ -69,7 +69,7 @@ pub fn enum_len(
                 };
             }
             enum_len = quote! {
-                <#fields_len as ::typenum::type_operators::Max<#enum_len>>::Output
+                <#fields_len as atat::typenum::type_operators::Max<#enum_len>>::Output
             };
         }
     }
