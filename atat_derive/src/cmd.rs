@@ -121,40 +121,40 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         }
 
         #[automatically_derived]
-        impl #impl_generics serde::Serialize for #ident #ty_generics #where_clause {
+        impl #impl_generics atat::serde_at::serde::Serialize for #ident #ty_generics #where_clause {
             #[inline]
             fn serialize<S>(
                 &self,
                 serializer: S,
-            ) -> serde::export::Result<S::Ok, S::Error>
+            ) -> atat::serde_at::serde::export::Result<S::Ok, S::Error>
             where
-                S: serde::Serializer,
+                S: atat::serde_at::serde::Serializer,
             {
-                let mut serde_state = match serde::Serializer::serialize_struct(
+                let mut serde_state = match atat::serde_at::serde::Serializer::serialize_struct(
                     serializer,
                     #ident_str,
                     #n_fields,
                 ) {
-                    serde::export::Ok(val) => val,
-                    serde::export::Err(err) => {
-                        return serde::export::Err(err);
+                    atat::serde_at::serde::export::Ok(val) => val,
+                    atat::serde_at::serde::export::Err(err) => {
+                        return atat::serde_at::serde::export::Err(err);
                     }
                 };
 
                 #(
-                    match serde::ser::SerializeStruct::serialize_field(
+                    match atat::serde_at::serde::ser::SerializeStruct::serialize_field(
                         &mut serde_state,
                         #field_names_str,
                         &self.#field_names,
                     ) {
-                        serde::export::Ok(val) => val,
-                        serde::export::Err(err) => {
-                            return serde::export::Err(err);
+                        atat::serde_at::serde::export::Ok(val) => val,
+                        atat::serde_at::serde::export::Err(err) => {
+                            return atat::serde_at::serde::export::Err(err);
                         }
                     };
                 )*
 
-                serde::ser::SerializeStruct::end(serde_state)
+                atat::serde_at::serde::ser::SerializeStruct::end(serde_state)
             }
         }
     })

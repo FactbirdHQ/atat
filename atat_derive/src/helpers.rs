@@ -121,7 +121,7 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
             {
                 match value {
                     #(#anon_field_ind64 => atat::serde_at::serde::export::Ok(#enum_field::#anon_field),)*
-                    _ => atat::serde_at::serde::export::Err(::serde::de::Error::invalid_value(
+                    _ => atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::invalid_value(
                         atat::serde_at::serde::de::Unexpected::Unsigned(value),
                         &#invalid_val_err,
                     )),
@@ -137,7 +137,7 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
             {
                 match value {
                     #(#anon_field_ind128 => atat::serde_at::serde::export::Ok(#enum_field::#anon_field),)*
-                    _ => atat::serde_at::serde::export::Err(::serde::de::Error::invalid_value(
+                    _ => atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::invalid_value(
                         atat::serde_at::serde::de::Unexpected::Other("u128"),
                         &#invalid_val_err,
                     )),
@@ -215,7 +215,7 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
                         } {
                             atat::serde_at::serde::export::Some(value) => value,
                             atat::serde_at::serde::export::None => {
-                                return atat::serde_at::serde::export::Err(::serde::de::Error::invalid_length(
+                                return atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::invalid_length(
                                     #anon_field_ind,
                                     &#invalid_len_err,
                                 ));
