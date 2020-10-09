@@ -240,8 +240,6 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         atat_len_generics.split_for_impl();
 
     TokenStream::from(quote! {
-        use atat::serde_at::serde;
-
         #[automatically_derived]
         impl #atat_len_impl_generics atat::AtatLen for #ident #atat_len_ty_generics #atat_len_where_clause {
             type Len = #enum_len;
@@ -250,7 +248,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         #[automatically_derived]
         impl #serialize_impl_generics atat::serde_at::serde::Serialize for #ident #serialize_ty_generics #serialize_where_clause {
             #[inline]
-            fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+            fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
             where
                 S: atat::serde_at::serde::Serializer
             {
