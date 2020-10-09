@@ -94,7 +94,7 @@
 //!
 //! ### Basic usage example (More available in examples folder):
 //! ```ignore
-//! 
+//!
 //! use cortex_m::asm;
 //! use hal::{
 //!     gpio::{
@@ -249,6 +249,9 @@ pub use serde_at;
 
 #[cfg(feature = "derive")]
 pub use typenum;
+
+#[cfg(feature = "derive")]
+pub use heapless;
 
 pub use self::client::Client;
 pub use self::error::Error;
