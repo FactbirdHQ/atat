@@ -339,20 +339,20 @@ where
                 Command::ClearBuffer => {
                     self.state = State::Idle;
                     self.buf_incomplete = false;
-                    #[allow(clippy::single_match)]
-                    match core::str::from_utf8(&self.buf) {
-                        Ok(_s) => {
-                            #[cfg(not(feature = "log-logging"))]
-                            atat_log!(debug, "Clearing buffer on timeout / {:str}", _s);
-                            #[cfg(feature = "log-logging")]
-                            atat_log!(debug, "Clearing buffer on timeout / {:?}", _s);
-                        }
-                        Err(_) => atat_log!(
-                            debug,
-                            "Clearing buffer on timeout / {:?}",
-                            core::convert::AsRef::<[u8]>::as_ref(&self.buf)
-                        ),
-                    };
+                    // #[allow(clippy::single_match)]
+                    // match core::str::from_utf8(&self.buf) {
+                    //     Ok(_s) => {
+                    //         #[cfg(not(feature = "log-logging"))]
+                    //         atat_log!(debug, "Clearing buffer on timeout / {:str}", _s);
+                    //         #[cfg(feature = "log-logging")]
+                    //         atat_log!(debug, "Clearing buffer on timeout / {:?}", _s);
+                    //     }
+                    //     Err(_) => atat_log!(
+                    //         debug,
+                    //         "Clearing buffer on timeout / {:?}",
+                    //         core::convert::AsRef::<[u8]>::as_ref(&self.buf)
+                    //     ),
+                    // };
 
                     self.clear_buf(true);
                 }

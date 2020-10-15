@@ -135,6 +135,7 @@ where
             self.state = ClientState::AwaitingResponse;
         }
 
+
         match self.config.mode {
             Mode::Blocking => Ok(nb::block!(self.check_response(cmd))?),
             Mode::NonBlocking => self.check_response(cmd),
