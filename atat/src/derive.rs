@@ -70,7 +70,7 @@ mod tests {
 
     #[derive(Debug, PartialEq, AtatEnum)]
     enum SimpleEnum {
-        #[at_arg(value = 0)]
+        #[at_arg(default, value = 0)]
         A,
         #[at_arg(value = 1)]
         B,
@@ -82,6 +82,7 @@ mod tests {
     #[derive(Debug, PartialEq, AtatEnum)]
     #[at_enum(u32)]
     enum SimpleEnumU32 {
+        #[at_arg(default)]
         A,
         B,
         C,
@@ -94,7 +95,7 @@ mod tests {
         UnitVariant,
         #[at_arg(value = 1)]
         SingleSimpleTuple(u8),
-        #[at_arg(value = 2)]
+        #[at_arg(default, value = 2)]
         AdvancedTuple(u8, String<consts::U10>, i64, SimpleEnumU32),
         #[at_arg(value = 3)]
         SingleSimpleStruct { x: u8 },
@@ -108,6 +109,12 @@ mod tests {
         #[at_arg(value = 6)]
         SingleSimpleTupleLifetime(#[at_arg(len = 10)] &'a str),
     }
+
+    // impl<'a> Default for MixedEnum<'a> {
+    //     fn default() -> Self {
+    //         MixedEnum::AdvancedTuple(u8::default(), String::default(), i64::default(), SimpleEnumU32::default())
+    //     }
+    // }
 
     #[derive(Debug, PartialEq, AtatCmd)]
     #[at_cmd("+CFUN", NoResponse)]
