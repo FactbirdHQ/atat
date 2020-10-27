@@ -94,9 +94,9 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             type CommandLen = <<Self as atat::AtatLen>::Len as core::ops::Add<::heapless::consts::#cmd_len_ident>>::Output;
 
             #[inline]
-            fn as_bytes(&self) -> ::heapless::Vec<u8, Self::CommandLen> {
-                let s: ::heapless::String<::heapless::consts::#subcmd_len_ident> = ::heapless::String::from(#cmd);
-                match serde_at::to_vec(self, s, serde_at::SerializeOptions {
+            fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
+                let s: atat::heapless::String<::heapless::consts::#subcmd_len_ident> = atat::heapless::String::from(#cmd);
+                match atat::serde_at::to_vec(self, s, atat::serde_at::SerializeOptions {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,
                     termination: #termination
@@ -108,7 +108,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
             #[inline]
             fn parse(&self, resp: &[u8]) -> core::result::Result<#resp, atat::Error> {
-                serde_at::from_slice::<#resp>(resp).map_err(|e| {
+                atat::serde_at::from_slice::<#resp>(resp).map_err(|e| {
                     atat::Error::ParseString
                 })
             }
@@ -121,40 +121,40 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         }
 
         #[automatically_derived]
-        impl #impl_generics serde::Serialize for #ident #ty_generics #where_clause {
+        impl #impl_generics atat::serde_at::serde::Serialize for #ident #ty_generics #where_clause {
             #[inline]
             fn serialize<S>(
                 &self,
                 serializer: S,
-            ) -> serde::export::Result<S::Ok, S::Error>
+            ) -> atat::serde_at::serde::export::Result<S::Ok, S::Error>
             where
-                S: serde::Serializer,
+                S: atat::serde_at::serde::Serializer,
             {
-                let mut serde_state = match serde::Serializer::serialize_struct(
+                let mut serde_state = match atat::serde_at::serde::Serializer::serialize_struct(
                     serializer,
                     #ident_str,
                     #n_fields,
                 ) {
-                    serde::export::Ok(val) => val,
-                    serde::export::Err(err) => {
-                        return serde::export::Err(err);
+                    atat::serde_at::serde::export::Ok(val) => val,
+                    atat::serde_at::serde::export::Err(err) => {
+                        return atat::serde_at::serde::export::Err(err);
                     }
                 };
 
                 #(
-                    match serde::ser::SerializeStruct::serialize_field(
+                    match atat::serde_at::serde::ser::SerializeStruct::serialize_field(
                         &mut serde_state,
                         #field_names_str,
                         &self.#field_names,
                     ) {
-                        serde::export::Ok(val) => val,
-                        serde::export::Err(err) => {
-                            return serde::export::Err(err);
+                        atat::serde_at::serde::export::Ok(val) => val,
+                        atat::serde_at::serde::export::Err(err) => {
+                            return atat::serde_at::serde::export::Err(err);
                         }
                     };
                 )*
 
-                serde::ser::SerializeStruct::end(serde_state)
+                atat::serde_at::serde::ser::SerializeStruct::end(serde_state)
             }
         }
     })

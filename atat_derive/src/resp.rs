@@ -24,11 +24,11 @@ pub fn atat_resp(input: TokenStream) -> TokenStream {
         impl #impl_generics atat::AtatResp for #ident #ty_generics #where_clause {}
 
         #[automatically_derived]
-        impl #serde_impl_generics serde::Deserialize<'de> for #ident #ty_generics #where_clause {
+        impl #serde_impl_generics atat::serde_at::serde::Deserialize<'de> for #ident #ty_generics #where_clause {
             #[inline]
-            fn deserialize<D>(deserializer: D) -> serde::export::Result<Self, D::Error>
+            fn deserialize<D>(deserializer: D) -> atat::serde_at::serde::export::Result<Self, D::Error>
             where
-                D: serde::Deserializer<'de>,
+                D: atat::serde_at::serde::Deserializer<'de>,
             {
                 #deserialize_struct
             }

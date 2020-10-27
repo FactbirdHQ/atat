@@ -40,7 +40,7 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
                     panic!("cannot handle variants with more than one field")
                 }
                 quote! {
-                    #code => #ident::#variant_ident(serde_at::from_slice::<#first_field>(resp).map_err(|e| {
+                    #code => #ident::#variant_ident(atat::serde_at::from_slice::<#first_field>(resp).map_err(|e| {
                         atat::Error::ParseString
                     })?),
                 }
@@ -62,7 +62,7 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
             type Response = #ident;
 
             #[inline]
-            fn parse(resp: &[u8]) -> ::core::result::Result<Self::Response, atat::Error> {
+            fn parse(resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
                 if let Some(index) = resp.iter().position(|&x| x == b':') {
                     Ok(match &resp[..index] {
                         #(

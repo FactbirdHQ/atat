@@ -196,7 +196,6 @@ mod test {
     use crate::queues;
     use heapless::{consts, spsc::Queue, String, Vec};
     use nb;
-    use serde;
 
     struct CdMock {
         time: u32,

@@ -11,11 +11,11 @@ use crate::parse::{parse_field_attr, ArgAttributes, FieldAttributes, ParseInput,
 /// types, including borrowed data
 pub fn struct_len(variants: Vec<Variant>, init_len: usize) -> proc_macro2::TokenStream {
     let init_len_ident = format_ident!("U{}", init_len);
-    let mut struct_len = quote! { ::heapless::consts::#init_len_ident };
+    let mut struct_len = quote! { atat::heapless::consts::#init_len_ident };
     for field in variants {
         let len = if let Some(ArgAttributes { len: Some(len), .. }) = field.attrs.at_arg {
             let len_ident = format_ident!("U{}", len);
-            quote! { ::heapless::consts::#len_ident }
+            quote! { atat::heapless::consts::#len_ident }
         } else {
             let ty = field.ty.unwrap();
             quote! { <#ty as atat::AtatLen>::Len }
@@ -33,14 +33,14 @@ pub fn struct_len(variants: Vec<Variant>, init_len: usize) -> proc_macro2::Token
 /// types `AtatLen` implementation, allowing overwriting the max length of all
 /// types, including borrowed data
 pub fn enum_len(
-    variants: Vec<Variant>,
+    variants: &Vec<Variant>,
     repr: &Ident,
     _generics: &mut syn::Generics,
 ) -> proc_macro2::TokenStream {
-    let mut enum_len = quote! { ::heapless::consts::U0 };
+    let mut enum_len = quote! { atat::heapless::consts::U0 };
     for variant in variants {
-        if let Some(fields) = variant.fields {
-            let mut fields_len = quote! { ::heapless::consts::U0 };
+        if let Some(ref fields) = variant.fields {
+            let mut fields_len = quote! { atat::heapless::consts::U0 };
             for field in fields {
                 let field_len = if let Ok(FieldAttributes {
                     at_arg:
@@ -48,6 +48,7 @@ pub fn enum_len(
                             len: Some(len),
                             value,
                             position,
+                            ..
                         }),
                     ..
                 }) = parse_field_attr(&field.attrs)
@@ -59,9 +60,9 @@ pub fn enum_len(
                         panic!("position is not allowed in this position");
                     }
                     let len_ident = format_ident!("U{}", len);
-                    quote! { ::heapless::consts::#len_ident }
+                    quote! { atat::heapless::consts::#len_ident }
                 } else {
-                    let ty = field.ty;
+                    let ty = &field.ty;
                     quote! { <#ty as atat::AtatLen>::Len }
                 };
                 fields_len = quote! {
@@ -69,7 +70,7 @@ pub fn enum_len(
                 };
             }
             enum_len = quote! {
-                <#fields_len as ::typenum::type_operators::Max<#enum_len>>::Output
+                <#fields_len as atat::typenum::type_operators::Max<#enum_len>>::Output
             };
         }
     }

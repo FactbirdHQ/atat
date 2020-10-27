@@ -42,6 +42,8 @@ derive = ["atat_derive"]
 
 log-logging = ["log"]
 
+std = ["serde_at/std"]
+
 defmt-default = []
 defmt-trace = []
 defmt-debug = []

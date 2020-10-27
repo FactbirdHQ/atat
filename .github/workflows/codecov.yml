@@ -19,7 +19,7 @@ jobs:
       - uses: actions-rs/tarpaulin@v0.1
         with:
           run-types: Tests,Lib,Bins
-          args: --all-features
+          args: --ignore-tests --all-features
       # Note: closed-source code needs to provide a token,
       # but open source code does not.
       - name: Upload to codecov.io
