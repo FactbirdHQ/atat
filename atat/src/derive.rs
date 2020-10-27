@@ -110,12 +110,6 @@ mod tests {
         SingleSimpleTupleLifetime(#[at_arg(len = 10)] &'a str),
     }
 
-    // impl<'a> Default for MixedEnum<'a> {
-    //     fn default() -> Self {
-    //         MixedEnum::AdvancedTuple(u8::default(), String::default(), i64::default(), SimpleEnumU32::default())
-    //     }
-    // }
-
     #[derive(Debug, PartialEq, AtatCmd)]
     #[at_cmd("+CFUN", NoResponse)]
     struct LengthTester<'a> {
