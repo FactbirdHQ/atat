@@ -269,6 +269,8 @@ use queues::{
     UrcProducer,
 };
 
+use default_functions::default_digest;
+
 pub mod prelude {
     //! The prelude is a collection of all the traits in this crate
     //!
@@ -466,11 +468,22 @@ where
 /// [`Client`]: struct.Client.html
 /// [`IngressManager`]: struct.IngressManager.html
 /// [`new`]: #method.new
-pub struct ClientBuilder<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity> {
+pub struct ClientBuilder<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity> 
+    where
+        Tx: embedded_hal::serial::Write<u8>,
+        T: embedded_hal::timer::CountDown,
+        T::Time: From<u32>,
+        U: UrcMatcher<BufLen>,
+        BufLen: ArrayLength<u8>,
+        ComCapacity: ArrayLength<ComItem>,
+        ResCapacity: ArrayLength<ResItem<BufLen>>,
+        UrcCapacity: ArrayLength<UrcItem<BufLen>>,
+{
     serial_tx: Tx,
     timer: T,
     config: Config,
     custom_urc_matcher: Option<U>,
+    custom_digest: fn(&mut IngressManager<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>),
     #[doc(hidden)]
     _internal: core::marker::PhantomData<(BufLen, ComCapacity, ResCapacity, UrcCapacity)>,
 }
@@ -501,6 +514,7 @@ where
             timer,
             config,
             custom_urc_matcher: None,
+            custom_digest: default_digest,
             #[doc(hidden)]
             _internal: core::marker::PhantomData,
         }
@@ -514,6 +528,12 @@ where
         self
     }
 
+    /// Use a custom digest function.
+    pub fn with_custom_digest(mut self, digest: fn(&mut IngressManager<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>)) -> Self {
+        self.custom_digest = digest;
+        self
+    }
+
     /// Set up and return a [`Client`] and [`IngressManager`] pair.
     ///
     /// [`Client`]: struct.Client.html
@@ -522,12 +542,13 @@ where
         self,
         queues: Queues<BufLen, ComCapacity, ResCapacity, UrcCapacity>,
     ) -> ClientParser<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity> {
-        let parser = IngressManager::with_custom_urc_matcher(
+        let parser = IngressManager::with_customs(
             queues.res_queue.0,
             queues.urc_queue.0,
             queues.com_queue.1,
             self.config,
             self.custom_urc_matcher,
+            self.custom_digest,
         );
         let client = Client::new(
             self.serial_tx,
@@ -539,5 +560,194 @@ where
         );
 
         (client, parser)
+    }
+}
+
+mod default_functions{
+    use heapless::{ArrayLength, Vec};
+    use crate::error::Error;
+    use crate::queues::{ComItem, ResItem, UrcItem};
+    use crate::ingress_manager::{IngressManager, UrcMatcher, get_line, State, UrcMatcherResult, SliceExt};
+
+    /// Default function to process the receive buffer, checking for AT responses, URC's or errors
+    ///
+    /// This function should be called regularly for the ingress manager to work
+    pub(crate) fn default_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(ingress: &mut IngressManager<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>)
+    where
+        U: UrcMatcher<BufLen>,
+        BufLen: ArrayLength<u8>,
+        ComCapacity: ArrayLength<ComItem>,
+        ResCapacity: ArrayLength<ResItem<BufLen>>,
+        UrcCapacity: ArrayLength<UrcItem<BufLen>>,
+    {
+        // Handle commands
+        ingress.handle_com();
+    
+        // Trim leading whitespace
+        if ingress.buf.starts_with(&[ingress.get_line_term_char()]) || ingress.buf.starts_with(&[ingress.get_format_char()])
+        {
+            ingress.buf = Vec::from_slice(ingress.buf.trim_start(&[
+                b'\t',
+                b' ',
+                ingress.get_format_char(),
+                ingress.get_line_term_char(),
+            ]))
+            .unwrap();
+        }
+    
+        #[allow(clippy::single_match)]
+        match core::str::from_utf8(&ingress.buf) {
+            Ok(_s) => {
+                #[cfg(not(feature = "log-logging"))]
+                atat_log!(trace, "Digest / {:str}", _s);
+                #[cfg(feature = "log-logging")]
+                atat_log!(trace, "Digest / {:?}", _s);
+            }
+            Err(_) => atat_log!(
+                trace,
+                "Digest / {:?}",
+                core::convert::AsRef::<[u8]>::as_ref(&ingress.buf)
+            ),
+        };
+    
+        match ingress.get_state() {
+            State::Idle => {
+                // The minimal buffer length that is required to identify all
+                // types of responses (e.g. `AT` and `+`).
+                let min_length = 2;
+    
+                // Echo is currently required
+                if !ingress.get_echo_enabled() {
+                    unimplemented!("Disabling AT echo is currently unsupported");
+                }
+    
+                // Handle AT echo responses
+                if !ingress.get_buf_incomplete() && ingress.buf.get(0..2) == Some(b"AT") {
+                    if get_line::<BufLen, _>(
+                        &mut ingress.buf,
+                        &[ingress.get_line_term_char()],
+                        ingress.get_line_term_char(),
+                        ingress.get_format_char(),
+                        false,
+                        false,
+                    )
+                    .is_some()
+                    {
+                        ingress.set_state(State::ReceivingResponse);
+                        ingress.set_buf_incomplete(false);
+                        atat_log!(trace, "Switching to state ReceivingResponse");
+                    }
+    
+                // Handle URCs
+                } else if !ingress.get_buf_incomplete() && ingress.buf.get(0) == Some(&b'+') {
+                    // Try to apply the custom URC matcher
+                    let handled = match ingress.custom_urc_matcher {
+                        Some(ref mut matcher) => match matcher.process(&mut ingress.buf) {
+                            UrcMatcherResult::NotHandled => false,
+                            UrcMatcherResult::Incomplete => true,
+                            UrcMatcherResult::Complete(urc) => {
+                                ingress.notify_urc(urc);
+                                true
+                            }
+                        },
+                        None => false,
+                    };
+                    if !handled {
+                        if let Some(line) = get_line(
+                            &mut ingress.buf,
+                            &[ingress.get_line_term_char()],
+                            ingress.get_line_term_char(),
+                            ingress.get_format_char(),
+                            false,
+                            false,
+                        ) {
+                            ingress.set_buf_incomplete(false);
+                            ingress.notify_urc(line);
+                        }
+                    }
+    
+                // Text sent by the device that is not a valid response type (e.g. starting
+                // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
+                // ensure that we don't accidentally break a valid response.
+                } else if ingress.get_buf_incomplete() || ingress.buf.len() > min_length {
+                    atat_log!(
+                        trace,
+                        "Clearing buffer with invalid response (incomplete: {:?}, buflen: {:?})",
+                        ingress.buf_incomplete,
+                        ingress.buf.len()
+                    );
+                    ingress.set_buf_incomplete(ingress.buf.is_empty()
+                        || (ingress.buf.len() > 0
+                            && ingress.buf.get(ingress.buf.len() - 1) != Some(&ingress.get_line_term_char())
+                            && ingress.buf.get(ingress.buf.len() - 1) != Some(&ingress.get_format_char())));
+    
+                    ingress.clear_buf(false);
+    
+                    // If the buffer wasn't cleared completely, that means that
+                    // a newline was found. In that case, the buffer cannot be
+                    // in an incomplete state.
+                    if !ingress.buf.is_empty() {
+                        ingress.set_buf_incomplete(false);
+                    }
+                }
+            }
+            State::ReceivingResponse => {
+                let resp = if let Some(mut line) = get_line::<BufLen, _>(
+                    &mut ingress.buf,
+                    b"OK",
+                    ingress.get_line_term_char(),
+                    ingress.get_format_char(),
+                    true,
+                    false,
+                ) {
+                    Ok(get_line(
+                        &mut line,
+                        &[ingress.get_line_term_char()],
+                        ingress.get_line_term_char(),
+                        ingress.get_format_char(),
+                        true,
+                        true,
+                    )
+                    .unwrap_or_else(Vec::new))
+                } else if get_line::<BufLen, _>(
+                    &mut ingress.buf,
+                    b"ERROR",
+                    ingress.get_line_term_char(),
+                    ingress.get_format_char(),
+                    false,
+                    false,
+                )
+                .is_some()
+                {
+                    Err(Error::InvalidResponse)
+                } else if get_line::<BufLen, _>(
+                    &mut ingress.buf,
+                    b">",
+                    ingress.get_line_term_char(),
+                    ingress.get_format_char(),
+                    false,
+                    false,
+                )
+                .is_some()
+                    || get_line::<BufLen, _>(
+                        &mut ingress.buf,
+                        b"@",
+                        ingress.get_line_term_char(),
+                        ingress.get_format_char(),
+                        false,
+                        false,
+                    )
+                    .is_some()
+                {
+                    Ok(Vec::new())
+                } else {
+                    return;
+                };
+    
+                ingress.notify_response(resp);
+                atat_log!(trace, "Switching to state Idle");
+                ingress.set_state(State::Idle);
+            }
+        }
     }
 }
