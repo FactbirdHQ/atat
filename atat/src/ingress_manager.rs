@@ -7,9 +7,11 @@ use crate::{Command, Config};
 
 use core::iter::FromIterator;
 
+use super::default_functions::default_digest;
+
 type ByteVec<L> = Vec<u8, L>;
 
-trait SliceExt {
+pub trait SliceExt {
     fn trim(&self, whitespaces: &[u8]) -> &Self;
     fn trim_start(&self, whitespaces: &[u8]) -> &Self;
 }
@@ -206,17 +208,17 @@ pub struct IngressManager<
     UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
     /// Buffer holding incoming bytes.
-    buf: ByteVec<BufLen>,
+    pub buf: ByteVec<BufLen>,
     /// A flag that is set to `true` when the buffer is cleared
     /// with an incomplete response.
     buf_incomplete: bool,
 
     /// The response producer sends responses to the client
-    res_p: ResProducer<BufLen, ResCapacity>,
+    pub res_p: ResProducer<BufLen, ResCapacity>,
     /// The URC producer sends URCs to the client
-    urc_p: UrcProducer<BufLen, UrcCapacity>,
+    pub urc_p: UrcProducer<BufLen, UrcCapacity>,
     /// The command consumer receives commands from the client
-    com_c: ComConsumer<ComCapacity>,
+    pub com_c: ComConsumer<ComCapacity>,
 
     /// Current processing state.
     state: State,
@@ -227,7 +229,10 @@ pub struct IngressManager<
     echo_enabled: bool,
 
     /// Custom URC matcher.
-    custom_urc_matcher: Option<U>,
+    pub custom_urc_matcher: Option<U>,
+
+    /// Custom Digest function
+    custom_digest: fn(&mut IngressManager<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>),
 }
 
 impl<BufLen, ComCapacity, ResCapacity, UrcCapacity>
@@ -245,7 +250,7 @@ where
         com_c: ComConsumer<ComCapacity>,
         config: Config,
     ) -> Self {
-        Self::with_custom_urc_matcher(res_p, urc_p, com_c, config, None)
+        Self::with_customs(res_p, urc_p, com_c, config, None, default_digest)
     }
 }
 
@@ -258,12 +263,13 @@ where
     ResCapacity: ArrayLength<ResItem<BufLen>>,
     UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
-    pub fn with_custom_urc_matcher(
+    pub fn with_customs(
         res_p: ResProducer<BufLen, ResCapacity>,
         urc_p: UrcProducer<BufLen, UrcCapacity>,
         com_c: ComConsumer<ComCapacity>,
         config: Config,
         custom_urc_matcher: Option<U>,
+        custom_digest: fn(&mut IngressManager<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>),
     ) -> Self {
         Self {
             state: State::Idle,
@@ -276,6 +282,7 @@ where
             format_char: config.format_char,
             echo_enabled: config.at_echo_enabled,
             custom_urc_matcher,
+            custom_digest,
         }
     }
 
@@ -295,7 +302,7 @@ where
 
     /// Notify the client that an appropriate response code, or error has been
     /// received
-    fn notify_response(&mut self, resp: Result<ByteVec<BufLen>, Error>) {
+    pub fn notify_response(&mut self, resp: Result<ByteVec<BufLen>, Error>) {
         match &resp {
             Ok(_r) => atat_log!(debug, "Received response"),
             Err(_e) => atat_log!(error, "Received error response: {:?}", _e),
@@ -309,7 +316,7 @@ where
 
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
-    fn notify_urc(&mut self, resp: ByteVec<BufLen>) {
+    pub fn notify_urc(&mut self, resp: ByteVec<BufLen>) {
         #[allow(clippy::single_match)]
         match core::str::from_utf8(&resp) {
             Ok(_s) => {
@@ -333,7 +340,7 @@ where
     }
 
     /// Handle receiving internal config commands from the client.
-    fn handle_com(&mut self) {
+    pub fn handle_com(&mut self) {
         if let Some(com) = self.com_c.dequeue() {
             match com {
                 Command::ClearBuffer => {
@@ -379,7 +386,7 @@ where
     /// If `complete` is `true`, clear the entire buffer. Otherwise, only
     /// remove data until (and including) the first newline (or the entire
     /// buffer if no newline is present).
-    fn clear_buf(&mut self, complete: bool) {
+    pub fn clear_buf(&mut self, complete: bool) {
         if complete {
             self.buf.clear();
             atat_log!(trace, "Cleared complete buffer");
@@ -415,179 +422,41 @@ where
         }
     }
 
+    pub fn get_buf_incomplete(&self) -> bool{
+        self.buf_incomplete
+    }
+
+    pub fn set_buf_incomplete(&mut self, buf_incomplete: bool){
+        self.buf_incomplete = buf_incomplete;
+    }
+
+    pub fn get_state(&self) -> State{
+        self.state
+    }
+
+    pub fn set_state(&mut self, state: State){
+        self.state = state;
+    }
+
+    pub fn get_line_term_char(&self) -> u8 {
+        self.line_term_char
+    }
+
+    pub fn get_format_char(&self) -> u8 {
+        self.format_char
+    }
+
+    pub fn get_echo_enabled(&self) -> bool{
+        self.echo_enabled
+    }
+
+    //TODO: fix docs
     /// Process the receive buffer, checking for AT responses, URC's or errors
-    ///
+    /// For default look at lib::default_functions.
+    /// 
     /// This function should be called regularly for the ingress manager to work
     pub fn digest(&mut self) {
-        // Handle commands
-        self.handle_com();
-
-        // Trim leading whitespace
-        if self.buf.starts_with(&[self.line_term_char]) || self.buf.starts_with(&[self.format_char])
-        {
-            self.buf = Vec::from_slice(self.buf.trim_start(&[
-                b'\t',
-                b' ',
-                self.format_char,
-                self.line_term_char,
-            ]))
-            .unwrap();
-        }
-
-        #[allow(clippy::single_match)]
-        match core::str::from_utf8(&self.buf) {
-            Ok(_s) => {
-                #[cfg(not(feature = "log-logging"))]
-                atat_log!(trace, "Digest / {:str}", _s);
-                #[cfg(feature = "log-logging")]
-                atat_log!(trace, "Digest / {:?}", _s);
-            }
-            Err(_) => atat_log!(
-                trace,
-                "Digest / {:?}",
-                core::convert::AsRef::<[u8]>::as_ref(&self.buf)
-            ),
-        };
-
-        match self.state {
-            State::Idle => {
-                // The minimal buffer length that is required to identify all
-                // types of responses (e.g. `AT` and `+`).
-                let min_length = 2;
-
-                // Echo is currently required
-                if !self.echo_enabled {
-                    unimplemented!("Disabling AT echo is currently unsupported");
-                }
-
-                // Handle AT echo responses
-                if !self.buf_incomplete && self.buf.get(0..2) == Some(b"AT") {
-                    if get_line::<BufLen, _>(
-                        &mut self.buf,
-                        &[self.line_term_char],
-                        self.line_term_char,
-                        self.format_char,
-                        false,
-                        false,
-                    )
-                    .is_some()
-                    {
-                        self.state = State::ReceivingResponse;
-                        self.buf_incomplete = false;
-                        atat_log!(trace, "Switching to state ReceivingResponse");
-                    }
-
-                // Handle URCs
-                } else if !self.buf_incomplete && self.buf.get(0) == Some(&b'+') {
-                    // Try to apply the custom URC matcher
-                    let handled = match self.custom_urc_matcher {
-                        Some(ref mut matcher) => match matcher.process(&mut self.buf) {
-                            UrcMatcherResult::NotHandled => false,
-                            UrcMatcherResult::Incomplete => true,
-                            UrcMatcherResult::Complete(urc) => {
-                                self.notify_urc(urc);
-                                true
-                            }
-                        },
-                        None => false,
-                    };
-                    if !handled {
-                        if let Some(line) = get_line(
-                            &mut self.buf,
-                            &[self.line_term_char],
-                            self.line_term_char,
-                            self.format_char,
-                            false,
-                            false,
-                        ) {
-                            self.buf_incomplete = false;
-                            self.notify_urc(line);
-                        }
-                    }
-
-                // Text sent by the device that is not a valid response type (e.g. starting
-                // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
-                // ensure that we don't accidentally break a valid response.
-                } else if self.buf_incomplete || self.buf.len() > min_length {
-                    atat_log!(
-                        trace,
-                        "Clearing buffer with invalid response (incomplete: {:?}, buflen: {:?})",
-                        self.buf_incomplete,
-                        self.buf.len()
-                    );
-                    self.buf_incomplete = self.buf.is_empty()
-                        || (self.buf.len() > 0
-                            && self.buf.get(self.buf.len() - 1) != Some(&self.line_term_char)
-                            && self.buf.get(self.buf.len() - 1) != Some(&self.format_char));
-
-                    self.clear_buf(false);
-
-                    // If the buffer wasn't cleared completely, that means that
-                    // a newline was found. In that case, the buffer cannot be
-                    // in an incomplete state.
-                    if !self.buf.is_empty() {
-                        self.buf_incomplete = false;
-                    }
-                }
-            }
-            State::ReceivingResponse => {
-                let resp = if let Some(mut line) = get_line::<BufLen, _>(
-                    &mut self.buf,
-                    b"OK",
-                    self.line_term_char,
-                    self.format_char,
-                    true,
-                    false,
-                ) {
-                    Ok(get_line(
-                        &mut line,
-                        &[self.line_term_char],
-                        self.line_term_char,
-                        self.format_char,
-                        true,
-                        true,
-                    )
-                    .unwrap_or_else(Vec::new))
-                } else if get_line::<BufLen, _>(
-                    &mut self.buf,
-                    b"ERROR",
-                    self.line_term_char,
-                    self.format_char,
-                    false,
-                    false,
-                )
-                .is_some()
-                {
-                    Err(Error::InvalidResponse)
-                } else if get_line::<BufLen, _>(
-                    &mut self.buf,
-                    b">",
-                    self.line_term_char,
-                    self.format_char,
-                    false,
-                    false,
-                )
-                .is_some()
-                    || get_line::<BufLen, _>(
-                        &mut self.buf,
-                        b"@",
-                        self.line_term_char,
-                        self.format_char,
-                        false,
-                        false,
-                    )
-                    .is_some()
-                {
-                    Ok(Vec::new())
-                } else {
-                    return;
-                };
-
-                self.notify_response(resp);
-                atat_log!(trace, "Switching to state Idle");
-                self.state = State::Idle;
-            }
-        }
+        (self.custom_digest)(self)
     }
 }
 
