@@ -484,7 +484,7 @@ mod test {
             static mut COM_Q: ComQueue<TestComCapacity> = Queue(heapless::i::Queue::u8());
             let (_com_p, com_c) = unsafe { COM_Q.split() };
             (
-                IngressManager::with_custom_urc_matcher(res_p, urc_p, com_c, $config, $urch),
+                IngressManager::with_customs(res_p, urc_p, com_c, $config, $urch, default_digest),
                 res_c,
                 urc_c,
             )
