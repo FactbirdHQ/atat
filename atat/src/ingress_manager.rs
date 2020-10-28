@@ -9,7 +9,7 @@ use core::iter::FromIterator;
 
 use super::default_functions::default_digest;
 
-type ByteVec<L> = Vec<u8, L>;
+pub type ByteVec<L> = Vec<u8, L>;
 
 pub trait SliceExt {
     fn trim(&self, whitespaces: &[u8]) -> &Self;
@@ -214,11 +214,11 @@ pub struct IngressManager<
     buf_incomplete: bool,
 
     /// The response producer sends responses to the client
-    pub res_p: ResProducer<BufLen, ResCapacity>,
+    res_p: ResProducer<BufLen, ResCapacity>,
     /// The URC producer sends URCs to the client
-    pub urc_p: UrcProducer<BufLen, UrcCapacity>,
+    urc_p: UrcProducer<BufLen, UrcCapacity>,
     /// The command consumer receives commands from the client
-    pub com_c: ComConsumer<ComCapacity>,
+    com_c: ComConsumer<ComCapacity>,
 
     /// Current processing state.
     state: State,
@@ -443,19 +443,19 @@ where
         }
     }
 
-    pub fn get_buf_incomplete(&self) -> bool{
+    pub fn get_buf_incomplete(&self) -> bool {
         self.buf_incomplete
     }
 
-    pub fn set_buf_incomplete(&mut self, buf_incomplete: bool){
+    pub fn set_buf_incomplete(&mut self, buf_incomplete: bool) {
         self.buf_incomplete = buf_incomplete;
     }
 
-    pub fn get_state(&self) -> State{
+    pub fn get_state(&self) -> State {
         self.state
     }
 
-    pub fn set_state(&mut self, state: State){
+    pub fn set_state(&mut self, state: State) {
         self.state = state;
     }
 
@@ -467,14 +467,14 @@ where
         self.format_char
     }
 
-    pub fn get_echo_enabled(&self) -> bool{
+    pub fn get_echo_enabled(&self) -> bool {
         self.echo_enabled
     }
 
     //TODO: fix docs
     /// Process the receive buffer, checking for AT responses, URC's or errors
     /// For default look at lib::default_functions.
-    /// 
+    ///
     /// This function should be called regularly for the ingress manager to work
     pub fn digest(&mut self) {
         (self.custom_digest)(self)
