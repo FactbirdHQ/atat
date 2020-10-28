@@ -580,15 +580,18 @@ mod default_functions{
     {
         // Handle commands
         ingress.handle_com();
+
+        let line_term_char = ingress.get_line_term_char();
+        let format_char = ingress.get_format_char();
     
         // Trim leading whitespace
-        if ingress.buf.starts_with(&[ingress.get_line_term_char()]) || ingress.buf.starts_with(&[ingress.get_format_char()])
+        if ingress.buf.starts_with(&[line_term_char]) || ingress.buf.starts_with(&[format_char])
         {
             ingress.buf = Vec::from_slice(ingress.buf.trim_start(&[
                 b'\t',
                 b' ',
-                ingress.get_format_char(),
-                ingress.get_line_term_char(),
+                format_char,
+                line_term_char,
             ]))
             .unwrap();
         }
@@ -623,9 +626,9 @@ mod default_functions{
                 if !ingress.get_buf_incomplete() && ingress.buf.get(0..2) == Some(b"AT") {
                     if get_line::<BufLen, _>(
                         &mut ingress.buf,
-                        &[ingress.get_line_term_char()],
-                        ingress.get_line_term_char(),
-                        ingress.get_format_char(),
+                        &[line_term_char],
+                        line_term_char,
+                        format_char,
                         false,
                         false,
                     )
@@ -653,9 +656,9 @@ mod default_functions{
                     if !handled {
                         if let Some(line) = get_line(
                             &mut ingress.buf,
-                            &[ingress.get_line_term_char()],
-                            ingress.get_line_term_char(),
-                            ingress.get_format_char(),
+                            &[line_term_char],
+                            line_term_char,
+                            format_char,
                             false,
                             false,
                         ) {
@@ -676,8 +679,8 @@ mod default_functions{
                     );
                     ingress.set_buf_incomplete(ingress.buf.is_empty()
                         || (ingress.buf.len() > 0
-                            && ingress.buf.get(ingress.buf.len() - 1) != Some(&ingress.get_line_term_char())
-                            && ingress.buf.get(ingress.buf.len() - 1) != Some(&ingress.get_format_char())));
+                            && ingress.buf.get(ingress.buf.len() - 1) != Some(&line_term_char)
+                            && ingress.buf.get(ingress.buf.len() - 1) != Some(&format_char)));
     
                     ingress.clear_buf(false);
     
@@ -693,16 +696,16 @@ mod default_functions{
                 let resp = if let Some(mut line) = get_line::<BufLen, _>(
                     &mut ingress.buf,
                     b"OK",
-                    ingress.get_line_term_char(),
-                    ingress.get_format_char(),
+                    line_term_char,
+                    format_char,
                     true,
                     false,
                 ) {
                     Ok(get_line(
                         &mut line,
-                        &[ingress.get_line_term_char()],
-                        ingress.get_line_term_char(),
-                        ingress.get_format_char(),
+                        &[line_term_char],
+                        line_term_char,
+                        format_char,
                         true,
                         true,
                     )
@@ -710,8 +713,8 @@ mod default_functions{
                 } else if get_line::<BufLen, _>(
                     &mut ingress.buf,
                     b"ERROR",
-                    ingress.get_line_term_char(),
-                    ingress.get_format_char(),
+                    line_term_char,
+                    format_char,
                     false,
                     false,
                 )
@@ -721,8 +724,8 @@ mod default_functions{
                 } else if get_line::<BufLen, _>(
                     &mut ingress.buf,
                     b">",
-                    ingress.get_line_term_char(),
-                    ingress.get_format_char(),
+                    line_term_char,
+                    format_char,
                     false,
                     false,
                 )
@@ -730,8 +733,8 @@ mod default_functions{
                     || get_line::<BufLen, _>(
                         &mut ingress.buf,
                         b"@",
-                        ingress.get_line_term_char(),
-                        ingress.get_format_char(),
+                        line_term_char,
+                        format_char,
                         false,
                         false,
                     )
