@@ -232,10 +232,22 @@
 #![cfg_attr(not(test), no_std)]
 
 mod client;
-mod error;
-mod ingress_manager;
-mod queues;
 mod traits;
+
+#[cfg(not(feature = "custom-digest"))]
+mod error;
+#[cfg(not(feature = "custom-digest"))]
+mod ingress_manager;
+#[cfg(not(feature = "custom-digest"))]
+mod queues;
+
+
+#[cfg(feature = "custom-digest")]
+pub mod error;
+#[cfg(feature = "custom-digest")]
+pub mod ingress_manager;
+#[cfg(feature = "custom-digest")]
+pub mod queues;
 
 #[cfg(feature = "derive")]
 pub use atat_derive;
