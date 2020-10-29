@@ -422,26 +422,34 @@ where
         }
     }
 
+    /// A flag that is set to `true` when the buffer is cleared
+    /// with an incomplete response.
     pub fn get_buf_incomplete(&self) -> bool {
         self.buf_incomplete
     }
 
+    /// A flag that is set to `true` when the buffer is cleared
+    /// with an incomplete response.
     pub fn set_buf_incomplete(&mut self, buf_incomplete: bool) {
         self.buf_incomplete = buf_incomplete;
     }
 
+    /// Current processing state.
     pub fn get_state(&self) -> State {
         self.state
     }
 
+    /// Current processing state.
     pub fn set_state(&mut self, state: State) {
         self.state = state;
     }
 
+    /// Command line termination character S3 (Default = b'\r' ASCII: \[013\])
     pub fn get_line_term_char(&self) -> u8 {
         self.line_term_char
     }
 
+    /// Response formatting character S4 (Default = b'\n' ASCII: \[010\])
     pub fn get_format_char(&self) -> u8 {
         self.format_char
     }
