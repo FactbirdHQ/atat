@@ -7,7 +7,7 @@ use crate::{Command, Config};
 
 use core::iter::FromIterator;
 
-use super::default_functions::default_digest;
+use default_functions::default_digest;
 
 pub type ByteVec<L> = Vec<u8, L>;
 
@@ -457,6 +457,203 @@ where
     /// This function should be called regularly for the ingress manager to work
     pub fn digest(&mut self) {
         (self.custom_digest)(self)
+    }
+}
+
+pub(crate) mod default_functions {
+    use crate::atat_log;
+    use crate::error::Error;
+    use crate::ingress_manager::{
+        get_line, IngressManager, SliceExt, State, UrcMatcher, UrcMatcherResult,
+    };
+    use crate::queues::{ComItem, ResItem, UrcItem};
+    use heapless::{ArrayLength, Vec};
+
+    /// Default function to process the receive buffer, checking for AT responses, URC's or errors
+    ///
+    /// This function should be called regularly for the ingress manager to work
+    pub(crate) fn default_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
+        ingress: &mut IngressManager<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>,
+    ) where
+        U: UrcMatcher<BufLen>,
+        BufLen: ArrayLength<u8>,
+        ComCapacity: ArrayLength<ComItem>,
+        ResCapacity: ArrayLength<ResItem<BufLen>>,
+        UrcCapacity: ArrayLength<UrcItem<BufLen>>,
+    {
+        // Handle commands
+        ingress.handle_com();
+
+        let line_term_char = ingress.get_line_term_char();
+        let format_char = ingress.get_format_char();
+
+        // Trim leading whitespace
+        if ingress.buf.starts_with(&[line_term_char]) || ingress.buf.starts_with(&[format_char]) {
+            ingress.buf = Vec::from_slice(ingress.buf.trim_start(&[
+                b'\t',
+                b' ',
+                format_char,
+                line_term_char,
+            ]))
+            .unwrap();
+        }
+
+        #[allow(clippy::single_match)]
+        match core::str::from_utf8(&ingress.buf) {
+            Ok(_s) => {
+                #[cfg(not(feature = "log-logging"))]
+                atat_log!(trace, "Digest / {:str}", _s);
+                #[cfg(feature = "log-logging")]
+                atat_log!(trace, "Digest / {:?}", _s);
+            }
+            Err(_) => atat_log!(
+                trace,
+                "Digest / {:?}",
+                core::convert::AsRef::<[u8]>::as_ref(&buf)
+            ),
+        };
+
+        match ingress.get_state() {
+            State::Idle => {
+                // The minimal buffer length that is required to identify all
+                // types of responses (e.g. `AT` and `+`).
+                let min_length = 2;
+
+                // Echo is currently required
+                if !ingress.get_echo_enabled() {
+                    unimplemented!("Disabling AT echo is currently unsupported");
+                }
+
+                // Handle AT echo responses
+                if !ingress.get_buf_incomplete() && ingress.buf.get(0..2) == Some(b"AT") {
+                    if get_line::<BufLen, _>(
+                        &mut ingress.buf,
+                        &[line_term_char],
+                        line_term_char,
+                        format_char,
+                        false,
+                        false,
+                    )
+                    .is_some()
+                    {
+                        ingress.set_state(State::ReceivingResponse);
+                        ingress.set_buf_incomplete(false);
+                        atat_log!(trace, "Switching to state ReceivingResponse");
+                    }
+
+                // Handle URCs
+                } else if !ingress.get_buf_incomplete() && ingress.buf.get(0) == Some(&b'+') {
+                    // Try to apply the custom URC matcher
+                    let handled = match ingress.custom_urc_matcher {
+                        Some(ref mut matcher) => match matcher.process(&mut ingress.buf) {
+                            UrcMatcherResult::NotHandled => false,
+                            UrcMatcherResult::Incomplete => true,
+                            UrcMatcherResult::Complete(urc) => {
+                                ingress.notify_urc(urc);
+                                true
+                            }
+                        },
+                        None => false,
+                    };
+                    if !handled {
+                        if let Some(line) = get_line(
+                            &mut ingress.buf,
+                            &[line_term_char],
+                            line_term_char,
+                            format_char,
+                            false,
+                            false,
+                        ) {
+                            ingress.set_buf_incomplete(false);
+                            ingress.notify_urc(line);
+                        }
+                    }
+
+                // Text sent by the device that is not a valid response type (e.g. starting
+                // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
+                // ensure that we don't accidentally break a valid response.
+                } else if ingress.get_buf_incomplete() || ingress.buf.len() > min_length {
+                    atat_log!(
+                        trace,
+                        "Clearing buffer with invalid response (incomplete: {:?}, buflen: {:?})",
+                        buf_incomplete,
+                        ingress.buf.len()
+                    );
+                    ingress.set_buf_incomplete(
+                        ingress.buf.is_empty()
+                            || (ingress.buf.len() > 0
+                                && ingress.buf.get(ingress.buf.len() - 1) != Some(&line_term_char)
+                                && ingress.buf.get(ingress.buf.len() - 1) != Some(&format_char)),
+                    );
+
+                    ingress.clear_buf(false);
+
+                    // If the buffer wasn't cleared completely, that means that
+                    // a newline was found. In that case, the buffer cannot be
+                    // in an incomplete state.
+                    if !ingress.buf.is_empty() {
+                        ingress.set_buf_incomplete(false);
+                    }
+                }
+            }
+            State::ReceivingResponse => {
+                let resp = if let Some(mut line) = get_line::<BufLen, _>(
+                    &mut ingress.buf,
+                    b"OK",
+                    line_term_char,
+                    format_char,
+                    true,
+                    false,
+                ) {
+                    Ok(get_line(
+                        &mut line,
+                        &[line_term_char],
+                        line_term_char,
+                        format_char,
+                        true,
+                        true,
+                    )
+                    .unwrap_or_else(Vec::new))
+                } else if get_line::<BufLen, _>(
+                    &mut ingress.buf,
+                    b"ERROR",
+                    line_term_char,
+                    format_char,
+                    false,
+                    false,
+                )
+                .is_some()
+                {
+                    Err(Error::InvalidResponse)
+                } else if get_line::<BufLen, _>(
+                    &mut ingress.buf,
+                    b">",
+                    line_term_char,
+                    format_char,
+                    false,
+                    false,
+                )
+                .is_some()
+                    || get_line::<BufLen, _>(
+                        &mut ingress.buf,
+                        b"@",
+                        line_term_char,
+                        format_char,
+                        false,
+                        false,
+                    )
+                    .is_some()
+                {
+                    Ok(Vec::new())
+                } else {
+                    return;
+                };
+
+                ingress.notify_response(resp);
+                atat_log!(trace, "Switching to state Idle");
+                ingress.set_state(State::Idle);
+            }
+        }
     }
 }
 
