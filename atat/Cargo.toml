@@ -41,6 +41,8 @@ stm32l4xx-hal = { git = "https://github.com/stm32-rs/stm32l4xx-hal", features = 
 default = ["derive"]
 derive = ["atat_derive"]
 
+custom-digest = []
+
 log-logging = ["log"]
 
 std = ["serde_at/std"]
