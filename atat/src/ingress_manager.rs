@@ -114,7 +114,8 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
 
 /// State of the `IngressManager`, used to distiguish URCs from solicited
 /// responses
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, defmt::Format)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+// #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, defmt::Format)]
 pub enum State {
     Idle,
     ReceivingResponse,
@@ -325,11 +326,11 @@ where
                 #[cfg(feature = "log-logging")]
                 atat_log!(debug, "Received URC: {:?}", _s);
             }
-            Err(_) => atat_log!(
-                debug,
-                "Received URC: {:?}",
-                core::convert::AsRef::<[u8]>::as_ref(&resp)
-            ),
+            Err(_) => () // atat_log!(
+            //     debug,
+            //     "Received URC: {:?}",
+            //     core::convert::AsRef::<[u8]>::as_ref(&resp)
+            // ),
         };
 
         if self.urc_p.ready() {
@@ -517,7 +518,7 @@ pub(crate) mod default_functions {
             Err(_) => atat_log!(
                 trace,
                 "Digest / {:?}",
-                core::convert::AsRef::<[u8]>::as_ref(&buf)
+                core::convert::AsRef::<[u8]>::as_ref(&ingress.buf)
             ),
         };
 
@@ -584,7 +585,7 @@ pub(crate) mod default_functions {
                     atat_log!(
                         trace,
                         "Clearing buffer with invalid response (incomplete: {:?}, buflen: {:?})",
-                        buf_incomplete,
+                        ingress.get_buf_incomplete(),
                         ingress.buf.len()
                     );
                     ingress.set_buf_incomplete(

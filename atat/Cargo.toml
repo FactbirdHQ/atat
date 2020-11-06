@@ -28,7 +28,7 @@ serde = {version = "^1", default-features = false}
 typenum = "^1"
 
 log = { version = "^0.4", default-features = false, optional = true }
-defmt = { git = "https://github.com/knurling-rs/defmt", branch = "main" }
+# defmt = { git = "https://github.com/knurling-rs/defmt", branch = "main" }
 
 [dev-dependencies]
 cortex-m = "0.6.3"
