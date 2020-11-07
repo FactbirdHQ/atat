@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, parse_quote, Fields, Ident};
+use syn::{parse_macro_input, parse_quote, Field, Fields, Ident, PathSegment, Type};
 
 use crate::{
     helpers,
@@ -222,7 +222,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         info.anonymous_enum.fields.push(anon_ident);
     }
 
-    let enum_len = crate::len::enum_len(variants, &repr, &mut atat_len_generics);
+    let enum_len = crate::len::enum_len(&variants, &repr, &mut atat_len_generics);
 
     let Info {
         serialize_match_arms,
@@ -239,7 +239,59 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
     let (atat_len_impl_generics, atat_len_ty_generics, atat_len_where_clause) =
         atat_len_generics.split_for_impl();
 
+    let mut default_impls: Vec<proc_macro2::TokenStream> = variants.iter().filter_map(|variant| {
+        if let Some(ArgAttributes { default: true, .. }) = variant.attrs.at_arg {
+            let variant_ident = variant.ident.clone().unwrap();
+            let variant_default = match variant.fields {
+                Some(Fields::Named(ref _fields)) => {
+                    quote! {}
+                }
+                Some(Fields::Unnamed(ref fields)) => {
+                    let default_fields: Vec<proc_macro2::TokenStream> = fields.unnamed.iter().filter_map(|Field { ty, ..}| {
+                        match ty {
+                            Type::Path(p) => {
+                                if let Some(PathSegment { ident, .. }) = p.path.segments.last() {
+                                    Some(quote! {
+                                        #ident::default()
+                                    })
+                                } else {
+                                    // TODO: Could probably handle a few more cases here
+                                    None
+                                }
+                            },
+                            _ => None
+                        }
+
+                    }).collect();
+                    quote! {
+                        #ident::#variant_ident(#(#default_fields,)*)
+                    }
+                }
+                None | Some(Fields::Unit) => quote! { #ident::#variant_ident }
+            };
+
+            Some(quote! {
+                #[automatically_derived]
+                impl #atat_len_impl_generics Default for #ident #ty_generics #deserialize_where_clause {
+                    fn default() -> Self {
+                        #variant_default
+                    }
+                }
+            })
+        } else {
+            None
+        }
+    }).collect();
+
+    if default_impls.len() > 1 {
+        panic!("Cannot have more than one default!")
+    }
+
+    let default_impl = default_impls.pop().unwrap_or_default();
+
     TokenStream::from(quote! {
+        #default_impl
+
         #[automatically_derived]
         impl #atat_len_impl_generics atat::AtatLen for #ident #atat_len_ty_generics #atat_len_where_clause {
             type Len = #enum_len;

@@ -32,6 +32,7 @@ pub struct ArgAttributes {
     pub value: Option<i64>,
     pub position: Option<usize>,
     pub len: Option<u32>,
+    pub default: bool,
 }
 
 /// Parsed attributes of `#[at_urc(..)]`
@@ -168,41 +169,56 @@ impl Parse for ArgAttributes {
             value: None,
             position: None,
             len: None,
+            default: false,
         };
 
         while {
-            let name_value = input.parse::<syn::MetaNameValue>()?;
-            if name_value.path.is_ident("value") {
-                match name_value.lit.clone() {
-                    Lit::Int(v) => attrs.value = Some(v.base10_parse().unwrap()),
-                    _ => {
-                        return Err(Error::new(
-                            Span::call_site(),
-                            "value argument must be an integer",
-                        ))
+            match input.parse::<syn::Meta>()? {
+                syn::Meta::NameValue(name_value) if name_value.path.is_ident("value") => {
+                    match name_value.lit.clone() {
+                        Lit::Int(v) => attrs.value = Some(v.base10_parse().unwrap()),
+                        _ => {
+                            return Err(Error::new(
+                                Span::call_site(),
+                                "value argument must be an integer",
+                            ))
+                        }
                     }
                 }
-            } else if name_value.path.is_ident("position") {
-                match name_value.lit.clone() {
-                    Lit::Int(v) => attrs.position = Some(v.base10_parse().unwrap()),
-                    _ => {
-                        return Err(Error::new(
-                            Span::call_site(),
-                            "position argument must be a positive integer",
-                        ))
+                syn::Meta::NameValue(name_value) if name_value.path.is_ident("position") => {
+                    match name_value.lit.clone() {
+                        Lit::Int(v) => attrs.position = Some(v.base10_parse().unwrap()),
+                        _ => {
+                            return Err(Error::new(
+                                Span::call_site(),
+                                "position argument must be a positive integer",
+                            ))
+                        }
                     }
                 }
-            } else if name_value.path.is_ident("len") {
-                match name_value.lit.clone() {
-                    Lit::Int(v) => attrs.len = Some(v.base10_parse().unwrap()),
-                    _ => {
-                        return Err(Error::new(
-                            Span::call_site(),
-                            "len argument must be a positive integer",
-                        ))
+                syn::Meta::NameValue(name_value) if name_value.path.is_ident("len") => {
+                    match name_value.lit.clone() {
+                        Lit::Int(v) => attrs.len = Some(v.base10_parse().unwrap()),
+                        _ => {
+                            return Err(Error::new(
+                                Span::call_site(),
+                                "len argument must be a positive integer",
+                            ))
+                        }
                     }
                 }
+                syn::Meta::NameValue(name_value) if name_value.path.is_ident("default") => {
+                    return Err(Error::new(
+                        Span::call_site(),
+                        "default does not have a value. Eg #[at_arg(default)]",
+                    ))
+                }
+                syn::Meta::Path(path) if path.is_ident("default") => {
+                    attrs.default = true;
+                }
+                _ => return Err(Error::new(Span::call_site(), "unknown argument!")),
             }
+
             input.parse::<syn::token::Comma>().is_ok()
         } {}
 
