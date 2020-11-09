@@ -139,7 +139,16 @@ pub trait AtatClient {
     /// //     }
     /// // }
     /// ```
-    fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Response>;
+    fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Response> {
+        let mut return_urc = None;
+        self.peek_urc_with::<URC, _>(|urc| {
+            return_urc = Some(urc);
+            true
+        });
+        return_urc
+    }
+
+    fn peek_urc_with<URC: AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F);
 
     /// Check if there are any responses enqueued from the ingress manager.
     ///

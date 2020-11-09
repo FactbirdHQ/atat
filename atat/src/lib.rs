@@ -226,6 +226,8 @@
 #![deny(warnings)]
 #![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::missing_errors_doc)]
+#![allow(clippy::unused_unit)]
+#![allow(clippy::clippy::used_underscore_binding)]
 #![allow(clippy::too_many_lines)]
 #![cfg_attr(not(test), no_std)]
 

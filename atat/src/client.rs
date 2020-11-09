@@ -113,18 +113,22 @@ where
             nb::block!(self.timer.wait()).ok();
             let cmd_buf = cmd.as_bytes();
 
-            #[allow(clippy::single_match)]
             match core::str::from_utf8(&cmd_buf) {
-                Ok(_s) => {
+                Ok(_s) if _s.len() < 50 => {
                     #[cfg(not(feature = "log-logging"))]
-                    atat_log!(debug, "Sending command: {:str}", _s);
+                    atat_log!(debug, "Sending command: \"{:str}\"", _s[.._s.len() - 2]);
                     #[cfg(feature = "log-logging")]
-                    atat_log!(debug, "Sending command: {:?}", _s);
+                    atat_log!(debug, "Sending command: \"{:?}\"", _s[.._s.len() - 2]);
                 }
-                Err(_) => atat_log!(
+                Err(_) if cmd_buf.len() < 50 => atat_log!(
                     debug,
                     "Sending command: {:?}",
                     core::convert::AsRef::<[u8]>::as_ref(&cmd_buf)
+                ),
+                _ => atat_log!(
+                    debug,
+                    "Sending command with too long payload ({:?} bytes) to log!",
+                    cmd_buf.len()
                 ),
             };
 
@@ -145,13 +149,16 @@ where
         }
     }
 
-    fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Response> {
-        if !self.urc_c.ready() {
-            return None;
+    fn peek_urc_with<URC: AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F) {
+        if let Some(urc) = self.urc_c.peek() {
+            self.timer.start(self.config.cmd_cooldown);
+            if let Ok(urc) = URC::parse(urc) {
+                if !f(urc) {
+                    return;
+                }
+            }
+            unsafe { self.urc_c.dequeue_unchecked() };
         }
-
-        self.timer.start(self.config.cmd_cooldown);
-        URC::parse(unsafe { &self.urc_c.dequeue_unchecked() }).ok()
     }
 
     fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {
@@ -429,7 +436,6 @@ mod test {
         };
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Timeout)));
 
-        // TODO: Test countdown is recived corretly
         match client.config.mode {
             Mode::Timeout => {} // assert_eq!(cd_mock.time, 180000),
             _ => panic!("Wrong AT mode"),
