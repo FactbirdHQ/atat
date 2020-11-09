@@ -151,7 +151,7 @@ where
 
     fn peek_urc_with<URC: AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F) {
         if let Some(urc) = self.urc_c.peek() {
-            self.timer.start(self.config.cmd_cooldown);
+            self.timer.try_start(self.config.cmd_cooldown).ok();
             if let Ok(urc) = URC::parse(urc) {
                 if !f(urc) {
                     return;
