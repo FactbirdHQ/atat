@@ -298,9 +298,11 @@ where
     fn notify_response(&mut self, resp: Result<ByteVec<BufLen>, Error>) {
         match &resp {
             Ok(_r) => {
-                if !_r.is_empty() {
+                if _r.is_empty() {
+                    atat_log!(debug, "Received OK",)
+                } else {
                     #[allow(clippy::single_match)]
-                    match core::str::from_utf8(&_r) {
+                    match core::str::from_utf8(_r) {
                         Ok(_s) => {
                             #[cfg(not(feature = "log-logging"))]
                             atat_log!(debug, "Received response: \"{:str}\"", _s);
@@ -313,8 +315,6 @@ where
                             core::convert::AsRef::<[u8]>::as_ref(&_r)
                         ),
                     };
-                } else {
-                    atat_log!(debug, "Received OK",)
                 }
             }
             Err(_e) => atat_log!(error, "Received error response: {:?}", _e),
