@@ -33,7 +33,7 @@ pub fn struct_len(variants: Vec<Variant>, init_len: usize) -> proc_macro2::Token
 /// types `AtatLen` implementation, allowing overwriting the max length of all
 /// types, including borrowed data
 pub fn enum_len(
-    variants: &Vec<Variant>,
+    variants: &[Variant],
     repr: &Ident,
     _generics: &mut syn::Generics,
 ) -> proc_macro2::TokenStream {

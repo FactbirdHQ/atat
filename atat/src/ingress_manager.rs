@@ -297,13 +297,33 @@ where
     /// received
     fn notify_response(&mut self, resp: Result<ByteVec<BufLen>, Error>) {
         match &resp {
-            Ok(_r) => atat_log!(debug, "Received response"),
+            Ok(_r) => {
+                if !_r.is_empty() {
+                    #[allow(clippy::single_match)]
+                    match core::str::from_utf8(&_r) {
+                        Ok(_s) => {
+                            #[cfg(not(feature = "log-logging"))]
+                            atat_log!(debug, "Received response: \"{:str}\"", _s);
+                            #[cfg(feature = "log-logging")]
+                            atat_log!(debug, "Received response \"{:?}\"", _s)
+                        }
+                        Err(_) => atat_log!(
+                            debug,
+                            "Received response: {:?}",
+                            core::convert::AsRef::<[u8]>::as_ref(&_r)
+                        ),
+                    };
+                } else {
+                    atat_log!(debug, "Received OK",)
+                }
+            }
             Err(_e) => atat_log!(error, "Received error response: {:?}", _e),
         }
         if self.res_p.ready() {
             unsafe { self.res_p.enqueue_unchecked(resp) };
         } else {
             // FIXME: Handle queue not being ready
+            atat_log!(error, "Response queue full!");
         }
     }
 
@@ -329,6 +349,7 @@ where
             unsafe { self.urc_p.enqueue_unchecked(resp) };
         } else {
             // FIXME: Handle queue not being ready
+            atat_log!(error, "URC queue full!");
         }
     }
 
@@ -497,7 +518,7 @@ where
                             &[self.line_term_char],
                             self.line_term_char,
                             self.format_char,
-                            false,
+                            true,
                             false,
                         ) {
                             self.buf_incomplete = false;
@@ -548,16 +569,28 @@ where
                         true,
                     )
                     .unwrap_or_else(Vec::new))
-                } else if get_line::<BufLen, _>(
+                } else if let Some(_bytes) = get_line::<BufLen, _>(
                     &mut self.buf,
                     b"ERROR",
                     self.line_term_char,
                     self.format_char,
+                    true,
                     false,
-                    false,
-                )
-                .is_some()
-                {
+                ) {
+                    #[allow(clippy::single_match)]
+                    match core::str::from_utf8(&_bytes) {
+                        Ok(_s) => {
+                            #[cfg(not(feature = "log-logging"))]
+                            atat_log!(error, "Received error response: {:str}", _s);
+                            #[cfg(feature = "log-logging")]
+                            atat_log!(error, "Received error response {:?}", _s)
+                        }
+                        Err(_) => atat_log!(
+                            error,
+                            "Received error response: {:?}",
+                            core::convert::AsRef::<[u8]>::as_ref(&_bytes)
+                        ),
+                    };
                     Err(Error::InvalidResponse)
                 } else if get_line::<BufLen, _>(
                     &mut self.buf,
@@ -919,7 +952,7 @@ mod test {
         ingress.write(b"+default-behavior\r\n");
         ingress.digest();
         assert_eq!(ingress.state, State::Idle);
-        assert_eq!(urc_c.dequeue().unwrap(), b"+default-behavior\r\n");
+        assert_eq!(urc_c.dequeue().unwrap(), b"+default-behavior");
 
         // Check an URC that is generally handled by MyUrcMatcher but
         // considered incomplete (not enough data). This will not yet result in
