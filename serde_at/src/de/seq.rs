@@ -61,13 +61,10 @@ impl<'a, 'de> de::SeqAccess<'de> for SeqByteAccess<'a, 'de> {
         T: de::DeserializeSeed<'de>,
     {
         match self.de.parse_whitespace() {
-            Some(b',') => {
+            Some(b',') | None => {
                 return Ok(None);
             }
             Some(_) => {}
-            None => {
-                return Ok(None);
-            }
         };
 
         Ok(Some(seed.deserialize(&mut *self.de)?))

@@ -68,7 +68,7 @@ where
                         return Err(<A::Error as serde::de::Error>::invalid_length(
                             values.capacity() + 1,
                             &self,
-                        ))?;
+                        ));
                     }
                 }
 
