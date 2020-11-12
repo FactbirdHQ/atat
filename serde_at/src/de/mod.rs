@@ -4,10 +4,11 @@ use core::str::FromStr;
 use core::{fmt, str};
 
 use serde::de::{self, Visitor};
+use serde::{Deserialize, export};
 
 use self::enum_::VariantAccess;
 use self::map::MapAccess;
-use self::seq::SeqAccess;
+use self::seq::{SeqAccess, SeqByteAccess};
 
 mod enum_;
 mod map;
@@ -15,6 +16,66 @@ mod seq;
 
 /// Deserialization result
 pub type Result<T> = core::result::Result<T, Error>;
+
+
+/// Wrapper type to allow deserializing a number of chars as a char vector
+///
+/// Example:
+/// ```
+/// use heapless::{consts, String};
+/// use serde_at::{to_string, Bytes, SerializeOptions};
+/// use serde_derive::Serialize;
+///
+/// #[derive(Debug, Deserialize, PartialEq)]
+/// struct CharVecStruct(CharVec<consts::U7>)
+/// 
+/// let vec: CharVecStruct = from_str("+CCID: IMP_MSG")
+/// 
+/// let stru = CharVecTest(CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()));
+/// 
+/// assert_eq!(vec, Ok(stru));
+/// ```
+#[derive(Debug, PartialEq)]
+struct CharVec<T: heapless::ArrayLength<char>>(heapless::Vec<char, T>);
+
+impl<'de, N> Deserialize<'de> for CharVec<N>
+where
+    N: heapless::ArrayLength<char>,
+{
+    fn deserialize<D>(deserializer: D) -> export::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ValueVisitor<'de, N>(core::marker::PhantomData<(&'de (), char, N)>);
+
+        impl<'de, N> de::Visitor<'de> for ValueVisitor<'de, N>
+        where
+            N: heapless::ArrayLength<char>,
+        {
+            type Value = CharVec<N>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a sequence")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> export::Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut values = heapless::Vec::new();
+
+                while let Some(value) = seq.next_element()? {
+                    if values.push(value).is_err() {
+                        return Err(<A::Error as serde::de::Error>::invalid_length(values.capacity() + 1, &self))?;
+                    }
+                }
+
+                Ok(CharVec(values))
+            }
+        }
+        deserializer.deserialize_bytes(ValueVisitor(core::marker::PhantomData))
+    }
+}
 
 /// This type represents all possible errors that can occur when deserializing AT Command strings
 #[allow(clippy::pub_enum_variant_names)]
@@ -373,11 +434,13 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         deserialize_fromstr!(self, visitor, f64, visit_f64, b"0123456789+-.eE")
     }
 
-    fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value>
+    fn deserialize_char<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        unreachable!()
+        let peek = self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
+        self.eat_char();
+        visitor.visit_char(peek as char)
     }
 
     fn deserialize_str<V>(self, visitor: V) -> Result<V::Value>
@@ -410,11 +473,11 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     /// Unsupported
-    fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value>
+    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        unreachable!()
+        Ok(visitor.visit_seq(SeqByteAccess::new(self))?)
     }
 
     /// Unsupported
@@ -631,6 +694,7 @@ where
 mod tests {
     use heapless::{consts, String, Vec};
     use serde_derive::Deserialize;
+    use super::CharVec;
 
     #[derive(Debug, Deserialize, PartialEq)]
     struct CFG {
@@ -653,6 +717,9 @@ mod tests {
 
     #[derive(Clone, Debug, PartialEq, Deserialize)]
     struct Handle(pub usize);
+
+    #[derive(Clone, Debug, PartialEq, Deserialize)]
+    struct CharHandle(pub char);
 
     #[test]
     fn simple_struct() {
@@ -738,7 +805,23 @@ mod tests {
     }
 
     #[test]
+    fn char_test() {
+        assert_eq!(
+            crate::from_str("+CCID: B"),
+            Ok(CharHandle('B'))
+        );
+    }
+
+    #[test]
     fn newtype_struct() {
         assert_eq!(crate::from_str("+CCID: 15"), Ok(Handle(15)));
+    }
+
+    #[test]
+    fn char_vec_struct(){
+        #[derive(Debug, Deserialize, PartialEq)]
+        struct CharVecTest(CharVec<consts::U4>);
+        let stru = CharVecTest(CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_']).unwrap()));
+        assert_eq!(crate::from_str("+CCID: IMP_"), Ok(stru));
     }
 }
