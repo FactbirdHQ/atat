@@ -4,7 +4,7 @@ use core::str::FromStr;
 use core::{fmt, str};
 
 use serde::de::{self, Visitor};
-use serde::{Deserialize, export};
+use serde::{export, Deserialize};
 
 use self::enum_::VariantAccess;
 use self::map::MapAccess;
@@ -17,7 +17,6 @@ mod seq;
 /// Deserialization result
 pub type Result<T> = core::result::Result<T, Error>;
 
-
 /// Wrapper type to allow deserializing a number of chars as a char vector
 ///
 /// Example:
@@ -28,11 +27,11 @@ pub type Result<T> = core::result::Result<T, Error>;
 ///
 /// #[derive(Debug, Deserialize, PartialEq)]
 /// struct CharVecStruct(CharVec<consts::U7>)
-/// 
+///
 /// let vec: CharVecStruct = from_str("+CCID: IMP_MSG")
-/// 
+///
 /// let stru = CharVecTest(CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()));
-/// 
+///
 /// assert_eq!(vec, Ok(stru));
 /// ```
 #[derive(Debug, PartialEq)]
@@ -66,7 +65,10 @@ where
 
                 while let Some(value) = seq.next_element()? {
                     if values.push(value).is_err() {
-                        return Err(<A::Error as serde::de::Error>::invalid_length(values.capacity() + 1, &self))?;
+                        return Err(<A::Error as serde::de::Error>::invalid_length(
+                            values.capacity() + 1,
+                            &self,
+                        ))?;
                     }
                 }
 
@@ -692,9 +694,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::CharVec;
     use heapless::{consts, String, Vec};
     use serde_derive::Deserialize;
-    use super::CharVec;
 
     #[derive(Debug, Deserialize, PartialEq)]
     struct CFG {
@@ -806,10 +808,7 @@ mod tests {
 
     #[test]
     fn char_test() {
-        assert_eq!(
-            crate::from_str("+CCID: B"),
-            Ok(CharHandle('B'))
-        );
+        assert_eq!(crate::from_str("+CCID: B"), Ok(CharHandle('B')));
     }
 
     #[test]
@@ -818,10 +817,12 @@ mod tests {
     }
 
     #[test]
-    fn char_vec_struct(){
+    fn char_vec_struct() {
         #[derive(Debug, Deserialize, PartialEq)]
         struct CharVecTest(CharVec<consts::U4>);
-        let stru = CharVecTest(CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_']).unwrap()));
+        let stru = CharVecTest(CharVec(
+            heapless::Vec::from_slice(&['I', 'M', 'P', '_']).unwrap(),
+        ));
         assert_eq!(crate::from_str("+CCID: IMP_"), Ok(stru));
     }
 }

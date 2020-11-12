@@ -64,7 +64,7 @@ impl<'a, 'de> de::SeqAccess<'de> for SeqByteAccess<'a, 'de> {
             Some(b',') => {
                 return Ok(None);
             }
-            Some(_) => { }
+            Some(_) => {}
             None => {
                 return Ok(None);
             }
