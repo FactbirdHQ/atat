@@ -1,3 +1,4 @@
+use serde_at::CharVec;
 use core::ops::Mul;
 use heapless::{ArrayLength, String, Vec};
 use typenum::Unsigned;
@@ -54,6 +55,14 @@ where
     <L as Mul<<T as AtatLen>::Len>>::Output: ArrayLength<u8>,
 {
     type Len = <L as Mul<<T as AtatLen>::Len>>::Output;
+}
+
+impl <T> AtatLen for CharVec<T>
+where
+    T: ArrayLength<char>,
+    T: ArrayLength<u8>,
+{
+    type Len = T;
 }
 
 #[cfg(test)]

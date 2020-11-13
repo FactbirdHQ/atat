@@ -4,6 +4,8 @@ use core::fmt::{self, Write};
 
 use serde::ser;
 
+use crate::de::CharVec;
+
 use heapless::{
     consts::{U16, U32},
     String, Vec,
@@ -54,6 +56,17 @@ impl<'a> serde::Serialize for Bytes<'a> {
         S: serde::Serializer,
     {
         serde::Serializer::serialize_bytes(serializer, self.0)
+    }
+}
+
+impl<T> serde::Serialize for CharVec<T>
+where T: heapless::ArrayLength<char> {
+    fn serialize<S>(&self, _serializer: S) -> serde::export::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        unimplemented!();
+        // serde::Serializer::serialize_bytes(serializer, &(self.0[0.. self.0.len()] as [u8]))
     }
 }
 
