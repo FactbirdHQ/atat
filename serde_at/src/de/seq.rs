@@ -42,6 +42,7 @@ impl<'a, 'de> de::SeqAccess<'de> for SeqAccess<'a, 'de> {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub struct SeqByteAccess<'a, 'b> {
     de: &'a mut Deserializer<'b>,
 }

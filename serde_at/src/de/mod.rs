@@ -34,7 +34,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 ///
 /// let incomming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12")
 ///
-/// let expected = CommandStruct{ 
+/// let expected = CommandStruct{
 ///     id: 4,
 ///     vec : CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
 ///     value: -12,
@@ -826,9 +826,8 @@ mod tests {
 
     #[test]
     fn char_vec_struct() {
-        let expectation: CharVec<consts::U4> = CharVec(
-            heapless::Vec::from_slice(&['I', 'M', 'P', '_']).unwrap(),
-        );
+        let expectation: CharVec<consts::U4> =
+            CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_']).unwrap());
         assert_eq!(crate::from_str("+CCID: IMP_"), Ok(expectation));
     }
 }
