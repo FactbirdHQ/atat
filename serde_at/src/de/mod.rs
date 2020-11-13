@@ -43,7 +43,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// assert_eq!(incoming, Ok(expected));
 /// ```
 #[derive(Debug, PartialEq)]
-struct CharVec<T: heapless::ArrayLength<char>>(heapless::Vec<char, T>);
+pub struct CharVec<T: heapless::ArrayLength<char>>(heapless::Vec<char, T>);
 
 impl<'de, N> Deserialize<'de> for CharVec<N>
 where
