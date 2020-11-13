@@ -27,13 +27,18 @@ serde = {version = "^1", default-features = false}
 typenum = "^1"
 
 log = { version = "^0.4", default-features = false, optional = true }
+<<<<<<< Updated upstream
 defmt = { git = "https://github.com/knurling-rs/defmt", rev = "be7f4a7cbe8a61e005f55fed1a41b11f85cb8ed6" }
+=======
+defmt = { version = "^0.1" }
+>>>>>>> Stashed changes
 
 [dev-dependencies]
 cortex-m = "0.6.3"
 cortex-m-rt = "0.6.12"
 cortex-m-rtic = "0.5.4"
 panic-halt = "0.2.0"
+# stm32l4xx-hal = { version = "0.5", features = ["stm32l4x5", "rt"] }
 stm32l4xx-hal = { git = "https://github.com/stm32-rs/stm32l4xx-hal", features = ["stm32l4x5", "rt"] }
 
 [features]

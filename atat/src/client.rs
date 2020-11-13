@@ -499,9 +499,6 @@ mod test {
             Vec::<u8, TestRxBufLen>::from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
         p.enqueue(Ok(response)).unwrap();
 
-        let res_vec: Vec<u8, TestRxBufLen> =
-            "0123456789012345".as_bytes().iter().cloned().collect();
-
         assert_eq!(client.state, ClientState::Idle);
 
         assert_eq!(
@@ -509,7 +506,7 @@ mod test {
             Ok(TestResponseVec {
                 socket: 22,
                 length: 16,
-                data: res_vec
+                data: Vec::from_slice(b"0123456789012345").unwrap()
             })
         );
         assert_eq!(client.state, ClientState::Idle);
