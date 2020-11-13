@@ -27,11 +27,7 @@ serde = {version = "^1", default-features = false}
 typenum = "^1"
 
 log = { version = "^0.4", default-features = false, optional = true }
-<<<<<<< Updated upstream
-defmt = { git = "https://github.com/knurling-rs/defmt", rev = "be7f4a7cbe8a61e005f55fed1a41b11f85cb8ed6" }
-=======
 defmt = { version = "^0.1" }
->>>>>>> Stashed changes
 
 [dev-dependencies]
 cortex-m = "0.6.3"
