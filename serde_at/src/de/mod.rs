@@ -26,13 +26,21 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// use serde_derive::Serialize;
 ///
 /// #[derive(Debug, Deserialize, PartialEq)]
-/// struct CharVecStruct(CharVec<consts::U7>)
+/// struct CommandStruct{
+///     id: u8,
+///     vec: CharVec<consts::U7>
+///     value: i32,
+/// }
 ///
-/// let vec: CharVecStruct = from_str("+CCID: IMP_MSG")
+/// let incomming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12")
 ///
-/// let stru = CharVecTest(CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()));
+/// let expected = CommandStruct{ 
+///     id: 4,
+///     vec : CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
+///     value: -12,
+/// }
 ///
-/// assert_eq!(vec, Ok(stru));
+/// assert_eq!(incomming, Ok(expected));
 /// ```
 #[derive(Debug, PartialEq)]
 struct CharVec<T: heapless::ArrayLength<char>>(heapless::Vec<char, T>);
@@ -818,11 +826,9 @@ mod tests {
 
     #[test]
     fn char_vec_struct() {
-        #[derive(Debug, Deserialize, PartialEq)]
-        struct CharVecTest(CharVec<consts::U4>);
-        let stru = CharVecTest(CharVec(
+        let expectation: CharVec<consts::U4> = CharVec(
             heapless::Vec::from_slice(&['I', 'M', 'P', '_']).unwrap(),
-        ));
-        assert_eq!(crate::from_str("+CCID: IMP_"), Ok(stru));
+        );
+        assert_eq!(crate::from_str("+CCID: IMP_"), Ok(expectation));
     }
 }
