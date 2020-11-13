@@ -45,13 +45,23 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[derive(Debug, PartialEq)]
 pub struct CharVec<T: heapless::ArrayLength<char>>(heapless::Vec<char, T>);
 
-impl <T> CharVec<T>
-    where T: heapless::ArrayLength<char>{
-    pub fn new() -> Self{
-        CharVec(heapless::Vec::<char, T>::new())
+impl<T> CharVec<T>
+where
+    T: heapless::ArrayLength<char>,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self(heapless::Vec::<char, T>::new())
     }
 }
-
+impl<T> Default for CharVec<T>
+where
+    T: heapless::ArrayLength<char>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl<'de, N> Deserialize<'de> for CharVec<N>
 where
     N: heapless::ArrayLength<char>,
@@ -834,7 +844,10 @@ mod tests {
     #[test]
     fn char_vec_struct() {
         let expectation: CharVec<consts::U4> = CharVec::new();
-        assert_eq!(CharVec(heapless::Vec::<char, consts::U4>::new()), expectation);
+        assert_eq!(
+            CharVec(heapless::Vec::<char, consts::U4>::new()),
+            expectation
+        );
         let expectation: CharVec<consts::U4> =
             CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_']).unwrap());
         assert_eq!(crate::from_str("+CCID: IMP_"), Ok(expectation));
