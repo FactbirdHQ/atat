@@ -159,16 +159,6 @@ where
             }
             unsafe { self.urc_c.dequeue_unchecked() };
         }
-
-        self.timer.start(self.config.cmd_cooldown);
-        let resp = unsafe { &self.urc_c.dequeue_unchecked()};
-        match URC::parse( resp ){
-            Ok(u) => Some(u),
-            Err(_e) => {
-                atat_log!(error, "Failed to parse URC. [{:?}]. Error: {:?}", resp, _e);
-                None
-            }
-        }
     }
 
     fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {

@@ -287,6 +287,28 @@ where
         }
     }
 
+    pub fn with_custom_urc_matcher(
+        res_p: ResProducer<BufLen, ResCapacity>,
+        urc_p: UrcProducer<BufLen, UrcCapacity>,
+        com_c: ComConsumer<ComCapacity>,
+        config: Config,
+        custom_urc_matcher: Option<U>,
+    ) -> Self {
+        Self {
+            state: State::Idle,
+            buf: Vec::new(),
+            buf_incomplete: false,
+            res_p,
+            urc_p,
+            com_c,
+            line_term_char: config.line_term_char,
+            format_char: config.format_char,
+            echo_enabled: config.at_echo_enabled,
+            custom_urc_matcher,
+            custom_digest: default_digest,
+        }
+    }
+
     /// Write data into the internal buffer raw bytes being the core type allows
     /// the ingress manager to be abstracted over the communication medium.
     ///
@@ -591,7 +613,7 @@ pub(crate) mod default_functions {
                             &[line_term_char],
                             line_term_char,
                             format_char,
-                            false,
+                            true,
                             false,
                         ) {
                             ingress.set_buf_incomplete(false);
@@ -649,7 +671,7 @@ pub(crate) mod default_functions {
                     b"ERROR",
                     line_term_char,
                     format_char,
-                    false,
+                    true,
                     false,
                 )
                 .is_some()
@@ -711,7 +733,7 @@ mod test {
             static mut COM_Q: ComQueue<TestComCapacity> = Queue(heapless::i::Queue::u8());
             let (_com_p, com_c) = unsafe { COM_Q.split() };
             (
-                IngressManager::with_customs(res_p, urc_p, com_c, $config, $urch, default_digest),
+                IngressManager::with_custom_urc_matcher(res_p, urc_p, com_c, $config, $urch),
                 res_c,
                 urc_c,
             )
