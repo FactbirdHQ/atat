@@ -1,6 +1,6 @@
-use serde_at::CharVec;
 use core::ops::Mul;
 use heapless::{ArrayLength, String, Vec};
+use serde_at::CharVec;
 use typenum::Unsigned;
 
 /// Trait used by [`atat_derive`] to estimate lengths of the serialized commands, at compile time.
@@ -57,7 +57,7 @@ where
     type Len = <L as Mul<<T as AtatLen>::Len>>::Output;
 }
 
-impl <T> AtatLen for CharVec<T>
+impl<T> AtatLen for CharVec<T>
 where
     T: ArrayLength<char>,
     T: ArrayLength<u8>,

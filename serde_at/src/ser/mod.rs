@@ -60,13 +60,18 @@ impl<'a> serde::Serialize for Bytes<'a> {
 }
 
 impl<T> serde::Serialize for CharVec<T>
-where T: heapless::ArrayLength<char> {
-    fn serialize<S>(&self, _serializer: S) -> serde::export::Result<S::Ok, S::Error>
+where
+    T: heapless::ArrayLength<char>,
+    T: heapless::ArrayLength<u8>,
+{
+    fn serialize<S>(&self, serializer: S) -> serde::export::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        unimplemented!();
-        // serde::Serializer::serialize_bytes(serializer, &(self.0[0.. self.0.len()] as [u8]))
+        serde::Serializer::serialize_bytes(
+            serializer,
+            &self.0.iter().map(|c| *c as u8).collect::<Vec<u8, T>>()[0..self.0.len()],
+        )
     }
 }
 
@@ -597,5 +602,55 @@ mod tests {
         .unwrap();
 
         assert_eq!(s, String::<consts::U32>::from("15"));
+    }
+
+    #[test]
+    fn byte_serialize() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct WithBytes<'a> {
+            s: Bytes<'a>,
+        };
+        let slice = b"Some bytes";
+        let b = WithBytes {
+            s: Bytes(&slice[..]),
+        };
+        let s: String<consts::U32> = to_string(
+            &b,
+            String::<consts::U32>::from("+CMD"),
+            SerializeOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(s, String::<consts::U32>::from("AT+CMD=Some bytes\r\n"));
+    }
+
+    #[test]
+    fn char_vec_serialize() {
+        let test: CharVec<consts::U8> =
+            CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap());
+
+        let s: String<consts::U32> = to_string(
+            &test,
+            String::<consts::U32>::from(""),
+            SerializeOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(s, String::<consts::U32>::from("IMP_MSG"));
+
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct WithCharVec {
+            s: CharVec<consts::U8>,
+            n: u8,
+        };
+        let b = WithCharVec {
+            s: CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
+            n: 12,
+        };
+        let s: String<consts::U32> = to_string(
+            &b,
+            String::<consts::U32>::from("+CMD"),
+            SerializeOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(s, String::<consts::U32>::from("AT+CMD=IMP_MSG,12\r\n"));
     }
 }
