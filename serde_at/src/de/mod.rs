@@ -32,7 +32,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 ///     value: i32,
 /// }
 ///
-/// let incomming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12")
+/// let incoming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12")
 ///
 /// let expected = CommandStruct{
 ///     id: 4,
@@ -40,7 +40,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 ///     value: -12,
 /// }
 ///
-/// assert_eq!(incomming, Ok(expected));
+/// assert_eq!(incoming, Ok(expected));
 /// ```
 #[derive(Debug, PartialEq)]
 struct CharVec<T: heapless::ArrayLength<char>>(heapless::Vec<char, T>);
