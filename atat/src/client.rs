@@ -118,7 +118,7 @@ where
                     #[cfg(not(feature = "log-logging"))]
                     atat_log!(debug, "Sending command: \"{:str}\"", _s[.._s.len() - 2]);
                     #[cfg(feature = "log-logging")]
-                    atat_log!(debug, "Sending command: \"{:?}\"", _s[.._s.len() - 2]);
+                    atat_log!(debug, "Sending command: \"{:?}\"", &_s[.._s.len() - 2]);
                 }
                 Err(_) if cmd_buf.len() < 50 => atat_log!(
                     debug,
