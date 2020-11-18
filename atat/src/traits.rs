@@ -95,6 +95,12 @@ pub trait AtatCmd {
     fn force_receive_state(&self) -> bool {
         false
     }
+
+    /// Force client to look for a response.
+    /// Implemented to enhance expandability fo ATAT
+    fn expects_response(&self) -> bool {
+        true
+    }
 }
 
 pub trait AtatClient {

@@ -139,6 +139,11 @@ where
             self.state = ClientState::AwaitingResponse;
         }
 
+        if !cmd.expects_response(){
+            self.state = ClientState::Idle;
+            return Ok(cmd.parse(&[]).map_err(nb::Error::Other)?);
+        }
+
         match self.config.mode {
             Mode::Blocking => Ok(nb::block!(self.check_response(cmd))?),
             Mode::NonBlocking => self.check_response(cmd),
