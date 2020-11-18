@@ -97,6 +97,7 @@ pub trait AtatCmd {
     }
 
     /// Force client to look for a response.
+    /// Empty slice is then passed to parse by client. 
     /// Implemented to enhance expandability fo ATAT
     fn expects_response(&self) -> bool {
         true
