@@ -21,9 +21,9 @@ maintenance = { status = "actively-developed" }
 embedded-hal = { git = "https://github.com/MathiasKoch/embedded-hal", branch = "feature/alternative-storage" }
 nb = "^1"
 heapless = { version = "0.5.5", features = ["serde"] }
-serde_at = { path = "../serde_at", version = "^0.5.0"}
+serde_at = { path = "../serde_at", version = "^0.5.0" }
 atat_derive = { path = "../atat_derive", version = "^0.5.0", optional = true }
-serde = {version = "^1", default-features = false}
+serde = { version = "^1", default-features = false }
 typenum = "^1"
 
 log = { version = "^0.4", default-features = false, optional = true }

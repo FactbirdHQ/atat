@@ -173,7 +173,11 @@ where
                         Err(nb::Error::WouldBlock)
                     }
                 }
-                Err(e) => Err(nb::Error::Other(e)),
+                Err(e) => {
+                    self.timer.try_start(self.config.cmd_cooldown).ok();
+                    self.state = ClientState::Idle;
+                    Err(nb::Error::Other(e))
+                },
             };
         } else if let Mode::Timeout = self.config.mode {
             if self.timer.try_wait().is_ok() {
