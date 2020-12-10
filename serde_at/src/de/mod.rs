@@ -199,7 +199,7 @@ impl<'a> Deserializer<'a> {
                     let end = self.index;
                     self.eat_char();
                     return str::from_utf8(&self.slice[start..end])
-                        .map_err(|_| Error::InvalidUnicodeCodePoint);
+                        .map_err(|_e| Error::InvalidUnicodeCodePoint);
                 }
                 Some(_) => self.eat_char(),
                 None => return Err(Error::EofWhileParsingString),
