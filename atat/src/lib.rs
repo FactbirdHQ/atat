@@ -229,6 +229,8 @@
 #![allow(clippy::unused_unit)]
 #![allow(clippy::clippy::used_underscore_binding)]
 #![allow(clippy::too_many_lines)]
+#![allow(clippy::unused_unit)]
+#![allow(clippy::used_underscore_binding)]
 #![cfg_attr(not(test), no_std)]
 
 mod client;
