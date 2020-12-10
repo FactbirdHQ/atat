@@ -18,23 +18,23 @@ name = "atat"
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-embedded-hal = "^0.2"
+embedded-hal = { git = "https://github.com/MathiasKoch/embedded-hal", branch = "feature/alternative-storage" }
 nb = "^1"
-void = { version = "^1", default-features = false }
 heapless = { version = "0.5.5", features = ["serde"] }
-serde_at = { path = "../serde_at", version = "^0.5.0"}
+serde_at = { path = "../serde_at", version = "^0.5.0" }
 atat_derive = { path = "../atat_derive", version = "^0.5.0", optional = true }
-serde = {version = "^1", default-features = false}
+serde = { version = "^1", default-features = false }
 typenum = "^1"
 
 log = { version = "^0.4", default-features = false, optional = true }
-defmt = { git = "https://github.com/knurling-rs/defmt", branch = "main" }
+defmt = { version = "^0.1" }
 
 [dev-dependencies]
 cortex-m = "0.6.3"
 cortex-m-rt = "0.6.12"
 cortex-m-rtic = "0.5.4"
 panic-halt = "0.2.0"
+# stm32l4xx-hal = { version = "0.5", features = ["stm32l4x5", "rt"] }
 stm32l4xx-hal = { git = "https://github.com/stm32-rs/stm32l4xx-hal", features = ["stm32l4x5", "rt"] }
 
 [features]
