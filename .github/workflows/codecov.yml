@@ -16,10 +16,10 @@ jobs:
       # Note: If you need to combine the coverage info of multiple
       # feature sets, you need a `.tarpaulin.toml` config file, see
       # the link above for those docs.
-      - uses: actions-rs/tarpaulin@v0.1
-        with:
-          run-types: Tests,Lib,Bins
-          args: --ignore-tests --all-features
+      - name: Install cargo-tarpaulin
+        run: "cargo install cargo-tarpaulin -f"
+      - name: Run cargo-tarpaulin
+        run: "cargo tarpaulin --out Xml --verbose --all-features --run-types Tests,Lib,Bins --ignore-tests"
       # Note: closed-source code needs to provide a token,
       # but open source code does not.
       - name: Upload to codecov.io
