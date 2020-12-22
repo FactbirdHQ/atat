@@ -90,7 +90,7 @@ where
     ResCapacity: ArrayLength<ResItem<BufLen>>,
     UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
-    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {
+    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>> {
         if let ClientState::Idle = self.state {
             if cmd.force_receive_state()
                 && self
@@ -152,7 +152,7 @@ where
     fn peek_urc_with<URC: AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F) {
         if let Some(urc) = self.urc_c.peek() {
             self.timer.try_start(self.config.cmd_cooldown).ok();
-            if let Ok(urc) = URC::parse(urc) {
+            if let Some(urc) = URC::parse(urc) {
                 if !f(urc) {
                     return;
                 }
@@ -161,24 +161,25 @@ where
         }
     }
 
-    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {
+    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>> {
         if let Some(result) = self.res_c.dequeue() {
-            return match result {
-                Ok(ref resp) => {
+            return cmd
+                .parse(result.as_deref())
+                .map_err(|e| nb::Error::Other(e.into()))
+                .and_then(|r| {
                     if let ClientState::AwaitingResponse = self.state {
                         self.timer.try_start(self.config.cmd_cooldown).ok();
                         self.state = ClientState::Idle;
-                        Ok(cmd.parse(resp).map_err(nb::Error::Other)?)
+                        Ok(r)
                     } else {
                         Err(nb::Error::WouldBlock)
                     }
-                }
-                Err(e) => {
+                })
+                .or_else(|e| {
                     self.timer.try_start(self.config.cmd_cooldown).ok();
                     self.state = ClientState::Idle;
-                    Err(nb::Error::Other(e))
-                }
-            };
+                    Err(e)
+                });
         } else if let Mode::Timeout = self.config.mode {
             if self.timer.try_wait().is_ok() {
                 self.state = ClientState::Idle;
@@ -590,7 +591,7 @@ mod test {
         p.enqueue(Ok(response)).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
-        assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::ParseString)));
+        assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Parse)));
         assert_eq!(client.state, ClientState::Idle);
     }
 }

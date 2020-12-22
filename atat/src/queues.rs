@@ -3,12 +3,12 @@
 use heapless::spsc::{Consumer, Producer, Queue};
 use heapless::Vec;
 
-pub use crate::error::Error;
+pub use crate::error::IngressError;
 pub use crate::Command;
 
 // Queue item types
 pub type ComItem = Command;
-pub type ResItem<BufLen> = Result<Vec<u8, BufLen>, Error>;
+pub type ResItem<BufLen> = Result<Vec<u8, BufLen>, IngressError>;
 pub type UrcItem<BufLen> = Vec<u8, BufLen>;
 
 // Note: We could create a simple macro to define producer, consumer and queue,

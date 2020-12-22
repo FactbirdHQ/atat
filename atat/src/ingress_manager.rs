@@ -1,7 +1,7 @@
 use heapless::{consts, ArrayLength, Vec};
 
 use crate::atat_log;
-use crate::error::Error;
+use crate::error::IngressError;
 use crate::queues::{ComConsumer, ComItem, ResItem, ResProducer, UrcItem, UrcProducer};
 use crate::{Command, Config};
 
@@ -68,6 +68,7 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     format_char: u8,
     trim_response: bool,
     reverse: bool,
+    swap: bool,
 ) -> Option<Vec<u8, L>> {
     if buf.len() == 0 {
         return None;
@@ -86,19 +87,27 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
             let white_space = buf
                 .iter()
                 .skip(index + needle.len())
+                .skip_while(|c| ![format_char, line_term_char].contains(c))
                 .position(|c| ![format_char, line_term_char].contains(c))
                 .unwrap_or(buf.len() - index - needle.len());
 
-            let (left, right) = buf.split_at(index + needle.len() + white_space);
+            let (left, right) = match buf.split_at(index + needle.len() + white_space) {
+                (left, right) if !swap => (left, right),
+                (left @ _, right @ _) if swap => (right, left),
+                _ => return None,
+            };
 
-            let return_buf = if trim_response {
-                left.trim(&[b'\t', b' ', format_char, line_term_char])
-            } else {
-                left
-            }
-            .iter()
-            .cloned()
-            .collect();
+            let return_buf = Vec::from_iter(
+                if trim_response {
+                    left.trim(&[b'\t', b' ', format_char, line_term_char])
+                } else {
+                    left
+                }
+                .iter()
+                // Truncate the response, rather than panic in case of buffer overflow!
+                .take(L::to_usize())
+                .cloned(),
+            );
 
             *buf = right.iter().cloned().collect();
             Some(return_buf)
@@ -286,13 +295,13 @@ where
         // atat_log!(debug, "Received response: \"{:?}\"", data);
 
         if self.buf.extend_from_slice(data).is_err() {
-            self.notify_response(Err(Error::Overflow));
+            self.notify_response(Err(IngressError::Overflow));
         }
     }
 
     /// Notify the client that an appropriate response code, or error has been
     /// received
-    fn notify_response(&mut self, resp: Result<ByteVec<BufLen>, Error>) {
+    fn notify_response(&mut self, resp: Result<ByteVec<BufLen>, IngressError>) {
         match &resp {
             Ok(_r) => {
                 if _r.is_empty() {
@@ -357,21 +366,6 @@ where
                 Command::ClearBuffer => {
                     self.state = State::Idle;
                     self.buf_incomplete = false;
-                    // #[allow(clippy::single_match)]
-                    // match core::str::from_utf8(&self.buf) {
-                    //     Ok(_s) => {
-                    //         #[cfg(not(feature = "log-logging"))]
-                    //         atat_log!(debug, "Clearing buffer on timeout / {:str}", _s);
-                    //         #[cfg(feature = "log-logging")]
-                    //         atat_log!(debug, "Clearing buffer on timeout / {:?}", _s);
-                    //     }
-                    //     Err(_) => atat_log!(
-                    //         debug,
-                    //         "Clearing buffer on timeout / {:?}",
-                    //         core::convert::AsRef::<[u8]>::as_ref(&self.buf)
-                    //     ),
-                    // };
-
                     self.clear_buf(true);
                 }
                 Command::ForceState(state) => {
@@ -407,6 +401,7 @@ where
                 &[self.line_term_char],
                 self.line_term_char,
                 self.format_char,
+                false,
                 false,
                 false,
             );
@@ -487,6 +482,7 @@ where
                         self.format_char,
                         false,
                         false,
+                        false,
                     )
                     .is_some()
                     {
@@ -516,6 +512,7 @@ where
                             self.line_term_char,
                             self.format_char,
                             true,
+                            false,
                             false,
                         ) {
                             self.buf_incomplete = false;
@@ -556,6 +553,7 @@ where
                     self.format_char,
                     true,
                     false,
+                    false,
                 ) {
                     Ok(get_line(
                         &mut line,
@@ -564,36 +562,36 @@ where
                         self.format_char,
                         true,
                         true,
+                        false,
                     )
                     .unwrap_or_else(Vec::new))
-                } else if let Some(_bytes) = get_line::<BufLen, _>(
+                } else if let Some(mut line) = get_line::<BufLen, _>(
                     &mut self.buf,
                     b"ERROR",
                     self.line_term_char,
                     self.format_char,
                     true,
                     false,
+                    false,
                 ) {
-                    #[allow(clippy::single_match)]
-                    match core::str::from_utf8(&_bytes) {
-                        Ok(_s) => {
-                            #[cfg(not(feature = "log-logging"))]
-                            atat_log!(error, "Received error response: {:str}", _s);
-                            #[cfg(feature = "log-logging")]
-                            atat_log!(error, "Received error response {:?}", _s)
-                        }
-                        Err(_) => atat_log!(
-                            error,
-                            "Received error response: {:?}",
-                            core::convert::AsRef::<[u8]>::as_ref(&_bytes)
-                        ),
-                    };
-                    Err(Error::InvalidResponse)
+                    Err(IngressError::Error(
+                        get_line(
+                            &mut line,
+                            &[self.line_term_char],
+                            self.line_term_char,
+                            self.format_char,
+                            true,
+                            true,
+                            true,
+                        )
+                        .unwrap_or_else(Vec::new),
+                    ))
                 } else if get_line::<BufLen, _>(
                     &mut self.buf,
                     b">",
                     self.line_term_char,
                     self.format_char,
+                    false,
                     false,
                     false,
                 )
@@ -603,6 +601,7 @@ where
                         b"@",
                         self.line_term_char,
                         self.format_char,
+                        false,
                         false,
                         false,
                     )
@@ -765,7 +764,7 @@ mod test {
         }
         at_pars.write(b"\"\r\n");
         at_pars.digest();
-        assert_eq!(res_c.dequeue().unwrap(), Err(Error::Overflow));
+        assert_eq!(res_c.dequeue().unwrap(), Err(IngressError::Overflow));
         assert_eq!(at_pars.state, State::Idle);
     }
 
@@ -802,7 +801,92 @@ mod test {
 
         assert_eq!(at_pars.state, State::Idle);
         assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
-        assert_eq!(res_c.dequeue().unwrap(), Err(Error::InvalidResponse));
+        assert_eq!(
+            res_c.dequeue().unwrap(),
+            Err(IngressError::Error(Vec::from_slice(b"ERROR").unwrap()))
+        );
+    }
+
+    #[test]
+    fn numeric_error_response() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut at_pars, mut res_c, _urc_c) = setup!(conf);
+
+        assert_eq!(at_pars.state, State::Idle);
+        at_pars.write(b"AT+USORD=3,16\r\n");
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
+
+        at_pars.write(b"+USORD: 3,16,\"16 bytes of data\"\r\n");
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
+
+        at_pars.write(b"+CME ERROR: 123\r\n");
+        at_pars.digest();
+
+        assert_eq!(at_pars.state, State::Idle);
+        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(
+            res_c.dequeue().unwrap(),
+            Err(IngressError::Error(Vec::from_slice(b"+CME ERROR: 123").unwrap()))
+        );
+    }
+
+    #[test]
+    fn verbose_error_response() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut at_pars, mut res_c, _urc_c) = setup!(conf);
+
+        assert_eq!(at_pars.state, State::Idle);
+        at_pars.write(b"AT+USORD=3,16\r\n");
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
+
+        at_pars.write(b"+USORD: 3,16,\"16 bytes of data\"\r\n");
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
+
+        at_pars.write(b"+CME ERROR: Operation not allowed\r\n");
+        at_pars.digest();
+
+        assert_eq!(at_pars.state, State::Idle);
+        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(
+            res_c.dequeue().unwrap(),
+            Err(IngressError::Error(
+                Vec::from_slice(b"+CME ERROR: Operation not allowed").unwrap()
+            ))
+        );
+    }
+
+    #[test]
+    fn truncate_verbose_error_response() {
+        let conf = Config::new(Mode::Timeout);
+        let (mut at_pars, mut res_c, _urc_c) = setup!(conf);
+
+        assert_eq!(at_pars.state, State::Idle);
+        at_pars.write(b"AT+USORD=3,16\r\n");
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
+
+        at_pars.write(b"+USORD: 3,16,\"16 bytes of data\"\r\n");
+        at_pars.digest();
+        assert_eq!(at_pars.state, State::ReceivingResponse);
+
+        at_pars.write(b"+CME ERROR: Operation not allowed.. This is a very long error message, that will never fit in my buffer!\r\n");
+        at_pars.digest();
+
+        assert_eq!(at_pars.state, State::Idle);
+        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(
+            res_c.dequeue().unwrap(),
+            Err(IngressError::Error(
+                Vec::from_slice(
+                    b"+CME ERROR: Operation not allowed.. This is a very long error me"
+                )
+                .unwrap()
+            ))
+        );
     }
 
     /// By breaking up non-AT-commands into chunks, it's possible that

@@ -1,5 +1,6 @@
-use crate::error::Error;
+use crate::error::{Error, IngressError};
 use crate::Mode;
+use core::str::FromStr;
 use heapless::{ArrayLength, Vec};
 
 pub trait AtatErr {}
@@ -23,7 +24,7 @@ pub trait AtatUrc {
     type Response;
 
     /// Parse the response into a `Self::Response` instance.
-    fn parse(resp: &[u8]) -> Result<Self::Response, Error>;
+    fn parse(resp: &[u8]) -> Option<Self::Response>;
 }
 
 /// This trait needs to be implemented for every command type.
@@ -74,11 +75,17 @@ pub trait AtatCmd {
     /// The type of the response. Must implement the `AtatResp` trait.
     type Response: AtatResp;
 
+    /// The type of the error.
+    type Error: FromStr;
+
     /// Return the command as a heapless `Vec` of bytes.
     fn as_bytes(&self) -> Vec<u8, Self::CommandLen>;
 
-    /// Parse the response into a `Self::Response` instance.
-    fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error>;
+    /// Parse the response into a `Self::Response` or `Error<Self::Error>` instance.
+    fn parse(
+        &self,
+        resp: Result<&[u8], &IngressError>,
+    ) -> Result<Self::Response, Error<Self::Error>>;
 
     /// Whether or not this command can be aborted.
     fn can_abort(&self) -> bool {
@@ -110,7 +117,7 @@ pub trait AtatClient {
     /// This function will also make sure that atleast `self.config.cmd_cooldown`
     /// has passed since the last response or URC has been received, to allow
     /// the slave AT device time to deliver URC's.
-    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error>;
+    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
 
     /// Checks if there are any URC's (Unsolicited Response Code) in
     /// queue from the ingress manager.
@@ -158,7 +165,7 @@ pub trait AtatClient {
     /// This function is usually only called through [`send`].
     ///
     /// [`send`]: #method.send
-    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error>;
+    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
 
     /// Get the configured mode of the client.
     ///
