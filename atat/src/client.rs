@@ -202,9 +202,9 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate as atat;
-    use crate::atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc};
+    use crate::{GenericError, atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc}};
     use crate::queues;
+    use crate::{self as atat, InternalError};
     use heapless::{consts, spsc::Queue, String, Vec};
     use nb;
 
@@ -247,6 +247,26 @@ mod test {
         fn try_flush(&mut self) -> nb::Result<(), Self::Error> {
             Ok(())
         }
+    }
+
+    #[derive(Debug, defmt::Format, PartialEq, Eq)]
+    pub enum InnerError {
+        Test,
+    }
+
+    impl core::str::FromStr for InnerError {
+        // This error will always get mapped to `atat::Error::Parse`
+        type Err = ();
+
+        fn from_str(_s: &str) -> Result<Self, Self::Err> {
+            Ok(Self::Test)
+        }
+    }
+
+    #[derive(Debug, PartialEq, AtatCmd)]
+    #[at_cmd("+CFUN", NoResponse, error = "InnerError")]
+    struct ErrorTester {
+        x: u8,
     }
 
     #[derive(Clone, AtatCmd)]
@@ -391,6 +411,41 @@ mod test {
             > = Client::new(tx_mock, res_c, urc_c, com_p, timer, $config);
             (client, res_p, urc_p)
         }};
+    }
+
+    #[test]
+    fn error_response() {
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
+
+        let cmd = ErrorTester { x: 7 };
+
+        p.enqueue(Err(InternalError::Error(Vec::new()))).unwrap();
+
+        assert_eq!(client.state, ClientState::Idle);
+        assert_eq!(
+            nb::block!(client.send(&cmd)),
+            Err(Error::Error(InnerError::Test))
+        );
+        assert_eq!(client.state, ClientState::Idle);
+    }
+
+    #[test]
+    fn generic_error_response() {
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
+
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        p.enqueue(Err(InternalError::Error(Vec::new()))).unwrap();
+
+        assert_eq!(client.state, ClientState::Idle);
+        assert_eq!(
+            nb::block!(client.send(&cmd)),
+            Err(Error::Error(GenericError))
+        );
+        assert_eq!(client.state, ClientState::Idle);
     }
 
     #[test]

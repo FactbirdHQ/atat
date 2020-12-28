@@ -1,7 +1,7 @@
 use heapless::{consts, ArrayLength, Vec};
 
 use crate::atat_log;
-use crate::error::IngressError;
+use crate::error::InternalError;
 use crate::queues::{ComConsumer, ComItem, ResItem, ResProducer, UrcItem, UrcProducer};
 use crate::{Command, Config};
 
@@ -295,13 +295,13 @@ where
         // atat_log!(debug, "Received response: \"{:?}\"", data);
 
         if self.buf.extend_from_slice(data).is_err() {
-            self.notify_response(Err(IngressError::Overflow));
+            self.notify_response(Err(InternalError::Overflow));
         }
     }
 
     /// Notify the client that an appropriate response code, or error has been
     /// received
-    fn notify_response(&mut self, resp: Result<ByteVec<BufLen>, IngressError>) {
+    fn notify_response(&mut self, resp: Result<ByteVec<BufLen>, InternalError>) {
         match &resp {
             Ok(_r) => {
                 if _r.is_empty() {
@@ -574,7 +574,7 @@ where
                     false,
                     false,
                 ) {
-                    Err(IngressError::Error(
+                    Err(InternalError::Error(
                         get_line(
                             &mut line,
                             &[self.line_term_char],
@@ -764,7 +764,7 @@ mod test {
         }
         at_pars.write(b"\"\r\n");
         at_pars.digest();
-        assert_eq!(res_c.dequeue().unwrap(), Err(IngressError::Overflow));
+        assert_eq!(res_c.dequeue().unwrap(), Err(InternalError::Overflow));
         assert_eq!(at_pars.state, State::Idle);
     }
 
@@ -803,7 +803,7 @@ mod test {
         assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
         assert_eq!(
             res_c.dequeue().unwrap(),
-            Err(IngressError::Error(Vec::from_slice(b"ERROR").unwrap()))
+            Err(InternalError::Error(Vec::from_slice(b"ERROR").unwrap()))
         );
     }
 
@@ -828,7 +828,7 @@ mod test {
         assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
         assert_eq!(
             res_c.dequeue().unwrap(),
-            Err(IngressError::Error(Vec::from_slice(b"+CME ERROR: 123").unwrap()))
+            Err(InternalError::Error(Vec::from_slice(b"+CME ERROR: 123").unwrap()))
         );
     }
 
@@ -853,7 +853,7 @@ mod test {
         assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
         assert_eq!(
             res_c.dequeue().unwrap(),
-            Err(IngressError::Error(
+            Err(InternalError::Error(
                 Vec::from_slice(b"+CME ERROR: Operation not allowed").unwrap()
             ))
         );
@@ -880,9 +880,9 @@ mod test {
         assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
         assert_eq!(
             res_c.dequeue().unwrap(),
-            Err(IngressError::Error(
+            Err(InternalError::Error(
                 Vec::from_slice(
-                    b"+CME ERROR: Operation not allowed.. This is a very long error me"
+                    b"+CME ERROR: Operation not allowed.. This is a very long error message, that will neve"
                 )
                 .unwrap()
             ))

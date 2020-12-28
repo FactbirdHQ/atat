@@ -1,9 +1,7 @@
-use crate::error::{Error, IngressError};
+use crate::error::{Error, InternalError};
 use crate::Mode;
 use core::str::FromStr;
 use heapless::{ArrayLength, Vec};
-
-pub trait AtatErr {}
 
 /// This trait needs to be implemented for every response type.
 ///
@@ -76,7 +74,7 @@ pub trait AtatCmd {
     type Response: AtatResp;
 
     /// The type of the error.
-    type Error: FromStr;
+    type Error: FromStr + defmt::Format;
 
     /// Return the command as a heapless `Vec` of bytes.
     fn as_bytes(&self) -> Vec<u8, Self::CommandLen>;
@@ -84,7 +82,7 @@ pub trait AtatCmd {
     /// Parse the response into a `Self::Response` or `Error<Self::Error>` instance.
     fn parse(
         &self,
-        resp: Result<&[u8], &IngressError>,
+        resp: Result<&[u8], &InternalError>,
     ) -> Result<Self::Response, Error<Self::Error>>;
 
     /// Whether or not this command can be aborted.

@@ -94,7 +94,7 @@
 //!
 //! ### Basic usage example (More available in examples folder):
 //! ```ignore
-//! 
+//!
 //! use cortex_m::asm;
 //! use hal::{
 //!     gpio::{
@@ -258,7 +258,7 @@ pub use typenum;
 pub use heapless;
 
 pub use self::client::Client;
-pub use self::error::Error;
+pub use self::error::{Error, InternalError, GenericError};
 pub use self::ingress_manager::{
     get_line, IngressManager, NoopUrcMatcher, UrcMatcher, UrcMatcherResult,
 };
