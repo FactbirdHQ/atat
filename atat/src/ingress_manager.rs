@@ -286,7 +286,7 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        atat_log!(trace, "Receiving {:?} bytes", data.len());
+        // atat_log!(debug, "Received response: \"{:?}\"", data);
 
         if self.buf.extend_from_slice(data).is_err() {
             self.notify_response(Err(Error::Overflow));
@@ -299,7 +299,7 @@ where
         match &resp {
             Ok(_r) => {
                 if _r.is_empty() {
-                    atat_log!(debug, "Received OK",)
+                    atat_log!(debug, "Received OK")
                 } else {
                     #[allow(clippy::single_match)]
                     match core::str::from_utf8(_r) {

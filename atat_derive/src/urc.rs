@@ -40,7 +40,7 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
                     panic!("cannot handle variants with more than one field")
                 }
                 quote! {
-                    #code => #ident::#variant_ident(atat::serde_at::from_slice::<#first_field>(&resp[index..]).map_err(|e| {
+                    #code => #ident::#variant_ident(atat::serde_at::from_slice::<#first_field>(&resp).map_err(|e| {
                         atat::Error::ParseString
                     })?),
                 }

@@ -28,17 +28,26 @@ impl<'a, 'de> de::SeqAccess<'de> for SeqAccess<'a, 'de> {
                     .parse_whitespace()
                     .ok_or(Error::EofWhileParsingValue)?;
             }
-            Some(_) => {
+            Some(c) => {
                 if self.first {
                     self.first = false;
-                } else {
+                } else if c != b'+' {
                     return Ok(None);
                 }
             }
-            None => {}
+            None => {
+                // No more characters!
+                // Fall-through to deserialize any `Option<..>` to `None`
+            }
         };
 
-        Ok(Some(seed.deserialize(&mut *self.de)?))
+        match seed.deserialize(&mut *self.de) {
+            // Misuse EofWhileParsingObject here to indicate finished object in vec cases.
+            // See matching TODO in `de::mod`..
+            Err(Error::EofWhileParsingObject) => Ok(None),
+            Err(e) => Err(e),
+            Ok(v) => Ok(Some(v))
+        }
     }
 }
 
