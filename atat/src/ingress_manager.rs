@@ -5,8 +5,6 @@ use crate::error::Error;
 use crate::queues::{ComConsumer, ComItem, ResItem, ResProducer, UrcItem, UrcProducer};
 use crate::{Command, Config};
 
-use core::iter::FromIterator;
-
 type ByteVec<L> = Vec<u8, L>;
 
 trait SliceExt {
@@ -93,17 +91,16 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
 
             let (left, right) = buf.split_at(index + needle.len() + white_space);
 
-            let return_buf = Vec::from_iter(
-                if trim_response {
-                    left.trim(&[b'\t', b' ', format_char, line_term_char])
-                } else {
-                    left
-                }
-                .iter()
-                .cloned(),
-            );
+            let return_buf = if trim_response {
+                left.trim(&[b'\t', b' ', format_char, line_term_char])
+            } else {
+                left
+            }
+            .iter()
+            .cloned()
+            .collect();
 
-            *buf = Vec::from_iter(right.iter().cloned());
+            *buf = right.iter().cloned().collect();
             Some(return_buf)
         }
         None => None,
@@ -286,7 +283,7 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        atat_log!(trace, "Receiving {:?} bytes", data.len());
+        // atat_log!(debug, "Received response: \"{:?}\"", data);
 
         if self.buf.extend_from_slice(data).is_err() {
             self.notify_response(Err(Error::Overflow));
@@ -299,7 +296,7 @@ where
         match &resp {
             Ok(_r) => {
                 if _r.is_empty() {
-                    atat_log!(debug, "Received OK",)
+                    atat_log!(debug, "Received OK")
                 } else {
                     #[allow(clippy::single_match)]
                     match core::str::from_utf8(_r) {

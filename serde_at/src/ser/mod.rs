@@ -410,10 +410,10 @@ where
 }
 
 /// Serializes the given data structure as a string
-pub fn to_string<'a, B, C, T>(
+pub fn to_string<B, C, T>(
     value: &T,
     cmd: String<C>,
-    options: SerializeOptions<'a>,
+    options: SerializeOptions<'_>,
 ) -> Result<String<B>>
 where
     B: heapless::ArrayLength<u8>,
@@ -426,10 +426,10 @@ where
 }
 
 /// Serializes the given data structure as a byte vector
-pub fn to_vec<'a, B, C, T>(
+pub fn to_vec<B, C, T>(
     value: &T,
     cmd: String<C>,
-    options: SerializeOptions<'a>,
+    options: SerializeOptions<'_>,
 ) -> Result<Vec<u8, B>>
 where
     B: heapless::ArrayLength<u8>,

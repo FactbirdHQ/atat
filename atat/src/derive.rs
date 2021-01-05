@@ -232,10 +232,10 @@ mod tests {
             String::<consts::U50>::from("4,77,\"whaat\",88,1")
         );
 
-        assert_eq!(Ok(MixedEnum::UnitVariant), from_str::<MixedEnum<'_>>(":0"));
+        assert_eq!(Ok(MixedEnum::UnitVariant), from_str::<MixedEnum<'_>>("0"));
         assert_eq!(
             Ok(MixedEnum::SingleSimpleTuple(67)),
-            from_str::<MixedEnum<'_>>(":1,67")
+            from_str::<MixedEnum<'_>>("1,67")
         );
         assert_eq!(
             Ok(MixedEnum::AdvancedTuple(
@@ -244,12 +244,12 @@ mod tests {
                 -43,
                 SimpleEnumU32::C
             )),
-            from_str::<MixedEnum<'_>>(":2,251,\"deser\",-43,2")
+            from_str::<MixedEnum<'_>>("2,251,\"deser\",-43,2")
         );
 
         assert_eq!(
             Ok(MixedEnum::SingleSimpleTupleLifetime("abc")),
-            from_str::<MixedEnum<'_>>(":6,\"abc\"")
+            from_str::<MixedEnum<'_>>("6,\"abc\"")
         );
     }
 }
