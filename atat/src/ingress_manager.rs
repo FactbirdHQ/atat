@@ -5,8 +5,6 @@ use crate::error::Error;
 use crate::queues::{ComConsumer, ComItem, ResItem, ResProducer, UrcItem, UrcProducer};
 use crate::{Command, Config};
 
-use core::iter::FromIterator;
-
 type ByteVec<L> = Vec<u8, L>;
 
 trait SliceExt {
@@ -93,17 +91,16 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
 
             let (left, right) = buf.split_at(index + needle.len() + white_space);
 
-            let return_buf = Vec::from_iter(
-                if trim_response {
-                    left.trim(&[b'\t', b' ', format_char, line_term_char])
-                } else {
-                    left
-                }
-                .iter()
-                .cloned(),
-            );
+            let return_buf = if trim_response {
+                left.trim(&[b'\t', b' ', format_char, line_term_char])
+            } else {
+                left
+            }
+            .iter()
+            .cloned()
+            .collect();
 
-            *buf = Vec::from_iter(right.iter().cloned());
+            *buf = right.iter().cloned().collect();
             Some(return_buf)
         }
         None => None,
