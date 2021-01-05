@@ -231,10 +231,8 @@ impl<'a> Deserializer<'a> {
                 match self.peek() {
                     Some(b':') => {
                         self.eat_char();
-                        self
-                        .parse_whitespace()
-                        .ok_or(Error::EofWhileParsingValue)?;
-                        return Ok(Some(()))
+                        self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
+                        return Ok(Some(()));
                     }
                     Some(_) => {
                         self.eat_char();
@@ -243,7 +241,7 @@ impl<'a> Deserializer<'a> {
                         // Doesn't seem to be an AT command identifier. Reset index and continue
                         self.index = index;
                         break;
-                    },
+                    }
                 }
             }
         }
@@ -548,7 +546,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         match self.parse_whitespace() {
             Some(b'+') | None => visitor.visit_none(),
-            Some(_) => visitor.visit_some(self)
+            Some(_) => visitor.visit_some(self),
         }
     }
 

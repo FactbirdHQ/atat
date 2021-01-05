@@ -46,7 +46,7 @@ impl<'a, 'de> de::SeqAccess<'de> for SeqAccess<'a, 'de> {
             // See matching TODO in `de::mod`..
             Err(Error::EofWhileParsingObject) => Ok(None),
             Err(e) => Err(e),
-            Ok(v) => Ok(Some(v))
+            Ok(v) => Ok(Some(v)),
         }
     }
 }

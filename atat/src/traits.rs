@@ -169,8 +169,6 @@ pub trait AtatClient {
     fn get_mode(&self) -> Mode;
 }
 
-
-
 impl<T, L> AtatResp for heapless::Vec<T, L>
 where
     T: AtatResp,
@@ -183,7 +181,7 @@ mod test {
     use super::*;
     use crate as atat;
     use atat_derive::{AtatEnum, AtatResp};
-    use heapless::{String, consts};
+    use heapless::{consts, String};
 
     #[derive(Debug, Clone, PartialEq, AtatEnum)]
     pub enum PDPContextStatus {
@@ -223,8 +221,8 @@ mod test {
         pub p_cscf_discovery: Option<u8>,
         #[at_arg(position = 9)]
         pub im_cn_signalling_flag_ind: Option<u8>,
-        // #[at_arg(position = 10)]
-        // pub nslpi: Option<u8>,
+        /* #[at_arg(position = 10)]
+         * pub nslpi: Option<u8>, */
     }
 
     #[test]
