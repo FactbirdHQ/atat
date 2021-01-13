@@ -29,7 +29,7 @@
 //!     pub length: usize,
 //! }
 //! ```
-#![deny(warnings)]
+// #![deny(warnings)]
 #![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::cognitive_complexity)]
 #![allow(clippy::module_name_repetitions)]

@@ -49,7 +49,7 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 pub struct Bytes<'a>(pub &'a [u8]);
 
 impl<'a> serde::Serialize for Bytes<'a> {
-    fn serialize<S>(&self, serializer: S) -> serde::export::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {

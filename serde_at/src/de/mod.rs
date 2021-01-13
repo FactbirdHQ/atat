@@ -3,8 +3,10 @@
 use core::str::FromStr;
 use core::{fmt, str};
 
-use serde::de::{self, Visitor};
-use serde::{export, Deserialize};
+use serde::{
+    de::{self, Visitor},
+    Deserialize,
+};
 
 use self::enum_::VariantAccess;
 use self::map::MapAccess;
@@ -66,7 +68,7 @@ impl<'de, N> Deserialize<'de> for CharVec<N>
 where
     N: heapless::ArrayLength<char>,
 {
-    fn deserialize<D>(deserializer: D) -> export::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -82,7 +84,7 @@ where
                 formatter.write_str("a sequence")
             }
 
-            fn visit_seq<A>(self, mut seq: A) -> export::Result<Self::Value, A::Error>
+            fn visit_seq<A>(self, mut seq: A) -> core::result::Result<Self::Value, A::Error>
             where
                 A: serde::de::SeqAccess<'de>,
             {
