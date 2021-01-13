@@ -108,20 +108,20 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
             type Value = #enum_field;
             fn expecting(
                 &self,
-                formatter: &mut atat::serde_at::serde::export::Formatter,
-            ) -> atat::serde_at::serde::export::fmt::Result {
-                atat::serde_at::serde::export::Formatter::write_str(formatter, "field identifier")
+                formatter: &mut core::fmt::Formatter,
+            ) -> core::fmt::Result {
+                core::fmt::Formatter::write_str(formatter, "field identifier")
             }
             fn visit_u64<E>(
                 self,
                 value: u64,
-            ) -> atat::serde_at::serde::export::Result<Self::Value, E>
+            ) -> core::result::Result<Self::Value, E>
             where
                 E: atat::serde_at::serde::de::Error,
             {
                 match value {
-                    #(#anon_field_ind64 => atat::serde_at::serde::export::Ok(#enum_field::#anon_field),)*
-                    _ => atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::invalid_value(
+                    #(#anon_field_ind64 => Ok(#enum_field::#anon_field),)*
+                    _ => Err(<E as atat::serde_at::serde::de::Error>::invalid_value(
                         atat::serde_at::serde::de::Unexpected::Unsigned(value),
                         &#invalid_val_err,
                     )),
@@ -131,13 +131,13 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
             fn visit_u128<E>(
                 self,
                 value: u128,
-            ) -> atat::serde_at::serde::export::Result<Self::Value, E>
+            ) -> core::result::Result<Self::Value, E>
             where
                 E: atat::serde_at::serde::de::Error,
             {
                 match value {
-                    #(#anon_field_ind128 => atat::serde_at::serde::export::Ok(#enum_field::#anon_field),)*
-                    _ => atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::invalid_value(
+                    #(#anon_field_ind128 => Ok(#enum_field::#anon_field),)*
+                    _ => Err(atat::serde_at::serde::de::Error::invalid_value(
                         atat::serde_at::serde::de::Unexpected::Other("u128"),
                         &#invalid_val_err,
                     )),
@@ -146,30 +146,30 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
             fn visit_str<E>(
                 self,
                 value: &str,
-            ) -> atat::serde_at::serde::export::Result<Self::Value, E>
+            ) -> core::result::Result<Self::Value, E>
             where
                 E: atat::serde_at::serde::de::Error,
             {
-                match value {
+                Ok(match value {
                     #(
-                        #field_names_str => atat::serde_at::serde::export::Ok(#enum_field::#anon_field),
+                        #field_names_str => #enum_field::#anon_field,
                     )*
-                    _ => atat::serde_at::serde::export::Ok(#enum_field::ignore),
-                }
+                    _ => #enum_field::ignore,
+                })
             }
             fn visit_bytes<E>(
                 self,
                 value: &[u8],
-            ) -> atat::serde_at::serde::export::Result<Self::Value, E>
+            ) -> core::result::Result<Self::Value, E>
             where
                 E: atat::serde_at::serde::de::Error,
             {
-                match value {
+                Ok(match value {
                     #(
-                        #field_names_bytestr => atat::serde_at::serde::export::Ok(#enum_field::#anon_field),
+                        #field_names_bytestr => #enum_field::#anon_field,
                     )*
-                    _ => atat::serde_at::serde::export::Ok(#enum_field::ignore),
-                }
+                    _ => #enum_field::ignore,
+                })
             }
         }
 
@@ -178,7 +178,7 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
             #[inline]
             fn deserialize<D>(
                 deserializer: D,
-            ) -> atat::serde_at::serde::export::Result<Self, D::Error>
+            ) -> core::result::Result<Self, D::Error>
             where
                 D: atat::serde_at::serde::Deserializer<'de>,
             {
@@ -186,43 +186,33 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
             }
         }
         struct #visitor #serde_impl_generics {
-            marker: atat::serde_at::serde::export::PhantomData<#ident #ty_generics>,
-            lifetime: atat::serde_at::serde::export::PhantomData<&'de ()>,
+            marker: core::marker::PhantomData<#ident #ty_generics>,
+            lifetime: core::marker::PhantomData<&'de ()>,
         }
         impl #serde_impl_generics atat::serde_at::serde::de::Visitor<'de> for #visitor #serde_ty_generics {
             type Value = #ident #ty_generics;
             fn expecting(
                 &self,
-                formatter: &mut atat::serde_at::serde::export::Formatter,
-            ) -> atat::serde_at::serde::export::fmt::Result {
-                atat::serde_at::serde::export::Formatter::write_str(formatter, #struct_name)
+                formatter: &mut core::fmt::Formatter,
+            ) -> core::fmt::Result {
+                core::fmt::Formatter::write_str(formatter, #struct_name)
             }
             #[inline]
             fn visit_seq<A>(
                 self,
                 mut seq: A,
-            ) -> atat::serde_at::serde::export::Result<Self::Value, A::Error>
+            ) -> core::result::Result<Self::Value, A::Error>
             where
                 A: atat::serde_at::serde::de::SeqAccess<'de>,
             {
                 #(
                     let #anon_field =
-                        match match atat::serde_at::serde::de::SeqAccess::next_element::<#field_types>(&mut seq) {
-                            atat::serde_at::serde::export::Ok(val) => val,
-                            atat::serde_at::serde::export::Err(err) => {
-                                return atat::serde_at::serde::export::Err(err);
-                            }
-                        } {
-                            atat::serde_at::serde::export::Some(value) => value,
-                            atat::serde_at::serde::export::None => {
-                                return atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::invalid_length(
-                                    #anon_field_ind,
-                                    &#invalid_len_err,
-                                ));
-                            }
-                        };
+                        atat::serde_at::serde::de::SeqAccess::next_element::<#field_types>(&mut seq)?.ok_or_else(||atat::serde_at::serde::de::Error::invalid_length(
+                            #anon_field_ind,
+                            &#invalid_len_err,
+                        ))?;
                 )*
-                atat::serde_at::serde::export::Ok(#ident {
+                Ok(#ident {
                     #(
                         #field_names: #anon_field
                     ),*
@@ -232,68 +222,42 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
             fn visit_map<A>(
                 self,
                 mut map: A,
-            ) -> atat::serde_at::serde::export::Result<Self::Value, A::Error>
+            ) -> core::result::Result<Self::Value, A::Error>
             where
                 A: atat::serde_at::serde::de::MapAccess<'de>,
             {
                 #(
-                    let mut #anon_field: atat::serde_at::serde::export::Option<#field_types> = atat::serde_at::serde::export::None;
+                    let mut #anon_field: Option<#field_types> = None;
                 )*
-                while let atat::serde_at::serde::export::Some(key) =
-                    match atat::serde_at::serde::de::MapAccess::next_key::<#enum_field>(&mut map) {
-                        atat::serde_at::serde::export::Ok(val) => val,
-                        atat::serde_at::serde::export::Err(err) => {
-                            return atat::serde_at::serde::export::Err(err);
-                        }
-                    }
+                while let Some(key) =
+                    atat::serde_at::serde::de::MapAccess::next_key::<#enum_field>(&mut map)?
                 {
                     match key {
                         #(
                             #enum_field::#anon_field => {
-                                if atat::serde_at::serde::export::Option::is_some(&#anon_field) {
-                                    return atat::serde_at::serde::export::Err(
+                                if Option::is_some(&#anon_field) {
+                                    return Err(
                                         <A::Error as atat::serde_at::serde::de::Error>::duplicate_field(
                                             #field_names_str,
                                         ),
                                     );
                                 }
-                                #anon_field = atat::serde_at::serde::export::Some(
-                                    match atat::serde_at::serde::de::MapAccess::next_value::<#field_types>(&mut map) {
-                                        atat::serde_at::serde::export::Ok(val) => val,
-                                        atat::serde_at::serde::export::Err(err) => {
-                                            return atat::serde_at::serde::export::Err(err);
-                                        }
-                                    },
+                                #anon_field = Some(
+                                    atat::serde_at::serde::de::MapAccess::next_value::<#field_types>(&mut map)?
                                 );
                             }
                         )*
                         _ => {
-                            let _ = match atat::serde_at::serde::de::MapAccess::next_value::<
+                            atat::serde_at::serde::de::MapAccess::next_value::<
                                 atat::serde_at::serde::de::IgnoredAny,
-                            >(&mut map)
-                            {
-                                atat::serde_at::serde::export::Ok(val) => val,
-                                atat::serde_at::serde::export::Err(err) => {
-                                    return atat::serde_at::serde::export::Err(err);
-                                }
-                            };
+                            >(&mut map)?;
                         }
                     }
                 }
                 #(
-                    let #anon_field = match #anon_field {
-                        atat::serde_at::serde::export::Some(#anon_field) => #anon_field,
-                        atat::serde_at::serde::export::None => {
-                            match atat::serde_at::serde::private::de::missing_field(#field_names_str) {
-                                atat::serde_at::serde::export::Ok(val) => val,
-                                atat::serde_at::serde::export::Err(err) => {
-                                    return atat::serde_at::serde::export::Err(err);
-                                }
-                            }
-                        }
-                    };
+                    let #anon_field = #anon_field.ok_or_else(|| <A::Error as atat::serde_at::serde::de::Error>::missing_field(#field_names_str))?;
                 )*
-                atat::serde_at::serde::export::Ok(#ident {
+                Ok(#ident {
                     #(
                         #field_names: #anon_field
                     ),*
@@ -306,8 +270,8 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
             #ident_str,
             FIELDS,
             #visitor {
-                marker: atat::serde_at::serde::export::PhantomData::<#ident #ty_generics>,
-                lifetime: atat::serde_at::serde::export::PhantomData,
+                marker: core::marker::PhantomData::<#ident #ty_generics>,
+                lifetime: core::marker::PhantomData,
             },
         )
     }

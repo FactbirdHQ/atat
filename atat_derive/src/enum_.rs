@@ -104,7 +104,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         let anon_ident = format_ident!("_Field{}", i);
 
         info.identifier_match_arms.push(quote! {
-            a if a == #val as i64  => atat::serde_at::serde::export::Ok(#anon_enum::#anon_ident)
+            a if a == #val as i64  => Ok(#anon_enum::#anon_ident)
         });
 
         // TODO: Catch error when using struct/tuple variants, and not defining
@@ -121,7 +121,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                     })
                     .unzip();
 
-                // info.deserialize_match_arms.push(quote! {(#anon_enum::anon_ident, __variant) => atat::serde_at::serde::export::Ok(#ident::#variant_ident)});
+                // info.deserialize_match_arms.push(quote! {(#anon_enum::anon_ident, __variant) => Ok(#ident::#variant_ident)});
                 // helpers::deserialize_struct(ident.clone(), Vec::new(), &generics);
 
                 info.serialize_match_arms.push(quote! {
@@ -150,24 +150,24 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                 info.deserialize_match_arms.push(quote! {
                     (#anon_enum::#anon_ident, __variant) => {
                         struct __Visitor #deserialize_impl_generics #deserialize_where_clause {
-                            marker: atat::serde_at::serde::export::PhantomData<#ident #ty_generics>,
-                            lifetime: atat::serde_at::serde::export::PhantomData<&'de ()>,
+                            marker: core::marker::PhantomData<#ident #ty_generics>,
+                            lifetime: core::marker::PhantomData<&'de ()>,
                         }
                         impl #deserialize_impl_generics atat::serde_at::serde::de::Visitor<'de> for __Visitor #deserialize_ty_generics #deserialize_where_clause {
                             type Value = #ident #ty_generics;
                             #[inline]
                             fn expecting(
                                 &self,
-                                formatter: &mut atat::serde_at::serde::export::Formatter,
-                            ) -> atat::serde_at::serde::export::fmt::Result {
-                                atat::serde_at::serde::export::Formatter::write_str(formatter, "tuple variant")
+                                formatter: &mut core::fmt::Formatter,
+                            ) -> core::fmt::Result {
+                                core::fmt::Formatter::write_str(formatter, "tuple variant")
                             }
 
                             #[inline]
                             fn visit_seq<__A>(
                                 self,
                                 mut __seq: __A,
-                            ) -> atat::serde_at::serde::export::Result<Self::Value, __A::Error>
+                            ) -> core::result::Result<Self::Value, __A::Error>
                             where
                                 __A: atat::serde_at::serde::de::SeqAccess<'de>,
                             {
@@ -176,13 +176,13 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                                     let #anon_fields = match atat::serde_at::serde::de::SeqAccess::next_element::<#field_ty>(
                                         &mut __seq,
                                     )? {
-                                        atat::serde_at::serde::export::Some(__value) => __value,
-                                        atat::serde_at::serde::export::None => {
-                                            return atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::invalid_length(0usize, &"tuple variant tester::tupleTwo with 3 elements"));
+                                        Some(__value) => __value,
+                                        None => {
+                                            return Err(atat::serde_at::serde::de::Error::invalid_length(0usize, &"tuple variant tester::tupleTwo with 3 elements"));
                                         }
                                     };
                                 )*
-                                atat::serde_at::serde::export::Ok(#ident::#variant_ident(
+                                Ok(#ident::#variant_ident(
                                     #(#anon_fields),*
                                 ))
                             }
@@ -190,8 +190,8 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
 
 
                         atat::serde_at::serde::de::VariantAccess::tuple_variant(__variant, #variant_fields_len, __Visitor {
-                            marker: atat::serde_at::serde::export::PhantomData::<#ident #ty_generics>,
-                            lifetime: atat::serde_at::serde::export::PhantomData,
+                            marker: core::marker::PhantomData::<#ident #ty_generics>,
+                            lifetime: core::marker::PhantomData,
                         })
                     }
                 });
@@ -211,7 +211,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
             }
             Fields::Unit => {
                 info.deserialize_match_arms.push(quote! {
-                    (#anon_enum::#anon_ident, __variant) => atat::serde_at::serde::export::Ok(#ident::#variant_ident)
+                    (#anon_enum::#anon_ident, __variant) => Ok(#ident::#variant_ident)
                 });
 
                 info.serialize_match_arms.push(quote! {
@@ -312,7 +312,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
 
         #[automatically_derived]
         impl #deserialize_impl_generics atat::serde_at::serde::Deserialize<'de> for #ident #ty_generics #deserialize_where_clause {
-            fn deserialize<D>(deserializer: D) -> atat::serde_at::serde::export::Result<Self, D::Error>
+            fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
             where
                 D: atat::serde_at::serde::Deserializer<'de>,
             {
@@ -326,21 +326,21 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                     #[inline]
                     fn expecting(
                         &self,
-                        formatter: &mut atat::serde_at::serde::export::Formatter,
-                    ) -> atat::serde_at::serde::export::fmt::Result {
-                        atat::serde_at::serde::export::Formatter::write_str(formatter, "variant identifier")
+                        formatter: &mut core::fmt::Formatter,
+                    ) -> core::fmt::Result {
+                        core::fmt::Formatter::write_str(formatter, "variant identifier")
                     }
                     #[inline]
                     fn visit_i64<E>(
                         self,
                         value: i64,
-                    ) -> atat::serde_at::serde::export::Result<Self::Value, E>
+                    ) -> core::result::Result<Self::Value, E>
                     where
                         E: atat::serde_at::serde::de::Error,
                     {
                         match value {
                             #(#identifier_match_arms,)*
-                            _ => atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::invalid_value(
+                            _ => Err(atat::serde_at::serde::de::Error::invalid_value(
                                 atat::serde_at::serde::de::Unexpected::Signed(value),
                                 &#invalid_val_err,
                             )),
@@ -353,7 +353,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                     #[inline]
                     fn deserialize<D>(
                         deserializer: D,
-                    ) -> atat::serde_at::serde::export::Result<Self, D::Error>
+                    ) -> core::result::Result<Self, D::Error>
                     where
                         D: atat::serde_at::serde::Deserializer<'de>,
                     {
@@ -361,28 +361,28 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                     }
                 }
                 struct #visitor #deserialize_impl_generics #deserialize_where_clause {
-                    marker: atat::serde_at::serde::export::PhantomData<#ident #ty_generics>,
-                    lifetime: atat::serde_at::serde::export::PhantomData<&'de ()>,
+                    marker: core::marker::PhantomData<#ident #ty_generics>,
+                    lifetime: core::marker::PhantomData<&'de ()>,
                 }
                 impl #deserialize_impl_generics atat::serde_at::serde::de::Visitor<'de> for #visitor #deserialize_ty_generics #deserialize_where_clause {
                     type Value = #ident #ty_generics;
                     fn expecting(
                         &self,
-                        formatter: &mut atat::serde_at::serde::export::Formatter,
-                    ) -> atat::serde_at::serde::export::fmt::Result {
-                        atat::serde_at::serde::export::Formatter::write_str(formatter, #enum_name)
+                        formatter: &mut core::fmt::Formatter,
+                    ) -> core::fmt::Result {
+                        core::fmt::Formatter::write_str(formatter, #enum_name)
                     }
                     #[inline]
                     fn visit_enum<A>(
                         self,
                         __data: A,
-                    ) -> atat::serde_at::serde::export::Result<Self::Value, A::Error>
+                    ) -> core::result::Result<Self::Value, A::Error>
                     where
                         A: atat::serde_at::serde::de::EnumAccess<'de>,
                     {
                         match atat::serde_at::serde::de::EnumAccess::variant(__data)? {
                             #(#deserialize_match_arms,)*
-                            _ => atat::serde_at::serde::export::Err(atat::serde_at::serde::de::Error::unknown_variant("__variant", VARIANTS)),
+                            _ => Err(atat::serde_at::serde::de::Error::unknown_variant("__variant", VARIANTS)),
                         }
                     }
                 }
@@ -392,8 +392,8 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                     #ident_str,
                     VARIANTS,
                     #visitor {
-                        marker: atat::serde_at::serde::export::PhantomData::<#ident #ty_generics>,
-                        lifetime: atat::serde_at::serde::export::PhantomData,
+                        marker: core::marker::PhantomData::<#ident #ty_generics>,
+                        lifetime: core::marker::PhantomData,
                     },
                 )
             }

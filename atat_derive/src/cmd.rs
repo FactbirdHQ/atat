@@ -126,7 +126,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             fn serialize<S>(
                 &self,
                 serializer: S,
-            ) -> atat::serde_at::serde::export::Result<S::Ok, S::Error>
+            ) -> core::result::Result<S::Ok, S::Error>
             where
                 S: atat::serde_at::serde::Serializer,
             {
@@ -135,9 +135,9 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
                     #ident_str,
                     #n_fields,
                 ) {
-                    atat::serde_at::serde::export::Ok(val) => val,
-                    atat::serde_at::serde::export::Err(err) => {
-                        return atat::serde_at::serde::export::Err(err);
+                    Ok(val) => val,
+                    Err(err) => {
+                        return Err(err);
                     }
                 };
 
@@ -147,9 +147,9 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
                         #field_names_str,
                         &self.#field_names,
                     ) {
-                        atat::serde_at::serde::export::Ok(val) => val,
-                        atat::serde_at::serde::export::Err(err) => {
-                            return atat::serde_at::serde::export::Err(err);
+                        Ok(val) => val,
+                        Err(err) => {
+                            return Err(err);
                         }
                     };
                 )*
