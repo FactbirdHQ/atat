@@ -130,28 +130,18 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             where
                 S: atat::serde_at::serde::Serializer,
             {
-                let mut serde_state = match atat::serde_at::serde::Serializer::serialize_struct(
+                let mut serde_state = atat::serde_at::serde::Serializer::serialize_struct(
                     serializer,
                     #ident_str,
                     #n_fields,
-                ) {
-                    Ok(val) => val,
-                    Err(err) => {
-                        return Err(err);
-                    }
-                };
+                )?;
 
                 #(
-                    match atat::serde_at::serde::ser::SerializeStruct::serialize_field(
+                    atat::serde_at::serde::ser::SerializeStruct::serialize_field(
                         &mut serde_state,
                         #field_names_str,
                         &self.#field_names,
-                    ) {
-                        Ok(val) => val,
-                        Err(err) => {
-                            return Err(err);
-                        }
-                    };
+                    )?;
                 )*
 
                 atat::serde_at::serde::ser::SerializeStruct::end(serde_state)

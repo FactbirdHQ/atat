@@ -173,14 +173,9 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                             {
 
                                 #(
-                                    let #anon_fields = match atat::serde_at::serde::de::SeqAccess::next_element::<#field_ty>(
+                                    let #anon_fields = atat::serde_at::serde::de::SeqAccess::next_element::<#field_ty>(
                                         &mut __seq,
-                                    )? {
-                                        Some(__value) => __value,
-                                        None => {
-                                            return Err(atat::serde_at::serde::de::Error::invalid_length(0usize, &"tuple variant tester::tupleTwo with 3 elements"));
-                                        }
-                                    };
+                                    )?.ok_or_else(|| atat::serde_at::serde::de::Error::invalid_length(0usize, &"tuple variant tester::tupleTwo with 3 elements"))?;
                                 )*
                                 Ok(#ident::#variant_ident(
                                     #(#anon_fields),*
