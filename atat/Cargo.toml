@@ -29,6 +29,7 @@ serde = {version = "= 1.0.118", default-features = false}
 typenum = "^1"
 
 log = { version = "^0.4", default-features = false, optional = true }
+defmt = { version = "^0.1" }
 # defmt = { git = "https://github.com/knurling-rs/defmt", branch = "main" }
 
 [dev-dependencies]

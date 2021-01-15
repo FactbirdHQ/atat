@@ -114,8 +114,8 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
 
 /// State of the `IngressManager`, used to distiguish URCs from solicited
 /// responses
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-// #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, defmt::Format)]
+// #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, defmt::Format)]
 pub enum State {
     Idle,
     ReceivingResponse,
@@ -316,9 +316,11 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        atat_log!(trace, "Receiving {:?} bytes", data.len());
+        // atat_log!(debug, "Receiving {:?} bytes", data.len());
+        // atat_log!(trace, "Receiving {:?} bytes", data.len());
 
         if self.buf.extend_from_slice(data).is_err() {
+            atat_log!(error, "OVERFLOW DATA! Buffer: {:?}", core::convert::AsRef::<[u8]>::as_ref(&self.buf));
             self.notify_response(Err(Error::Overflow));
         }
     }
@@ -363,12 +365,12 @@ where
         #[allow(clippy::single_match)]
         match core::str::from_utf8(&resp) {
             Ok(_s) => {
-                #[cfg(not(feature = "log-logging"))]
-                atat_log!(debug, "Received URC: {:str}", _s);
-                #[cfg(feature = "log-logging")]
-                atat_log!(debug, "Received URC: {:?}", _s);
+                // #[cfg(not(feature = "log-logging"))]
+                // atat_log!(debug, "Received URC: {:str}", _s);
+                // #[cfg(feature = "log-logging")]
+                // atat_log!(debug, "Received URC: {:?}", _s);
             }
-            Err(_) => () // atat_log!(
+            Err(_) => (), //atat_log!(
             //     debug,
             //     "Received URC: {:?}",
             //     core::convert::AsRef::<[u8]>::as_ref(&resp)
