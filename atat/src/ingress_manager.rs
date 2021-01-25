@@ -354,7 +354,7 @@ where
     fn handle_com(&mut self) {
         if let Some(com) = self.com_c.dequeue() {
             match com {
-                Command::ClearBuffer => {
+                Command::Reset | Command::ClearBuffer => {
                     self.state = State::Idle;
                     self.buf_incomplete = false;
                     // #[allow(clippy::single_match)]

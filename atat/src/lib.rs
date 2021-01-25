@@ -366,6 +366,8 @@ pub enum Mode {
 /// the receive buffer on command timeouts.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Command {
+    /// Reset everything to initial state
+    Reset,
     /// Clear the rx buffer, usually as a result of a command timeout
     ClearBuffer,
     /// Force the ingress manager into the given state

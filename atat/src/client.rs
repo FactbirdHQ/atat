@@ -196,6 +196,15 @@ where
     fn get_mode(&self) -> Mode {
         self.config.mode
     }
+
+    fn reset(&mut self) {
+        if self.com_p.enqueue(Command::Reset).is_err() {
+            // TODO: Consider how to act in this situation.
+            atat_log!(error, "Failed to signal ingress manager to reset!");
+        }
+        while self.res_c.dequeue().is_some() {}
+        while self.urc_c.dequeue().is_some() {}
+    }
 }
 
 #[cfg(test)]
