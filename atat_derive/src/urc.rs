@@ -35,12 +35,12 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
             }
             Some(Fields::Unnamed(f)) => {
                 let mut field_iter = f.unnamed.iter();
-                let first_field = field_iter.next().unwrap_or_else(|| panic!(""));
+                let first_field = field_iter.next().expect("variant must have exactly one field");
                 if field_iter.next().is_some() {
                     panic!("cannot handle variants with more than one field")
                 }
                 quote! {
-                    #code => #ident::#variant_ident(atat::serde_at::from_slice::<#first_field>(&resp[index..]).ok()?),
+                    #code => #ident::#variant_ident(atat::serde_at::from_slice::<#first_field>(&resp).ok()?),
                 }
             }
             Some(Fields::Unit) => {

@@ -1,5 +1,5 @@
 use heapless::{consts, ArrayLength, Vec};
-
+use core::iter::FromIterator;
 use crate::atat_log;
 use crate::error::InternalError;
 use crate::queues::{ComConsumer, ComItem, ResItem, ResProducer, UrcItem, UrcProducer};
