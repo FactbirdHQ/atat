@@ -1,6 +1,6 @@
 [package]
 name = "atat"
-version = "0.5.1"
+version = "0.7.2-alpha.0"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 description = "AT Parser for serial based device crates"
 readme = "../README.md"
@@ -19,31 +19,26 @@ maintenance = { status = "actively-developed" }
 
 [dependencies]
 embedded-hal = { version = "1.0.0-alpha.4" }
-# embedded-hal = "^0.2"
 nb = "^1"
-void = { version = "^1", default-features = false }
-heapless = { version = "0.5.5", features = ["serde"] }
-serde_at = { path = "../serde_at", version = "^0.5.0"}
-atat_derive = { path = "../atat_derive", version = "^0.5.0", optional = true }
-serde = {version = "= 1.0.118", default-features = false}
+heapless = { version = "0.5.6", features = ["serde"] }
+serde_at = { path = "../serde_at", version = "^0.7.2-alpha.0"}
+atat_derive = { path = "../atat_derive", version = "^0.7.2-alpha.0", optional = true }
+serde = { version = "^1", default-features = false }
 typenum = "^1"
 
 log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.1" }
-# defmt = { git = "https://github.com/knurling-rs/defmt", branch = "main" }
 
 [dev-dependencies]
-cortex-m = "0.6.3"
-cortex-m-rt = "0.6.12"
-cortex-m-rtic = "0.5.4"
+cortex-m = "0.7.1"
+cortex-m-rt = "0.6.13"
+cortex-m-rtic = "0.5.5"
 panic-halt = "0.2.0"
-stm32l4xx-hal = { git = "https://github.com/stm32-rs/stm32l4xx-hal", features = ["stm32l4x5", "rt"] }
+stm32l4xx-hal = { version = "0.6", features = ["stm32l4x5", "rt"] }
 
 [features]
 default = ["derive"]
 derive = ["atat_derive"]
-
-custom-digest = []
 
 log-logging = ["log"]
 

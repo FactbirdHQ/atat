@@ -46,8 +46,14 @@ jobs:
               defmt-warn
               defmt-error"
 
-      - name: Test
+      - name: Library tests
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --lib --all-features
+      # TODO: Change this to a single --all test, when the examples work
+      - name: Doctests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --doc --all-features

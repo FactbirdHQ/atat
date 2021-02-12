@@ -1,8 +1,5 @@
-use crate::error::Error;
-use crate::Mode;
+use crate::{error::Error, Mode};
 use heapless::{ArrayLength, Vec};
-
-pub trait AtatErr {}
 
 /// This trait needs to be implemented for every response type.
 ///
@@ -97,9 +94,9 @@ pub trait AtatCmd {
     }
 
     /// Force client to look for a response.
-    /// Empty slice is then passed to parse by client. 
+    /// Empty slice is then passed to parse by client.
     /// Implemented to enhance expandability fo ATAT
-    fn expects_response(&self) -> bool {
+    fn expects_response_code(&self) -> bool {
         true
     }
 }
@@ -174,4 +171,154 @@ pub trait AtatClient {
     /// - `Blocking`
     /// - `Timeout`
     fn get_mode(&self) -> Mode;
+}
+
+impl<T, L> AtatResp for heapless::Vec<T, L>
+where
+    T: AtatResp,
+    L: ArrayLength<T>,
+{
+}
+
+#[cfg(all(test, feature = "derive"))]
+mod test {
+    use super::*;
+    use crate as atat;
+    use atat_derive::{AtatEnum, AtatResp};
+    use heapless::{consts, String};
+
+    #[derive(Debug, Clone, PartialEq, AtatEnum)]
+    pub enum PDPContextStatus {
+        /// 0: deactivated
+        Deactivated = 0,
+        /// 1: activated
+        Activated = 1,
+    }
+
+    #[derive(Debug, Clone, AtatResp, PartialEq)]
+    pub struct PDPContextState {
+        #[at_arg(position = 0)]
+        pub cid: u8,
+        #[at_arg(position = 1)]
+        pub status: PDPContextStatus,
+    }
+
+    #[derive(Debug, Clone, AtatResp, PartialEq)]
+    pub struct PDPContextDefinition {
+        #[at_arg(position = 0)]
+        pub cid: u8,
+        #[at_arg(position = 1)]
+        pub pdp_type: String<consts::U6>,
+        #[at_arg(position = 2)]
+        pub apn: String<consts::U99>,
+        #[at_arg(position = 3)]
+        pub pdp_addr: String<consts::U99>,
+        #[at_arg(position = 4)]
+        pub d_comp: u8,
+        #[at_arg(position = 5)]
+        pub h_comp: u8,
+        #[at_arg(position = 6)]
+        pub ipv4_addr_alloc: Option<u8>,
+        #[at_arg(position = 7)]
+        pub emergency_indication: Option<u8>,
+        #[at_arg(position = 8)]
+        pub p_cscf_discovery: Option<u8>,
+        #[at_arg(position = 9)]
+        pub im_cn_signalling_flag_ind: Option<u8>,
+        /* #[at_arg(position = 10)]
+         * pub nslpi: Option<u8>, */
+    }
+
+    #[test]
+    fn single_multi_response() {
+        let mut v = Vec::<_, heapless::consts::U1>::from_slice(&[PDPContextState {
+            cid: 1,
+            status: PDPContextStatus::Deactivated,
+        }])
+        .unwrap();
+
+        let mut resp: heapless::Vec<PDPContextState, heapless::consts::U1> =
+            serde_at::from_slice(b"+CGACT: 1,0\r\n").unwrap();
+
+        assert_eq!(resp.pop(), v.pop());
+        assert_eq!(resp.pop(), None);
+    }
+
+    #[test]
+    fn multi_response() {
+        let mut v = Vec::<_, heapless::consts::U3>::from_slice(&[
+            PDPContextState {
+                cid: 1,
+                status: PDPContextStatus::Deactivated,
+            },
+            PDPContextState {
+                cid: 2,
+                status: PDPContextStatus::Activated,
+            },
+            PDPContextState {
+                cid: 3,
+                status: PDPContextStatus::Deactivated,
+            },
+        ])
+        .unwrap();
+
+        let mut resp: heapless::Vec<PDPContextState, heapless::consts::U3> =
+            serde_at::from_slice(b"+CGACT: 1,0\r\n+CGACT: 2,1\r\n+CGACT: 3,0").unwrap();
+
+        assert_eq!(resp.pop(), v.pop());
+        assert_eq!(resp.pop(), v.pop());
+        assert_eq!(resp.pop(), v.pop());
+        assert_eq!(resp.pop(), None);
+    }
+
+    #[test]
+    fn multi_response_advanced() {
+        let mut v = Vec::<_, heapless::consts::U3>::from_slice(&[
+            PDPContextDefinition {
+                cid: 2,
+                pdp_type: String::from("IP"),
+                apn: String::from("em"),
+                pdp_addr: String::from("100.92.188.66"),
+                d_comp: 0,
+                h_comp: 0,
+                ipv4_addr_alloc: Some(0),
+                emergency_indication: Some(0),
+                p_cscf_discovery: Some(0),
+                im_cn_signalling_flag_ind: Some(0),
+            },
+            PDPContextDefinition {
+                cid: 1,
+                pdp_type: String::from("IP"),
+                apn: String::from("STATREAL"),
+                pdp_addr: String::from("0.0.0.0"),
+                d_comp: 0,
+                h_comp: 0,
+                ipv4_addr_alloc: None,
+                emergency_indication: None,
+                p_cscf_discovery: None,
+                im_cn_signalling_flag_ind: None,
+            },
+            PDPContextDefinition {
+                cid: 3,
+                pdp_type: String::from("IP"),
+                apn: String::from("tim.ibox.it"),
+                pdp_addr: String::from("0.0.0.0"),
+                d_comp: 0,
+                h_comp: 0,
+                ipv4_addr_alloc: None,
+                emergency_indication: None,
+                p_cscf_discovery: None,
+                im_cn_signalling_flag_ind: None,
+            },
+        ])
+        .unwrap();
+
+        let mut resp: heapless::Vec<PDPContextDefinition, heapless::consts::U3> =
+            serde_at::from_slice(b"+CGDCONT: 2,\"IP\",\"em\",\"100.92.188.66\",0,0,0,0,0,0\r\n+CGDCONT: 1,\"IP\",\"STATREAL\",\"0.0.0.0\",0,0\r\n+CGDCONT: 3,\"IP\",\"tim.ibox.it\",\"0.0.0.0\",0,0").unwrap();
+
+        assert_eq!(resp.pop(), v.pop());
+        assert_eq!(resp.pop(), v.pop());
+        assert_eq!(resp.pop(), v.pop());
+        assert_eq!(resp.pop(), None);
+    }
 }

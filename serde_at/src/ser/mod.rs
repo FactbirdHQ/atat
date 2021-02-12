@@ -51,7 +51,7 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 pub struct Bytes<'a>(pub &'a [u8]);
 
 impl<'a> serde::Serialize for Bytes<'a> {
-    fn serialize<S>(&self, serializer: S) -> serde::export::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -61,10 +61,9 @@ impl<'a> serde::Serialize for Bytes<'a> {
 
 impl<T> serde::Serialize for CharVec<T>
 where
-    T: heapless::ArrayLength<char>,
-    T: heapless::ArrayLength<u8>,
+    T: heapless::ArrayLength<char> + heapless::ArrayLength<u8>,
 {
-    fn serialize<S>(&self, serializer: S) -> serde::export::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -170,9 +169,8 @@ macro_rules! serialize_unsigned {
 
             if v == 0 {
                 break;
-            } else {
-                i -= 1;
             }
+            i -= 1;
         }
 
         $self.buf.extend_from_slice(&buf[i..])?;
@@ -428,10 +426,10 @@ where
 }
 
 /// Serializes the given data structure as a string
-pub fn to_string<'a, B, C, T>(
+pub fn to_string<B, C, T>(
     value: &T,
     cmd: String<C>,
-    options: SerializeOptions<'a>,
+    options: SerializeOptions<'_>,
 ) -> Result<String<B>>
 where
     B: heapless::ArrayLength<u8>,
@@ -444,10 +442,10 @@ where
 }
 
 /// Serializes the given data structure as a byte vector
-pub fn to_vec<'a, B, C, T>(
+pub fn to_vec<B, C, T>(
     value: &T,
     cmd: String<C>,
-    options: SerializeOptions<'a>,
+    options: SerializeOptions<'_>,
 ) -> Result<Vec<u8, B>>
 where
     B: heapless::ArrayLength<u8>,

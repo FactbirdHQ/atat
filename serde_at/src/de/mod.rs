@@ -3,8 +3,10 @@
 use core::str::FromStr;
 use core::{fmt, str};
 
-use serde::de::{self, Visitor};
-use serde::{export, Deserialize};
+use serde::{
+    de::{self, Visitor},
+    Deserialize,
+};
 
 use self::enum_::VariantAccess;
 use self::map::MapAccess;
@@ -22,25 +24,25 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// Example:
 /// ```
 /// use heapless::{consts, String};
-/// use serde_at::{to_string, Bytes, SerializeOptions};
-/// use serde_derive::Serialize;
+/// use serde_at::{from_str, Bytes, CharVec, SerializeOptions};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Debug, Deserialize, PartialEq)]
-/// struct CommandStruct{
+/// struct CommandStruct {
 ///     id: u8,
-///     vec: CharVec<consts::U7>
+///     vec: CharVec<consts::U7>,
 ///     value: i32,
 /// }
 ///
-/// let incoming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12")
+/// let incoming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12").unwrap();
 ///
-/// let expected = CommandStruct{
+/// let expected = CommandStruct {
 ///     id: 4,
-///     vec : CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
+///     vec: CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
 ///     value: -12,
-/// }
+/// };
 ///
-/// assert_eq!(incoming, Ok(expected));
+/// assert_eq!(incoming, expected);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct CharVec<T: heapless::ArrayLength<char>>(pub heapless::Vec<char, T>);
@@ -66,7 +68,7 @@ impl<'de, N> Deserialize<'de> for CharVec<N>
 where
     N: heapless::ArrayLength<char>,
 {
-    fn deserialize<D>(deserializer: D) -> export::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -82,7 +84,7 @@ where
                 formatter.write_str("a sequence")
             }
 
-            fn visit_seq<A>(self, mut seq: A) -> export::Result<Self::Value, A::Error>
+            fn visit_seq<A>(self, mut seq: A) -> core::result::Result<Self::Value, A::Error>
             where
                 A: serde::de::SeqAccess<'de>,
             {
@@ -199,7 +201,7 @@ impl<'a> Deserializer<'a> {
                     let end = self.index;
                     self.eat_char();
                     return str::from_utf8(&self.slice[start..end])
-                        .map_err(|_| Error::InvalidUnicodeCodePoint);
+                        .map_err(|_e| Error::InvalidUnicodeCodePoint);
                 }
                 Some(_) => self.eat_char(),
                 None => return Err(Error::EofWhileParsingString),
@@ -221,6 +223,31 @@ impl<'a> Deserializer<'a> {
                 return Ok(&self.slice[start..end]);
             }
         }
+    }
+
+    fn parse_at(&mut self) -> Result<Option<()>> {
+        // If we find a '+', check if it is an AT command identifier, ending in ':'
+        if let Some(b'+') = self.parse_whitespace() {
+            let index = self.index;
+            loop {
+                match self.peek() {
+                    Some(b':') => {
+                        self.eat_char();
+                        self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
+                        return Ok(Some(()));
+                    }
+                    Some(_) => {
+                        self.eat_char();
+                    }
+                    None => {
+                        // Doesn't seem to be an AT command identifier. Reset index and continue
+                        self.index = index;
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(None)
     }
 
     /// Consumes all the whitespace characters and returns a peek into the next character
@@ -499,12 +526,12 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         unreachable!()
     }
 
-    /// Unsupported
     fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Ok(visitor.visit_seq(SeqByteAccess::new(self))?)
+        self.parse_at()?;
+        visitor.visit_seq(SeqByteAccess::new(self))
     }
 
     /// Unsupported
@@ -520,8 +547,8 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         match self.parse_whitespace() {
+            Some(b'+') | None => visitor.visit_none(),
             Some(_) => visitor.visit_some(self),
-            None => visitor.visit_none(),
         }
     }
 
@@ -545,6 +572,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
+        self.parse_at()?;
         visitor.visit_newtype_struct(self)
     }
 
@@ -552,9 +580,10 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        Ok(visitor.visit_seq(SeqAccess::new(self))?)
+        visitor.visit_seq(SeqAccess::new(self))
     }
 
+    /// Unsupported
     fn deserialize_tuple<V>(self, _len: usize, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -562,6 +591,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         unreachable!()
     }
 
+    /// Unsupported
     fn deserialize_tuple_struct<V>(
         self,
         _name: &'static str,
@@ -579,10 +609,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
-
-        let ret = visitor.visit_map(MapAccess::new(self))?;
-
-        Ok(ret)
+        visitor.visit_map(MapAccess::new(self))
     }
 
     fn deserialize_struct<V>(
@@ -594,6 +621,16 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
+        self.parse_at()?;
+
+        // Misuse EofWhileParsingObject here to indicate finished object in vec
+        // cases. Don't start a new sequence if this is not the first, and we
+        // have passed the last character in the buffer
+        //
+        // TODO: is there a better way of doing this?!
+        if self.index == self.slice.len() && self.index > 0 {
+            return Err(Error::EofWhileParsingObject);
+        }
         self.deserialize_seq(visitor)
     }
 
@@ -698,15 +735,10 @@ pub fn from_slice<'a, T>(v: &'a [u8]) -> Result<T>
 where
     T: de::Deserialize<'a>,
 {
-    if let Some(sp) = v.splitn(2, |&c| c == b':').last() {
-        let mut de = Deserializer::new(sp);
-        let value = de::Deserialize::deserialize(&mut de)?;
-        de.end()?;
-
-        Ok(value)
-    } else {
-        Err(Error::CustomError)
-    }
+    let mut de = Deserializer::new(v);
+    let value = de::Deserialize::deserialize(&mut de)?;
+    de.end()?;
+    Ok(value)
 }
 
 /// Deserializes an instance of type T from a string of AT Response text
@@ -720,10 +752,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::CharVec;
-    use heapless::{consts, String, Vec};
+    use heapless::{consts, String};
     use serde_derive::Deserialize;
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
     struct CFG {
         p1: u8,
         p2: i16,
@@ -800,24 +832,6 @@ mod tests {
             Ok(StringTest {
                 string: String::from("89883030000005421166")
             })
-        );
-    }
-
-    #[test]
-    // Not sure if this is the way it should actually be implemented?!
-    #[ignore]
-    fn simple_vec() {
-        #[derive(Debug, Deserialize, PartialEq)]
-        struct VecTest {
-            vec: Vec<u8, consts::U32>,
-        }
-
-        let vec =
-            Vec::from_slice(&[8, 9, 8, 8, 3, 0, 3, 0, 0, 0, 0, 0, 0, 5, 4, 2, 1, 1, 6, 6]).unwrap();
-
-        assert_eq!(
-            crate::from_slice("+CCID: \"89883030000005421166\"".as_bytes()),
-            Ok(VecTest { vec })
         );
     }
 

@@ -32,6 +32,7 @@ impl<'a, 'de> de::MapAccess<'de> for MapAccess<'a, 'de> {
             }
             _ => {}
         }
+
         seed.deserialize(&mut *self.de).map(Some)
     }
 
