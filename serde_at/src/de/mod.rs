@@ -24,28 +24,28 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// Example:
 /// ```
 /// use heapless::{consts, String};
-/// use serde_at::{to_string, Bytes, SerializeOptions};
-/// use serde_derive::Serialize;
+/// use serde_at::{from_str, Bytes, CharVec, SerializeOptions};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Debug, Deserialize, PartialEq)]
-/// struct CommandStruct{
+/// struct CommandStruct {
 ///     id: u8,
-///     vec: CharVec<consts::U7>
+///     vec: CharVec<consts::U7>,
 ///     value: i32,
 /// }
 ///
-/// let incoming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12")
+/// let incoming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12").unwrap();
 ///
-/// let expected = CommandStruct{
+/// let expected = CommandStruct {
 ///     id: 4,
-///     vec : CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
+///     vec: CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
 ///     value: -12,
-/// }
+/// };
 ///
-/// assert_eq!(incoming, Ok(expected));
+/// assert_eq!(incoming, expected);
 /// ```
-#[derive(Debug, PartialEq)]
-pub struct CharVec<T: heapless::ArrayLength<char>>(heapless::Vec<char, T>);
+#[derive(Debug, Clone, PartialEq)]
+pub struct CharVec<T: heapless::ArrayLength<char>>(pub heapless::Vec<char, T>);
 
 impl<T> CharVec<T>
 where

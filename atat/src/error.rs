@@ -1,5 +1,6 @@
 /// Errors returned by, or used within the crate
 #[derive(Clone, Debug, PartialEq, defmt::Format)]
+// #[derive(Clone, Debug, PartialEq, defmt::Format)]
 pub enum Error {
     /// Serial read error
     Read,
