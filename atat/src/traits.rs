@@ -171,6 +171,9 @@ pub trait AtatClient {
     /// - `Blocking`
     /// - `Timeout`
     fn get_mode(&self) -> Mode;
+
+    /// Reset the client, queues and ingress buffer, discarding any contents
+    fn reset(&mut self);
 }
 
 impl<T, L> AtatResp for heapless::Vec<T, L>
