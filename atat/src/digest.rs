@@ -7,8 +7,11 @@ use crate::{
 use heapless::{ArrayLength, Vec};
 
 pub trait Digester {
-    const LINE_TERM_CHAR: u8 = b'\n';
-    const FORMAT_CHAR: u8 = b'\r';
+    /// Command line termination character S3 (Default = b'\r' ASCII: \[013\])
+    const LINE_TERM_CHAR: u8 = b'\r';
+
+    /// Response formatting character S4 (Default = b'\n' ASCII: \[010\])
+    const FORMAT_CHAR: u8 = b'\n';
 
     fn reset(&mut self);
 
@@ -86,9 +89,9 @@ impl Digester for DefaultDigester {
         match core::str::from_utf8(buf) {
             Ok(_s) => {
                 #[cfg(not(feature = "log-logging"))]
-                atat_log!(trace, "Digest / {:str}", _s);
+                atat_log!(trace, "Digest {:?} / {:str}", self.state, _s);
                 #[cfg(feature = "log-logging")]
-                atat_log!(trace, "Digest / {:?}", _s);
+                atat_log!(trace, "Digest {:?} / {:?}", self.state, _s);
             }
             Err(_) => atat_log!(
                 trace,
