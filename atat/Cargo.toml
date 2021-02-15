@@ -30,11 +30,11 @@ log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.1" }
 
 [dev-dependencies]
-cortex-m = "0.6.3"
-cortex-m-rt = "0.6.12"
-cortex-m-rtic = "0.5.4"
+cortex-m = "0.7.1"
+cortex-m-rt = "0.6.13"
+cortex-m-rtic = "0.5.5"
 panic-halt = "0.2.0"
-stm32l4xx-hal = { version = "0.5", features = ["stm32l4x5", "rt"] }
+stm32l4xx-hal = { version = "0.6", features = ["stm32l4x5", "rt"] }
 
 [features]
 default = ["derive"]

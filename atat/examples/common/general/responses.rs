@@ -1,6 +1,5 @@
 //! Responses for General Commands
 use atat::atat_derive::AtatResp;
-use atat::AtatResp;
 use heapless::{consts, String};
 
 /// 4.1 Manufacturer identification

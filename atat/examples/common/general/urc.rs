@@ -1,7 +1,6 @@
 //! Responses for Internet protocol transport layer Commands
 use super::types;
-use atat::atat_derive::{AtatResp, AtatUrc};
-use atat::{AtatResp, AtatUrc};
+use atat::atat_derive::AtatResp;
 
 /// 11.29 Message waiting indication +UMWI
 /// Provides information regarding the Message Waiting Indication (MWI) third level method (3GPP defined in
