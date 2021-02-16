@@ -7,16 +7,11 @@ use crate::{
 use heapless::{ArrayLength, Vec};
 
 pub trait Digester {
-<<<<<<< HEAD
     /// Command line termination character S3 (Default = b'\r' ASCII: \[013\])
     const LINE_TERM_CHAR: u8 = b'\r';
 
     /// Response formatting character S4 (Default = b'\n' ASCII: \[010\])
     const FORMAT_CHAR: u8 = b'\n';
-=======
-    const LINE_TERM_CHAR: u8 = b'\n';
-    const FORMAT_CHAR: u8 = b'\r';
->>>>>>> feature/custom_digest
 
     fn reset(&mut self);
 

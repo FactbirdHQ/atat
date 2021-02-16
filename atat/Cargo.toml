@@ -1,6 +1,6 @@
 [package]
 name = "atat"
-version = "0.8.3"
+version = "0.8.4"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 description = "AT Parser for serial based device crates"
 readme = "../README.md"
@@ -21,8 +21,8 @@ maintenance = { status = "actively-developed" }
 embedded-hal = { version = "1.0.0-alpha.4" }
 nb = "^1"
 heapless = { version = "0.5.6", features = ["serde"] }
-serde_at = { path = "../serde_at", version = "^0.8.3"}
-atat_derive = { path = "../atat_derive", version = "^0.8.3", optional = true }
+serde_at = { path = "../serde_at", version = "^0.8.4"}
+atat_derive = { path = "../atat_derive", version = "^0.8.4", optional = true }
 serde = { version = "^1", default-features = false }
 typenum = "^1"
 
