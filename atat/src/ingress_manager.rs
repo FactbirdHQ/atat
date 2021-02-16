@@ -118,6 +118,7 @@ where
     /// Return the capacity of the internal buffer
     ///
     /// This can be useful for custom flowcontrol implementations
+    #[allow(clippy::unused_self)]
     pub fn capacity(&self) -> usize {
         BufLen::to_usize()
     }
