@@ -261,12 +261,12 @@ pub use heapless;
 
 pub use builder::ClientBuilder;
 pub use client::{Client, Mode};
-pub use digest::{DigestResult, Digester};
+pub use digest::{DefaultDigester, DigestResult, Digester};
 pub use error::Error;
 pub use ingress_manager::IngressManager;
 pub use queues::{ComQueue, Queues, ResQueue, UrcQueue};
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
-pub use urc_matcher::{UrcMatcher, UrcMatcherResult};
+pub use urc_matcher::{DefaultUrcMatcher, UrcMatcher, UrcMatcherResult};
 
 /// Commands that can be sent from the client to the ingress manager, for
 /// configuration after initial setup. This is also used for stuff like clearing
