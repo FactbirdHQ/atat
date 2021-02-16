@@ -101,6 +101,27 @@ where
         }
     }
 
+    /// Return the current length of the internal buffer
+    ///
+    /// This can be useful for custom flowcontrol implementations
+    pub fn len(&self) -> usize {
+        self.buf.len()
+    }
+
+    /// Returns whether the internal buffer is empty
+    ///
+    /// This can be useful for custom flowcontrol implementations
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Return the capacity of the internal buffer
+    ///
+    /// This can be useful for custom flowcontrol implementations
+    pub fn capacity(&self) -> usize {
+        BufLen::to_usize()
+    }
+
     /// Notify the client that an appropriate response code, or error has been
     /// received
     pub fn notify_response(&mut self, resp: Result<Vec<u8, BufLen>, Error>) {
