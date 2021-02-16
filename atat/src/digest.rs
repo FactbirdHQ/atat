@@ -96,7 +96,7 @@ impl Digester for DefaultDigester {
             Err(_) => atat_log!(
                 trace,
                 "Digest / {:?}",
-                core::convert::AsRef::<[u8]>::as_ref(&ingress.buf)
+                core::convert::AsRef::<[u8]>::as_ref(buf)
             ),
         };
 
