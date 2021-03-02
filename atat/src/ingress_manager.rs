@@ -4,7 +4,6 @@ use crate::error::Error;
 use crate::queues::{ComConsumer, ResProducer, UrcItem, UrcProducer};
 use crate::Command;
 use crate::{
-    atat_log,
     digest::{DefaultDigester, DigestResult, Digester},
     urc_matcher::{DefaultUrcMatcher, UrcMatcher},
 };
@@ -89,12 +88,11 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        atat_log!(trace, "Write: \"{:?}\"", data);
+        defmt::trace!("Write: \"{}\"", data);
 
         if self.buf.extend_from_slice(data).is_err() {
-            atat_log!(
-                error,
-                "OVERFLOW DATA! Buffer: {:?}",
+            defmt::error!(
+                "OVERFLOW DATA! Buffer: {}",
                 core::convert::AsRef::<[u8]>::as_ref(&self.buf)
             );
             self.notify_response(Err(Error::Overflow));
@@ -127,59 +125,33 @@ where
     /// received
     pub fn notify_response(&mut self, resp: Result<Vec<u8, BufLen>, Error>) {
         match &resp {
-            Ok(_r) => {
-                if _r.is_empty() {
-                    atat_log!(debug, "Received OK")
+            Ok(r) => {
+                if r.is_empty() {
+                    defmt::debug!("Received OK")
                 } else {
-                    #[allow(clippy::single_match)]
-                    match core::str::from_utf8(_r) {
-                        Ok(_s) => {
-                            #[cfg(not(feature = "log-logging"))]
-                            atat_log!(debug, "Received response: \"{:str}\"", _s);
-                            #[cfg(feature = "log-logging")]
-                            atat_log!(debug, "Received response \"{:?}\"", _s)
-                        }
-                        Err(_) => atat_log!(
-                            debug,
-                            "Received response: {:?}",
-                            core::convert::AsRef::<[u8]>::as_ref(&_r)
-                        ),
-                    };
+                    defmt::debug!("Received response: \"{=[u8]:a}\"", &r);
                 }
             }
-            Err(_e) => atat_log!(error, "Received error response: {:?}", _e),
+            Err(e) => defmt::error!("Received error response: {}", e),
         }
         if self.res_p.ready() {
             unsafe { self.res_p.enqueue_unchecked(resp) };
         } else {
             // FIXME: Handle queue not being ready
-            atat_log!(error, "Response queue full!");
+            defmt::error!("Response queue full!");
         }
     }
 
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
     pub fn notify_urc(&mut self, resp: Vec<u8, BufLen>) {
-        #[allow(clippy::single_match)]
-        match core::str::from_utf8(&resp) {
-            Ok(_s) => {
-                #[cfg(not(feature = "log-logging"))]
-                atat_log!(debug, "Received URC: {:str}", _s);
-                #[cfg(feature = "log-logging")]
-                atat_log!(debug, "Received URC: {:?}", _s);
-            }
-            Err(_) => atat_log!(
-                debug,
-                "Received URC: {:?}",
-                core::convert::AsRef::<[u8]>::as_ref(&resp)
-            ),
-        };
+        defmt::debug!("Received response: \"{=[u8]:a}\"", &resp);
 
         if self.urc_p.ready() {
             unsafe { self.urc_p.enqueue_unchecked(resp) };
         } else {
             // FIXME: Handle queue not being ready
-            atat_log!(error, "URC queue full!");
+            defmt::error!("URC queue full!");
         }
     }
 
@@ -190,7 +162,7 @@ where
                 Command::Reset => {
                     self.digester.reset();
                     self.buf.clear();
-                    atat_log!(trace, "Cleared complete buffer");
+                    defmt::trace!("Cleared complete buffer");
                 }
                 Command::ForceReceiveState => self.digester.force_receive_state(),
             }

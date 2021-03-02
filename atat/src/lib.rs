@@ -207,8 +207,6 @@
 //!
 //! - **`derive`** *(enabled by default)* - Re-exports [`atat_derive`] to allow
 //!   deriving `Atat__` traits.
-//! - **`log-logging`** *(disabled by default)* - Enable log statements on
-//!   various log levels to aid debugging. Powered by `log`.
 //! - **`defmt-default`** *(disabled by default)* - Enable log statements at
 //!   INFO, or TRACE, level and up, to aid debugging. Powered by `defmt`.
 //! - **`defmt-trace`** *(disabled by default)* - Enable log statements at TRACE
@@ -314,4 +312,28 @@ impl Config {
         self.cmd_cooldown = ms;
         self
     }
+}
+
+#[cfg(test)]
+mod tests {
+    //! This module is required in order to satisfy the requirements of defmt, while running tests.
+    //! Note that this will cause all log `defmt::` log statements to be thrown away.
+
+    use core::ptr::NonNull;
+
+    #[defmt::global_logger]
+    struct Logger;
+    impl defmt::Write for Logger {
+        fn write(&mut self, _bytes: &[u8]) {}
+    }
+
+    unsafe impl defmt::Logger for Logger {
+        fn acquire() -> Option<NonNull<dyn defmt::Write>> {
+            Some(NonNull::from(&Logger as &dyn defmt::Write))
+        }
+
+        unsafe fn release(_: NonNull<dyn defmt::Write>) {}
+    }
+
+    defmt::timestamp!("");
 }

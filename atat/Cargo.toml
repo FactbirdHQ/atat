@@ -20,14 +20,13 @@ maintenance = { status = "actively-developed" }
 [dependencies]
 embedded-hal = { version = "1.0.0-alpha.4" }
 nb = "^1"
-heapless = { version = "0.5.6", features = ["serde"] }
+heapless = { version = "^0.5.6", features = ["serde"] }
 serde_at = { path = "../serde_at", version = "^0.8.4"}
 atat_derive = { path = "../atat_derive", version = "^0.8.4", optional = true }
 serde = { version = "^1", default-features = false }
 typenum = "^1"
 
-log = { version = "^0.4", default-features = false, optional = true }
-defmt = { version = "^0.1" }
+defmt = { version = "^0.2" }
 
 [dev-dependencies]
 cortex-m = "0.7.1"
@@ -39,8 +38,6 @@ stm32l4xx-hal = { version = "0.6", features = ["stm32l4x5", "rt"] }
 [features]
 default = ["derive"]
 derive = ["atat_derive"]
-
-log-logging = ["log"]
 
 std = ["serde_at/std"]
 

@@ -38,7 +38,6 @@ jobs:
             --target thumbv7m-none-eabi
             --features "
               derive
-              log-logging
               defmt-default
               defmt-trace
               defmt-debug

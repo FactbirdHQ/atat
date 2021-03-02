@@ -1,5 +1,4 @@
 use crate::{
-    atat_log,
     helpers::{get_line, SliceExt},
     urc_matcher::{UrcMatcher, UrcMatcherResult},
     Error,
@@ -85,20 +84,7 @@ impl Digester for DefaultDigester {
             .unwrap();
         }
 
-        #[allow(clippy::single_match)]
-        match core::str::from_utf8(buf) {
-            Ok(_s) => {
-                #[cfg(not(feature = "log-logging"))]
-                atat_log!(trace, "Digest {:?} / {:str}", self.state, _s);
-                #[cfg(feature = "log-logging")]
-                atat_log!(trace, "Digest {:?} / {:?}", self.state, _s);
-            }
-            Err(_) => atat_log!(
-                trace,
-                "Digest / {:?}",
-                core::convert::AsRef::<[u8]>::as_ref(buf)
-            ),
-        };
+        defmt::trace!("Digest {} / {=[u8]:a}", self.state, &buf);
 
         match self.state {
             State::Idle => {
@@ -116,7 +102,7 @@ impl Digester for DefaultDigester {
                     {
                         self.state = State::ReceivingResponse;
                         self.buf_incomplete = false;
-                        atat_log!(trace, "Switching to state ReceivingResponse");
+                        defmt::trace!("Switching to state ReceivingResponse");
                     }
 
                 // Handle URCs
@@ -148,9 +134,8 @@ impl Digester for DefaultDigester {
                 // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
                 // ensure that we don't accidentally break a valid response.
                 } else if self.buf_incomplete || buf.len() > 2 {
-                    atat_log!(
-                        trace,
-                        "Clearing buffer with invalid response (incomplete: {:?}, buflen: {:?})",
+                    defmt::trace!(
+                        "Clearing buffer with invalid response (incomplete: {}, buflen: {})",
                         self.buf_incomplete,
                         buf.len()
                     );
@@ -167,25 +152,12 @@ impl Digester for DefaultDigester {
                         false,
                         false,
                     );
-                    #[allow(unused_variables)]
+
                     if let Some(r) = removed {
-                        #[allow(clippy::single_match)]
-                        match core::str::from_utf8(&r) {
-                            Ok(_s) => {
-                                #[cfg(not(feature = "log-logging"))]
-                                atat_log!(trace, "Cleared partial buffer, removed {:str}", _s);
-                                #[cfg(feature = "log-logging")]
-                                atat_log!(trace, "Cleared partial buffer, removed {:?}", _s);
-                            }
-                            Err(_) => atat_log!(
-                                trace,
-                                "Cleared partial buffer, removed {:?}",
-                                core::convert::AsRef::<[u8]>::as_ref(&r)
-                            ),
-                        };
+                        defmt::trace!("Cleared partial buffer, removed {=[u8]:a}", &r);
                     } else {
                         buf.clear();
-                        atat_log!(trace, "Cleared partial buffer, removed everything");
+                        defmt::trace!("Cleared partial buffer, removed everything");
                     }
 
                     // If the buffer wasn't cleared completely, that means that
@@ -249,7 +221,7 @@ impl Digester for DefaultDigester {
                     return DigestResult::None;
                 };
 
-                atat_log!(trace, "Switching to state Idle");
+                defmt::trace!("Switching to state Idle");
                 self.state = State::Idle;
                 return DigestResult::Response(resp);
             }
