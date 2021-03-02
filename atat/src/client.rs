@@ -1,6 +1,5 @@
 use embedded_hal::{serial, timer::CountDown};
 
-use crate::atat_log;
 use crate::error::Error;
 use crate::queues::{ComProducer, ResConsumer, UrcConsumer, UrcItem};
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
@@ -92,8 +91,7 @@ where
             if cmd.force_receive_state() && self.com_p.enqueue(Command::ForceReceiveState).is_err()
             {
                 // TODO: Consider how to act in this situation.
-                atat_log!(
-                    error,
+                defmt::error!(
                     "Failed to signal parser to force state transition to 'ReceivingResponse'!"
                 );
             }
@@ -104,24 +102,14 @@ where
             nb::block!(self.timer.try_wait()).ok();
             let cmd_buf = cmd.as_bytes();
 
-            match core::str::from_utf8(&cmd_buf) {
-                Ok(_s) if _s.len() < 50 => {
-                    #[cfg(not(feature = "log-logging"))]
-                    atat_log!(debug, "Sending command: \"{:str}\"", _s[.._s.len() - 2]);
-                    #[cfg(feature = "log-logging")]
-                    atat_log!(debug, "Sending command: \"{:?}\"", &_s[.._s.len() - 2]);
-                }
-                Err(_) if cmd_buf.len() < 50 => atat_log!(
-                    debug,
-                    "Sending command: {:?}",
-                    core::convert::AsRef::<[u8]>::as_ref(&cmd_buf)
-                ),
-                _ => atat_log!(
-                    debug,
-                    "Sending command with too long payload ({:?} bytes) to log!",
+            if cmd_buf.len() < 50 {
+                defmt::debug!("Sending command: \"{=[u8]:a}\"", &cmd_buf);
+            } else {
+                defmt::debug!(
+                    "Sending command with too long payload ({} bytes) to log!",
                     cmd_buf.len()
-                ),
-            };
+                );
+            }
 
             for c in cmd_buf {
                 nb::block!(self.tx.try_write(c)).map_err(|_e| Error::Write)?;
@@ -153,8 +141,7 @@ where
                     return;
                 }
             } else {
-                #[cfg(feature = "log-logging")]
-                atat_log!(debug, "Parsing URC FAILED: {:?}", urc)
+                defmt::debug!("Parsing URC FAILED: {=[u8]:a}", urc)
             }
             unsafe { self.urc_c.dequeue_unchecked() };
         }
@@ -184,7 +171,7 @@ where
                 // Tell the parser to reset to initial state due to timeout
                 if self.com_p.enqueue(Command::Reset).is_err() {
                     // TODO: Consider how to act in this situation.
-                    atat_log!(error, "Failed to signal parser to clear buffer on timeout!");
+                    defmt::error!("Failed to signal parser to clear buffer on timeout!");
                 }
                 return Err(nb::Error::Other(Error::Timeout));
             }
@@ -199,7 +186,7 @@ where
     fn reset(&mut self) {
         if self.com_p.enqueue(Command::Reset).is_err() {
             // TODO: Consider how to act in this situation.
-            atat_log!(error, "Failed to signal ingress manager to reset!");
+            defmt::error!("Failed to signal ingress manager to reset!");
         }
         while self.res_c.dequeue().is_some() {}
         while self.urc_c.dequeue().is_some() {}
