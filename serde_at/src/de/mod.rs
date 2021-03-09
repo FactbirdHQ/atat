@@ -55,6 +55,18 @@ where
     pub fn new() -> Self {
         Self(heapless::Vec::<char, T>::new())
     }
+
+    pub fn to_string(&self) -> heapless::String<T>
+    where
+        T: heapless::ArrayLength<u8>,
+    {
+        let mut str = heapless::String::new();
+        for c in self.0.iter() {
+            // Ignore result here, as length of both `self.0` and `str` is `T`
+            str.push(*c).ok();
+        }
+        str
+    }
 }
 impl<T> Default for CharVec<T>
 where
@@ -836,6 +848,21 @@ mod tests {
     }
 
     #[test]
+    fn cgmi_string() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct CGMI {
+            pub id: CharVec<consts::U32>,
+        }
+
+        assert_eq!(
+            crate::from_slice(b"u-blox"),
+            Ok(CGMI {
+                id: CharVec(heapless::Vec::from_slice(&['u', '-', 'b', 'l', 'o', 'x']).unwrap())
+            })
+        );
+    }
+
+    #[test]
     fn u128_test() {
         assert_eq!(
             crate::from_str("+CCID: 89883030000005421166"),
@@ -857,13 +884,17 @@ mod tests {
 
     #[test]
     fn char_vec_struct() {
-        let expectation: CharVec<consts::U4> = CharVec::new();
         assert_eq!(
             CharVec(heapless::Vec::<char, consts::U4>::new()),
-            expectation
+            CharVec::new()
         );
-        let expectation: CharVec<consts::U4> =
-            CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_']).unwrap());
-        assert_eq!(crate::from_str("+CCID: IMP_"), Ok(expectation));
+
+        let res: CharVec<consts::U4> = crate::from_str("+CCID: IMP_").unwrap();
+        assert_eq!(
+            res,
+            CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_']).unwrap())
+        );
+
+        assert_eq!(res.to_string(), String::<consts::U4>::from("IMP_"));
     }
 }
