@@ -336,4 +336,9 @@ mod tests {
     }
 
     defmt::timestamp!("");
+
+    #[export_name = "_defmt_panic"]
+    fn panic() -> ! {
+        panic!()
+    }
 }
