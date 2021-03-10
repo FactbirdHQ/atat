@@ -206,18 +206,15 @@ mod test {
     use heapless::{consts, spsc::Queue, String, Vec};
     use nb;
 
-    struct CdMock {
-        time: u32,
-    }
+    struct CdMock;
 
     impl CountDown for CdMock {
         type Error = core::convert::Infallible;
         type Time = u32;
-        fn try_start<T>(&mut self, count: T) -> Result<(), Self::Error>
+        fn try_start<T>(&mut self, _count: T) -> Result<(), Self::Error>
         where
             T: Into<Self::Time>,
         {
-            self.time = count.into();
             Ok(())
         }
         fn try_wait(&mut self) -> nb::Result<(), Self::Error> {
@@ -393,11 +390,9 @@ mod test {
             static mut COM_Q: queues::ComQueue = Queue(heapless::i::Queue::u8());
             let (com_p, _com_c) = unsafe { COM_Q.split() };
 
-            let timer = CdMock { time: 0 };
-
             let tx_mock = TxMock::new(String::new());
             let client: Client<TxMock, CdMock, TestRxBufLen, TestUrcCapacity> =
-                Client::new(tx_mock, res_c, urc_c, com_p, timer, $config);
+                Client::new(tx_mock, res_c, urc_c, com_p, CdMock, $config);
             (client, res_p, urc_p)
         }};
     }
