@@ -607,7 +607,7 @@ mod tests {
         #[derive(Clone, PartialEq, Serialize)]
         pub struct WithBytes<'a> {
             s: Bytes<'a>,
-        };
+        }
         let slice = b"Some bytes";
         let b = WithBytes {
             s: Bytes(&slice[..]),
@@ -638,7 +638,7 @@ mod tests {
         pub struct WithCharVec {
             s: CharVec<consts::U8>,
             n: u8,
-        };
+        }
         let b = WithCharVec {
             s: CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
             n: 12,
