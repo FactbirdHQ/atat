@@ -51,14 +51,14 @@ where
 {
     fn from(ie: &InternalError) -> Self {
         match ie {
-            &InternalError::Read => Self::Read,
-            &InternalError::Write => Self::Write,
-            &InternalError::Timeout => Self::Timeout,
-            &InternalError::InvalidResponse => Self::InvalidResponse,
-            &InternalError::Aborted => Self::Aborted,
-            &InternalError::Overflow => Self::Overflow,
-            &InternalError::Parse => Self::Parse,
-            &InternalError::Error(ref e) => {
+            InternalError::Read => Self::Read,
+            InternalError::Write => Self::Write,
+            InternalError::Timeout => Self::Timeout,
+            InternalError::InvalidResponse => Self::InvalidResponse,
+            InternalError::Aborted => Self::Aborted,
+            InternalError::Overflow => Self::Overflow,
+            InternalError::Parse => Self::Parse,
+            InternalError::Error(ref e) => {
                 if let Ok(s) = String::from_utf8(e.clone()) {
                     if let Ok(e) = core::str::FromStr::from_str(s.as_str()) {
                         return Self::Error(e);

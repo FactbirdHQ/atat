@@ -151,7 +151,7 @@ where
         if let Some(result) = self.res_c.dequeue() {
             return cmd
                 .parse(result.as_deref())
-                .map_err(|e| nb::Error::Other(e.into()))
+                .map_err(nb::Error::from)
                 .and_then(|r| {
                     if let ClientState::AwaitingResponse = self.state {
                         self.timer.try_start(self.config.cmd_cooldown).ok();
@@ -161,10 +161,10 @@ where
                         Err(nb::Error::WouldBlock)
                     }
                 })
-                .or_else(|e| {
+                .map_err(|e| {
                     self.timer.try_start(self.config.cmd_cooldown).ok();
                     self.state = ClientState::Idle;
-                    Err(e)
+                    e
                 });
         } else if let Mode::Timeout = self.config.mode {
             if self.timer.try_wait().is_ok() {

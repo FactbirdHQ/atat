@@ -33,7 +33,7 @@ pub trait AtatUrc {
 ///
 /// Example:
 /// ```
-/// use atat::{AtatCmd, AtatResp, Error};
+/// use atat::{AtatCmd, AtatResp, Error, InternalError, GenericError};
 /// use core::fmt::Write;
 /// use heapless::Vec;
 ///
@@ -48,6 +48,7 @@ pub trait AtatUrc {
 /// impl<'a> AtatCmd for SetGreetingText<'a> {
 ///     type CommandLen = heapless::consts::U64;
 ///     type Response = NoResponse;
+///     type Error = GenericError;
 ///
 ///     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
 ///         let mut buf: Vec<u8, Self::CommandLen> = Vec::new();
@@ -55,7 +56,7 @@ pub trait AtatUrc {
 ///         buf
 ///     }
 ///
-///     fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error> {
+///     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 ///         Ok(NoResponse)
 ///     }
 /// }

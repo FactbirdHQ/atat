@@ -1,4 +1,3 @@
-use core::iter::FromIterator;
 use heapless::{ArrayLength, Vec};
 
 pub trait SliceExt {
@@ -45,7 +44,7 @@ impl SliceExt for [u8] {
 /// let mut buf: Vec<u8, consts::U128> =
 ///     Vec::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\nAT+GMR\r\r\n").unwrap();
 /// let response: Option<Vec<u8, consts::U64>> =
-///     get_line(&mut buf, b"OK", b'\r', b'\n', false, false);
+///     get_line(&mut buf, b"OK", b'\r', b'\n', false, false, false);
 /// assert_eq!(
 ///     response,
 ///     Some(Vec::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n").unwrap())
@@ -87,21 +86,20 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
 
             let (left, right) = match buf.split_at(index + needle.len() + white_space) {
                 (left, right) if !swap => (left, right),
-                (left @ _, right @ _) if swap => (right, left),
+                (left, right) if swap => (right, left),
                 _ => return None,
             };
 
-            let return_buf = Vec::from_iter(
-                if trim_response {
-                    left.trim(&[b'\t', b' ', format_char, line_term_char])
-                } else {
-                    left
-                }
-                .iter()
-                // Truncate the response, rather than panic in case of buffer overflow!
-                .take(L::to_usize())
-                .cloned(),
-            );
+            let return_buf = if trim_response {
+                left.trim(&[b'\t', b' ', format_char, line_term_char])
+            } else {
+                left
+            }
+            .iter()
+            // Truncate the response, rather than panic in case of buffer overflow!
+            .take(L::to_usize())
+            .cloned()
+            .collect();
 
             *buf = right.iter().cloned().collect();
             Some(return_buf)

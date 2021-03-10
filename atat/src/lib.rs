@@ -15,7 +15,7 @@
 //!
 //! ### Command and response example without `atat_derive`:
 //! ```
-//! use atat::{AtatCmd, AtatResp, Error};
+//! use atat::{AtatCmd, AtatResp, Error, InternalError, GenericError};
 //! use core::fmt::Write;
 //! use heapless::{consts, String, Vec};
 //!
@@ -38,6 +38,7 @@
 //! impl<'a> AtatCmd for SetGreetingText<'a> {
 //!     type CommandLen = consts::U64;
 //!     type Response = NoResponse;
+//!     type Error = GenericError;
 //!
 //!     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
 //!         let mut buf: Vec<u8, Self::CommandLen> = Vec::new();
@@ -45,7 +46,7 @@
 //!         buf
 //!     }
 //!
-//!     fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error> {
+//!     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 //!         Ok(NoResponse)
 //!     }
 //! }
@@ -53,15 +54,16 @@
 //! impl AtatCmd for GetGreetingText {
 //!     type CommandLen = consts::U8;
 //!     type Response = GreetingText;
+//!     type Error = GenericError;
 //!
 //!     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
 //!         Vec::from_slice(b"AT+CSGT?").unwrap()
 //!     }
 //!
-//!     fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error> {
+//!     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 //!         // Parse resp into `GreetingText`
 //!         Ok(GreetingText {
-//!             text: String::from(core::str::from_utf8(resp).unwrap()),
+//!             text: String::from(core::str::from_utf8(resp.unwrap()).unwrap()),
 //!         })
 //!     }
 //! }
