@@ -1,10 +1,9 @@
 use embedded_hal::{serial, timer::CountDown};
 
-use crate::atat_log;
 use crate::error::Error;
-use crate::queues::{ComItem, ComProducer, ResConsumer, ResItem, UrcConsumer, UrcItem};
+use crate::queues::{ComProducer, ResConsumer, UrcConsumer, UrcItem};
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
-use crate::{Command, Config, Mode};
+use crate::{Command, Config};
 use heapless::{consts, ArrayLength};
 
 #[derive(Debug, PartialEq)]
@@ -13,57 +12,57 @@ enum ClientState {
     AwaitingResponse,
 }
 
+/// Whether the AT client should block while waiting responses or return early.
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum Mode {
+    /// The function call will wait as long as necessary to complete the operation
+    Blocking,
+    /// The function call will not wait at all to complete the operation, and only do what it can.
+    NonBlocking,
+    /// The function call will wait only up the max timeout of each command to complete the operation.
+    Timeout,
+}
+
 /// Client responsible for handling send, receive and timeout from the
 /// userfacing side. The client is decoupled from the ingress-manager through
 /// some spsc queue consumers, where any received responses can be dequeued. The
 /// Client also has an spsc producer, to allow signaling commands like
-/// `clearBuffer` to the ingress-manager.
-pub struct Client<
-    Tx,
-    T,
-    BufLen = consts::U256,
-    ComCapacity = consts::U3,
-    ResCapacity = consts::U5,
-    UrcCapacity = consts::U10,
-> where
+/// `reset` to the ingress-manager.
+pub struct Client<Tx, T, BufLen = consts::U256, UrcCapacity = consts::U10>
+where
     Tx: serial::Write<u8>,
     T: CountDown,
     BufLen: ArrayLength<u8>,
-    ComCapacity: ArrayLength<ComItem>,
-    ResCapacity: ArrayLength<ResItem<BufLen>>,
     UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
     /// Serial writer
     tx: Tx,
 
     /// The response consumer receives responses from the ingress manager
-    res_c: ResConsumer<BufLen, ResCapacity>,
+    res_c: ResConsumer<BufLen>,
     /// The URC consumer receives URCs from the ingress manager
     urc_c: UrcConsumer<BufLen, UrcCapacity>,
     /// The command producer can send commands to the ingress manager
-    com_p: ComProducer<ComCapacity>,
+    com_p: ComProducer,
 
     state: ClientState,
     timer: T,
     config: Config,
 }
 
-impl<Tx, T, BufLen, ComCapacity, ResCapacity, UrcCapacity>
-    Client<Tx, T, BufLen, ComCapacity, ResCapacity, UrcCapacity>
+impl<Tx, T, BufLen, UrcCapacity> Client<Tx, T, BufLen, UrcCapacity>
 where
     Tx: serial::Write<u8>,
     T: CountDown,
     T::Time: From<u32>,
     BufLen: ArrayLength<u8>,
-    ComCapacity: ArrayLength<ComItem>,
-    ResCapacity: ArrayLength<ResItem<BufLen>>,
     UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
     pub fn new(
         tx: Tx,
-        res_c: ResConsumer<BufLen, ResCapacity>,
+        res_c: ResConsumer<BufLen>,
         urc_c: UrcConsumer<BufLen, UrcCapacity>,
-        com_p: ComProducer<ComCapacity>,
+        com_p: ComProducer,
         timer: T,
         config: Config,
     ) -> Self {
@@ -79,30 +78,20 @@ where
     }
 }
 
-impl<Tx, T, BufLen, ComCapacity, ResCapacity, UrcCapacity> AtatClient
-    for Client<Tx, T, BufLen, ComCapacity, ResCapacity, UrcCapacity>
+impl<Tx, T, BufLen, UrcCapacity> AtatClient for Client<Tx, T, BufLen, UrcCapacity>
 where
     Tx: serial::Write<u8>,
     T: CountDown,
     T::Time: From<u32>,
     BufLen: ArrayLength<u8>,
-    ComCapacity: ArrayLength<ComItem>,
-    ResCapacity: ArrayLength<ResItem<BufLen>>,
     UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
     fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>> {
         if let ClientState::Idle = self.state {
-            if cmd.force_receive_state()
-                && self
-                    .com_p
-                    .enqueue(Command::ForceState(
-                        crate::ingress_manager::State::ReceivingResponse,
-                    ))
-                    .is_err()
+            if cmd.force_receive_state() && self.com_p.enqueue(Command::ForceReceiveState).is_err()
             {
                 // TODO: Consider how to act in this situation.
-                atat_log!(
-                    error,
+                defmt::error!(
                     "Failed to signal parser to force state transition to 'ReceivingResponse'!"
                 );
             }
@@ -113,30 +102,25 @@ where
             nb::block!(self.timer.try_wait()).ok();
             let cmd_buf = cmd.as_bytes();
 
-            match core::str::from_utf8(&cmd_buf) {
-                Ok(_s) if _s.len() < 50 => {
-                    #[cfg(not(feature = "log-logging"))]
-                    atat_log!(debug, "Sending command: \"{:str}\"", _s[.._s.len() - 2]);
-                    #[cfg(feature = "log-logging")]
-                    atat_log!(debug, "Sending command: \"{:?}\"", _s[.._s.len() - 2]);
-                }
-                Err(_) if cmd_buf.len() < 50 => atat_log!(
-                    debug,
-                    "Sending command: {:?}",
-                    core::convert::AsRef::<[u8]>::as_ref(&cmd_buf)
-                ),
-                _ => atat_log!(
-                    debug,
-                    "Sending command with too long payload ({:?} bytes) to log!",
+            if cmd_buf.len() < 50 {
+                defmt::debug!("Sending command: \"{=[u8]:a}\"", &cmd_buf);
+            } else {
+                defmt::debug!(
+                    "Sending command with too long payload ({} bytes) to log!",
                     cmd_buf.len()
-                ),
-            };
+                );
+            }
 
             for c in cmd_buf {
                 nb::block!(self.tx.try_write(c)).map_err(|_e| Error::Write)?;
             }
             nb::block!(self.tx.try_flush()).map_err(|_e| Error::Write)?;
             self.state = ClientState::AwaitingResponse;
+        }
+
+        if !cmd.expects_response_code() {
+            self.state = ClientState::Idle;
+            return Ok(cmd.parse(Ok(&[])).map_err(nb::Error::Other)?);
         }
 
         match self.config.mode {
@@ -156,6 +140,8 @@ where
                 if !f(urc) {
                     return;
                 }
+            } else {
+                defmt::debug!("Parsing URC FAILED: {=[u8]:a}", urc)
             }
             unsafe { self.urc_c.dequeue_unchecked() };
         }
@@ -183,10 +169,10 @@ where
         } else if let Mode::Timeout = self.config.mode {
             if self.timer.try_wait().is_ok() {
                 self.state = ClientState::Idle;
-                // Tell the parser to clear the buffer due to timeout
-                if self.com_p.enqueue(Command::ClearBuffer).is_err() {
+                // Tell the parser to reset to initial state due to timeout
+                if self.com_p.enqueue(Command::Reset).is_err() {
                     // TODO: Consider how to act in this situation.
-                    atat_log!(error, "Failed to signal parser to clear buffer on timeout!");
+                    defmt::error!("Failed to signal parser to clear buffer on timeout!");
                 }
                 return Err(nb::Error::Other(Error::Timeout));
             }
@@ -197,14 +183,26 @@ where
     fn get_mode(&self) -> Mode {
         self.config.mode
     }
+
+    fn reset(&mut self) {
+        if self.com_p.enqueue(Command::Reset).is_err() {
+            // TODO: Consider how to act in this situation.
+            defmt::error!("Failed to signal ingress manager to reset!");
+        }
+        while self.res_c.dequeue().is_some() {}
+        while self.urc_c.dequeue().is_some() {}
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{GenericError, atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc}};
     use crate::queues;
     use crate::{self as atat, InternalError};
+    use crate::{
+        atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc},
+        GenericError,
+    };
     use heapless::{consts, spsc::Queue, String, Vec};
     use nb;
 
@@ -383,32 +381,23 @@ mod test {
     }
 
     type TestRxBufLen = consts::U256;
-    type TestComCapacity = consts::U3;
-    type TestResCapacity = consts::U5;
     type TestUrcCapacity = consts::U10;
 
     macro_rules! setup {
         ($config:expr) => {{
-            static mut RES_Q: queues::ResQueue<TestRxBufLen, TestResCapacity> =
-                Queue(heapless::i::Queue::u8());
+            static mut RES_Q: queues::ResQueue<TestRxBufLen> = Queue(heapless::i::Queue::u8());
             let (res_p, res_c) = unsafe { RES_Q.split() };
             static mut URC_Q: queues::UrcQueue<TestRxBufLen, TestUrcCapacity> =
                 Queue(heapless::i::Queue::u8());
             let (urc_p, urc_c) = unsafe { URC_Q.split() };
-            static mut COM_Q: queues::ComQueue<TestComCapacity> = Queue(heapless::i::Queue::u8());
+            static mut COM_Q: queues::ComQueue = Queue(heapless::i::Queue::u8());
             let (com_p, _com_c) = unsafe { COM_Q.split() };
 
             let timer = CdMock { time: 0 };
 
             let tx_mock = TxMock::new(String::new());
-            let client: Client<
-                TxMock,
-                CdMock,
-                TestRxBufLen,
-                TestComCapacity,
-                TestResCapacity,
-                TestUrcCapacity,
-            > = Client::new(tx_mock, res_c, urc_c, com_p, timer, $config);
+            let client: Client<TxMock, CdMock, TestRxBufLen, TestUrcCapacity> =
+                Client::new(tx_mock, res_c, urc_c, com_p, timer, $config);
             (client, res_p, urc_p)
         }};
     }

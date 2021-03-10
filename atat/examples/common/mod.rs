@@ -1,12 +1,8 @@
 pub mod general;
 
-use atat::{atat_derive::AtatUrc, AtatUrc};
+use atat::atat_derive::AtatUrc;
 
-use atat::{
-    atat_derive::{AtatCmd, AtatResp},
-    AtatCmd, AtatResp,
-};
-use heapless::String;
+use atat::atat_derive::{AtatCmd, AtatResp};
 
 #[derive(Clone, AtatResp)]
 pub struct NoResponse;

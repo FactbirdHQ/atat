@@ -1,7 +1,5 @@
 #![no_main]
 #![no_std]
-// TEMP: Crate wide allow this
-#![allow(deprecated, unused)]
 
 extern crate atat;
 extern crate cortex_m;
@@ -17,23 +15,23 @@ mod common;
 
 use cortex_m::asm;
 use hal::{
-    gpio::{
-        gpioa::{PA2, PA3},
-        Alternate, Floating, Input, AF7,
-    },
     pac::{interrupt, Peripherals, USART2},
     prelude::*,
     serial::{Config, Event::Rxne, Rx, Serial},
     timer::{Event, Timer},
 };
 
-use atat::{prelude::*, ClientBuilder, ComQueue, Queues, ResQueue, UrcQueue};
+use atat::{
+    digest::DefaultDigester, urc_matcher::DefaultUrcMatcher, ClientBuilder, ComQueue, Queues,
+    ResQueue, UrcQueue,
+};
 
-use heapless::{consts, spsc::Queue, String};
+use heapless::{consts, spsc::Queue};
 
 use crate::rt::entry;
 
-static mut INGRESS: Option<atat::IngressManager<consts::U256, atat::NoopUrcMatcher>> = None;
+static mut INGRESS: Option<atat::IngressManager<DefaultDigester, DefaultUrcMatcher, consts::U256>> =
+    None;
 static mut RX: Option<Rx<USART2>> = None;
 
 #[entry]
@@ -76,7 +74,7 @@ fn main() -> ! {
 
     serial.listen(Rxne);
 
-    static mut RES_QUEUE: ResQueue<consts::U256, consts::U5> = Queue(heapless::i::Queue::u8());
+    static mut RES_QUEUE: ResQueue<consts::U256, consts::U1> = Queue(heapless::i::Queue::u8());
     static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
     static mut COM_QUEUE: ComQueue<consts::U3> = Queue(heapless::i::Queue::u8());
 

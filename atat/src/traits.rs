@@ -100,6 +100,13 @@ pub trait AtatCmd {
     fn force_receive_state(&self) -> bool {
         false
     }
+
+    /// Force client to look for a response.
+    /// Empty slice is then passed to parse by client.
+    /// Implemented to enhance expandability fo ATAT
+    fn expects_response_code(&self) -> bool {
+        true
+    }
 }
 
 pub trait AtatClient {
@@ -172,6 +179,9 @@ pub trait AtatClient {
     /// - `Blocking`
     /// - `Timeout`
     fn get_mode(&self) -> Mode;
+
+    /// Reset the client, queues and ingress buffer, discarding any contents
+    fn reset(&mut self);
 }
 
 impl<T, L> AtatResp for heapless::Vec<T, L>
@@ -232,13 +242,13 @@ mod test {
 
     #[test]
     fn single_multi_response() {
-        let mut v = Vec::<_, heapless::consts::U5>::from_slice(&[PDPContextState {
+        let mut v = Vec::<_, heapless::consts::U1>::from_slice(&[PDPContextState {
             cid: 1,
             status: PDPContextStatus::Deactivated,
         }])
         .unwrap();
 
-        let mut resp: heapless::Vec<PDPContextState, heapless::consts::U5> =
+        let mut resp: heapless::Vec<PDPContextState, heapless::consts::U1> =
             serde_at::from_slice(b"+CGACT: 1,0\r\n").unwrap();
 
         assert_eq!(resp.pop(), v.pop());

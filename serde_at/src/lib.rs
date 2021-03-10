@@ -4,6 +4,7 @@
 #![deny(warnings)]
 #![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_const_for_fn)]
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 
 pub mod de;

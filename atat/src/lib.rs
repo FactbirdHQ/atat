@@ -7,7 +7,8 @@
 //!
 //! This can be simplified alot using the [`atat_derive`] crate!
 //!
-//! [`AtatCmd`]: trait.AtatCmd.html [`AtatResp`]: trait.AtatResp.html
+//! [`AtatCmd`]: trait.AtatCmd.html
+//! [`AtatResp`]: trait.AtatResp.html
 //! [`atat_derive`]: <https://crates.io/crates/atat_derive>
 //!
 //! # Examples
@@ -151,9 +152,9 @@
 //!
 //!     serial.listen(Rxne);
 //!
-//!     static mut RES_QUEUE: ResQueue<consts::U256, consts::U5> = Queue(heapless::i::Queue::u8());
+//!     static mut RES_QUEUE: ResQueue<consts::U256> = Queue(heapless::i::Queue::u8());
 //!     static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
-//!     static mut COM_QUEUE: ComQueue<consts::U3> = Queue(heapless::i::Queue::u8());
+//!     static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
 //!
 //!     let queues = Queues {
 //!         res_queue: unsafe { RES_QUEUE.split() },
@@ -206,8 +207,6 @@
 //!
 //! - **`derive`** *(enabled by default)* - Re-exports [`atat_derive`] to allow
 //!   deriving `Atat__` traits.
-//! - **`log-logging`** *(disabled by default)* - Enable log statements on
-//!   various log levels to aid debugging. Powered by `log`.
 //! - **`defmt-default`** *(disabled by default)* - Enable log statements at
 //!   INFO, or TRACE, level and up, to aid debugging. Powered by `defmt`.
 //! - **`defmt-trace`** *(disabled by default)* - Enable log statements at TRACE
@@ -221,27 +220,28 @@
 //! - **`defmt-error`** *(disabled by default)* - Enable log statements at ERROR
 //!   level and up, to aid debugging. Powered by `defmt`.
 
-#![deny(rust_2018_compatibility)]
-#![deny(rust_2018_idioms)]
 #![deny(warnings)]
 #![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::unused_unit)]
-#![allow(clippy::clippy::used_underscore_binding)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::unused_unit)]
+#![allow(clippy::use_self)]
+#![allow(clippy::clippy::too_many_lines)]
+#![allow(clippy::module_name_repetitions)]
 #![allow(clippy::used_underscore_binding)]
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 
+mod builder;
 mod client;
+mod digest;
 mod error;
+pub mod helpers;
 mod ingress_manager;
 mod queues;
 mod traits;
+mod urc_matcher;
 
 #[cfg(feature = "derive")]
 pub use atat_derive;
-
 #[cfg(feature = "derive")]
 pub mod derive;
 
@@ -257,125 +257,25 @@ pub use typenum;
 #[cfg(feature = "derive")]
 pub use heapless;
 
-pub use self::client::Client;
-pub use self::error::{Error, InternalError, GenericError};
-pub use self::ingress_manager::{
-    get_line, IngressManager, NoopUrcMatcher, UrcMatcher, UrcMatcherResult,
-};
-pub use self::queues::{ComQueue, ResQueue, UrcQueue};
-pub use self::traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
-
-use heapless::ArrayLength;
-use queues::{
-    ComConsumer, ComItem, ComProducer, ResConsumer, ResItem, ResProducer, UrcConsumer, UrcItem,
-    UrcProducer,
-};
-
-pub mod prelude {
-    //! The prelude is a collection of all the traits in this crate
-    //!
-    //! The traits have been renamed to avoid collisions with other items when
-    //! performing a glob import.
-    pub use crate::AtatClient as _atat_AtatClient;
-    pub use crate::AtatCmd as _atat_AtatCmd;
-    pub use crate::AtatResp as _atat_AtatResp;
-    pub use crate::AtatUrc as _atat_AtatUrc;
-
-    #[cfg(feature = "derive")]
-    pub use crate::AtatLen as _atat_AtatLen;
-}
-
-#[cfg(all(
-    feature = "log-logging",
-    not(any(
-        feature = "defmt-default",
-        feature = "defmt-trace",
-        feature = "defmt-debug",
-        feature = "defmt-info",
-        feature = "defmt-warn",
-        feature = "defmt-error"
-    ))
-))]
-#[macro_export]
-macro_rules! atat_log {
-    ($level:ident, $($arg:tt)+) => {
-        log::$level!($($arg)+);
-    }
-}
-#[cfg(all(
-    any(
-        feature = "defmt-default",
-        feature = "defmt-trace",
-        feature = "defmt-debug",
-        feature = "defmt-info",
-        feature = "defmt-warn",
-        feature = "defmt-error"
-    ),
-    not(feature = "log-logging")
-))]
-#[macro_export]
-macro_rules! atat_log {
-    ($level:ident, $($arg:tt)+) => {
-        defmt::$level!($($arg)+);
-    }
-}
-#[cfg(any(
-    all(
-        any(
-            feature = "defmt-default",
-            feature = "defmt-trace",
-            feature = "defmt-debug",
-            feature = "defmt-info",
-            feature = "defmt-warn",
-            feature = "defmt-error"
-        ),
-        feature = "log-logging"
-    ),
-    not(any(
-        any(
-            feature = "defmt-default",
-            feature = "defmt-trace",
-            feature = "defmt-debug",
-            feature = "defmt-info",
-            feature = "defmt-warn",
-            feature = "defmt-error"
-        ),
-        feature = "log-logging"
-    ))
-))]
-#[macro_export]
-macro_rules! atat_log {
-    ($level:ident, $($arg:tt)+) => {
-        ();
-    };
-}
-
-/// Whether the AT client should block while waiting responses or return early.
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum Mode {
-    /// The function call will wait as long as necessary to complete the operation
-    Blocking,
-    /// The function call will not wait at all to complete the operation, and only do what it can.
-    NonBlocking,
-    /// The function call will wait only up the max timeout of each command to complete the operation.
-    Timeout,
-}
+pub use builder::ClientBuilder;
+pub use client::{Client, Mode};
+pub use digest::{DefaultDigester, DigestResult, Digester};
+pub use error::{Error, GenericError, InternalError};
+pub use ingress_manager::IngressManager;
+pub use queues::{ComQueue, Queues, ResQueue, UrcQueue};
+pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
+pub use urc_matcher::{DefaultUrcMatcher, UrcMatcher, UrcMatcherResult};
 
 /// Commands that can be sent from the client to the ingress manager, for
 /// configuration after initial setup. This is also used for stuff like clearing
 /// the receive buffer on command timeouts.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Command {
-    /// Clear the rx buffer, usually as a result of a command timeout
-    ClearBuffer,
-    /// Force the ingress manager into the given state
-    ForceState(ingress_manager::State),
-    /// Change the line termination character, must be called af setting `ATS3=`
-    SetLineTerm(u8),
-    /// Change the format character, must be called af setting `ATS4=`
-    SetFormat(u8),
-    /// Enable or disable AT echo, must be called after setting `ATE`
-    SetEcho(bool),
+    /// Reset to initial state, including clearing the buffer,
+    /// usually as a result of a command timeout
+    Reset,
+    /// Force the ingress manager into receive state
+    ForceReceiveState,
 }
 
 /// Configuration of both the ingress manager, and the AT client. Some of these
@@ -386,9 +286,6 @@ pub enum Command {
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct Config {
     mode: Mode,
-    line_term_char: u8,
-    format_char: u8,
-    at_echo_enabled: bool,
     cmd_cooldown: u32,
 }
 
@@ -396,9 +293,6 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             mode: Mode::Blocking,
-            line_term_char: b'\r',
-            format_char: b'\n',
-            at_echo_enabled: true,
             cmd_cooldown: 20,
         }
     }
@@ -414,132 +308,32 @@ impl Config {
     }
 
     #[must_use]
-    pub const fn with_line_term(mut self, c: u8) -> Self {
-        self.line_term_char = c;
-        self
-    }
-
-    #[must_use]
-    pub const fn with_format_char(mut self, c: u8) -> Self {
-        self.format_char = c;
-        self
-    }
-
-    #[must_use]
-    pub const fn with_at_echo(mut self, e: bool) -> Self {
-        self.at_echo_enabled = e;
-        self
-    }
-
-    #[must_use]
     pub const fn cmd_cooldown(mut self, ms: u32) -> Self {
         self.cmd_cooldown = ms;
         self
     }
 }
 
-type ClientParser<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity> = (
-    Client<Tx, T, BufLen, ComCapacity, ResCapacity, UrcCapacity>,
-    IngressManager<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>,
-);
+#[cfg(test)]
+mod tests {
+    //! This module is required in order to satisfy the requirements of defmt, while running tests.
+    //! Note that this will cause all log `defmt::` log statements to be thrown away.
 
-pub struct Queues<BufLen, ComCapacity, ResCapacity, UrcCapacity>
-where
-    BufLen: ArrayLength<u8>,
-    ComCapacity: ArrayLength<ComItem>,
-    ResCapacity: ArrayLength<ResItem<BufLen>>,
-    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
-{
-    pub res_queue: (
-        ResProducer<BufLen, ResCapacity>,
-        ResConsumer<BufLen, ResCapacity>,
-    ),
-    pub urc_queue: (
-        UrcProducer<BufLen, UrcCapacity>,
-        UrcConsumer<BufLen, UrcCapacity>,
-    ),
-    pub com_queue: (ComProducer<ComCapacity>, ComConsumer<ComCapacity>),
-}
+    use core::ptr::NonNull;
 
-/// Builder to set up a [`Client`] and [`IngressManager`] pair.
-///
-/// Create a new builder through the [`new`] method.
-///
-/// [`Client`]: struct.Client.html
-/// [`IngressManager`]: struct.IngressManager.html
-/// [`new`]: #method.new
-pub struct ClientBuilder<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity> {
-    serial_tx: Tx,
-    timer: T,
-    config: Config,
-    custom_urc_matcher: Option<U>,
-    #[doc(hidden)]
-    _internal: core::marker::PhantomData<(BufLen, ComCapacity, ResCapacity, UrcCapacity)>,
-}
+    #[defmt::global_logger]
+    struct Logger;
+    impl defmt::Write for Logger {
+        fn write(&mut self, _bytes: &[u8]) {}
+    }
 
-impl<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity>
-    ClientBuilder<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity>
-where
-    Tx: embedded_hal::serial::Write<u8>,
-    T: embedded_hal::timer::CountDown,
-    T::Time: From<u32>,
-    U: UrcMatcher<BufLen>,
-    BufLen: ArrayLength<u8>,
-    ComCapacity: ArrayLength<ComItem>,
-    ResCapacity: ArrayLength<ResItem<BufLen>>,
-    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
-{
-    /// Create a builder for new Atat client instance.
-    ///
-    /// The `serial_tx` type must implement the `embedded_hal`
-    /// [`serial::Write<u8>`][serialwrite] trait while the timer must implement
-    /// the [`timer::CountDown`][timercountdown] trait.
-    ///
-    /// [serialwrite]: ../embedded_hal/serial/trait.Write.html
-    /// [timercountdown]: ../embedded_hal/timer/trait.CountDown.html
-    pub fn new(serial_tx: Tx, timer: T, config: Config) -> Self {
-        Self {
-            serial_tx,
-            timer,
-            config,
-            custom_urc_matcher: None,
-            #[doc(hidden)]
-            _internal: core::marker::PhantomData,
+    unsafe impl defmt::Logger for Logger {
+        fn acquire() -> Option<NonNull<dyn defmt::Write>> {
+            Some(NonNull::from(&Logger as &dyn defmt::Write))
         }
+
+        unsafe fn release(_: NonNull<dyn defmt::Write>) {}
     }
 
-    /// Use a custom [`UrcMatcher`] implementation.
-    ///
-    /// [`UrcMatcher`]: trait.UrcMatcher.html
-    pub fn with_custom_urc_matcher(mut self, matcher: U) -> Self {
-        self.custom_urc_matcher = Some(matcher);
-        self
-    }
-
-    /// Set up and return a [`Client`] and [`IngressManager`] pair.
-    ///
-    /// [`Client`]: struct.Client.html
-    /// [`IngressManager`]: struct.IngressManager.html
-    pub fn build(
-        self,
-        queues: Queues<BufLen, ComCapacity, ResCapacity, UrcCapacity>,
-    ) -> ClientParser<Tx, T, U, BufLen, ComCapacity, ResCapacity, UrcCapacity> {
-        let parser = IngressManager::with_custom_urc_matcher(
-            queues.res_queue.0,
-            queues.urc_queue.0,
-            queues.com_queue.1,
-            self.config,
-            self.custom_urc_matcher,
-        );
-        let client = Client::new(
-            self.serial_tx,
-            queues.res_queue.1,
-            queues.urc_queue.1,
-            queues.com_queue.0,
-            self.timer,
-            self.config,
-        );
-
-        (client, parser)
-    }
+    defmt::timestamp!("");
 }

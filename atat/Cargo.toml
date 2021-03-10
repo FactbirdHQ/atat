@@ -1,6 +1,6 @@
 [package]
 name = "atat"
-version = "0.7.2-alpha.0"
+version = "0.9.1-alpha.0"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 description = "AT Parser for serial based device crates"
 readme = "../README.md"
@@ -20,27 +20,24 @@ maintenance = { status = "actively-developed" }
 [dependencies]
 embedded-hal = { version = "1.0.0-alpha.4" }
 nb = "^1"
-heapless = { version = "0.5.6", features = ["serde"] }
-serde_at = { path = "../serde_at", version = "^0.7.2-alpha.0"}
-atat_derive = { path = "../atat_derive", version = "^0.7.2-alpha.0", optional = true }
+heapless = { version = "^0.5.6", features = ["serde"] }
+serde_at = { path = "../serde_at", version = "0.9.1-alpha.0"}
+atat_derive = { path = "../atat_derive", version = "0.9.1-alpha.0", optional = true }
 serde = { version = "^1", default-features = false }
 typenum = "^1"
 
-log = { version = "^0.4", default-features = false, optional = true }
-defmt = { version = "^0.1" }
+defmt = { version = "^0.2" }
 
 [dev-dependencies]
-cortex-m = "0.6.3"
-cortex-m-rt = "0.6.12"
-cortex-m-rtic = "0.5.4"
+cortex-m = "0.7.1"
+cortex-m-rt = "0.6.13"
+cortex-m-rtic = "0.5.5"
 panic-halt = "0.2.0"
-stm32l4xx-hal = { version = "0.5", features = ["stm32l4x5", "rt"] }
+stm32l4xx-hal = { version = "0.6", features = ["stm32l4x5", "rt"] }
 
 [features]
 default = ["derive"]
 derive = ["atat_derive"]
-
-log-logging = ["log"]
 
 std = ["serde_at/std"]
 

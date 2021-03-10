@@ -1,7 +1,5 @@
 #![no_main]
 #![no_std]
-// TEMP: Crate wide allow this
-#![allow(deprecated, unused)]
 
 extern crate atat;
 extern crate heapless;
@@ -13,31 +11,30 @@ extern crate stm32l4xx_hal as hal;
 mod common;
 
 use hal::{
-    gpio::{
-        gpioa::{PA2, PA3},
-        Alternate, Floating, Input, AF7,
-    },
-    pac::{interrupt, Peripherals, USART2},
+    pac::{Peripherals, USART2},
     prelude::*,
     serial::{Config, Event::Rxne, Rx, Serial},
-    timer::{Event, Timer},
+    timer::Timer,
 };
 
-use atat::{prelude::*, ClientBuilder, ComQueue, Queues, ResQueue, UrcQueue};
+use atat::{
+    digest::DefaultDigester, urc_matcher::DefaultUrcMatcher, ClientBuilder, ComQueue, Queues,
+    ResQueue, UrcQueue,
+};
 use rtic::{app, export::wfi};
 
-use heapless::{consts, spsc::Queue, String};
+use heapless::{consts, spsc::Queue};
 
 #[app(device = hal::pac, peripherals = true)]
 const APP: () = {
     struct Resources {
-        ingress: atat::IngressManager<consts::U256, atat::NoopUrcMatcher>,
+        ingress: atat::IngressManager<DefaultDigester, DefaultUrcMatcher, consts::U256>,
         rx: Rx<USART2>,
     }
 
     #[init(spawn = [at_loop])]
     fn init(ctx: init::Context) -> init::LateResources {
-        static mut RES_QUEUE: ResQueue<consts::U256, consts::U5> = Queue(heapless::i::Queue::u8());
+        static mut RES_QUEUE: ResQueue<consts::U256, consts::U1> = Queue(heapless::i::Queue::u8());
         static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
         static mut COM_QUEUE: ComQueue<consts::U3> = Queue(heapless::i::Queue::u8());
 

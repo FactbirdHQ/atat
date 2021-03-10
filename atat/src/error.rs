@@ -1,6 +1,6 @@
 use heapless::{consts, String, Vec};
 
-/// Errors returned by, or used within the crate
+/// Errors returned used internally within the crate
 #[derive(Clone, Debug, PartialEq)]
 pub enum InternalError {
     /// Serial read error
@@ -21,11 +21,11 @@ pub enum InternalError {
     Error(Vec<u8, consts::U85>),
 }
 
-/// Errors returned by, or used within the crate
+/// Errors returned by the crate
 #[derive(Clone, Debug, PartialEq, defmt::Format)]
 pub enum Error<E = GenericError>
 where
-    E: defmt::Format
+    E: defmt::Format,
 {
     /// Serial read error
     Read,
