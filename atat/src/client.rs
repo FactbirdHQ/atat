@@ -141,7 +141,7 @@ where
                     return;
                 }
             } else {
-                defmt::debug!("Parsing URC FAILED: {=[u8]:a}", urc)
+                defmt::error!("Parsing URC FAILED: {=[u8]:a}", urc)
             }
             unsafe { self.urc_c.dequeue_unchecked() };
         }
