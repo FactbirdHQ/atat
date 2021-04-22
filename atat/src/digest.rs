@@ -68,6 +68,7 @@ impl Digester for DefaultDigester {
         self.state = State::ReceivingResponse;
     }
 
+    #[allow(clippy::cognitive_complexity)]
     fn digest<L: ArrayLength<u8>>(
         &mut self,
         buf: &mut Vec<u8, L>,
