@@ -1,10 +1,11 @@
 use embedded_hal::{serial, timer::CountDown};
 
-use crate::error::Error;
 use crate::queues::{ComProducer, ResConsumer, UrcConsumer, UrcItem};
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
+use crate::{error::Error, queues::ResCapacity};
 use crate::{Command, Config};
 use heapless::{consts, ArrayLength};
+use typenum::Unsigned;
 
 #[derive(Debug, PartialEq)]
 enum ClientState {
@@ -156,6 +157,7 @@ where
                         self.state = ClientState::Idle;
                         Ok(cmd.parse(resp).map_err(nb::Error::Other)?)
                     } else {
+                        // FIXME: Is this correct?
                         Err(nb::Error::WouldBlock)
                     }
                 }
@@ -188,8 +190,17 @@ where
             // TODO: Consider how to act in this situation.
             defmt::error!("Failed to signal ingress manager to reset!");
         }
-        while self.res_c.dequeue().is_some() {}
-        while self.urc_c.dequeue().is_some() {}
+
+        for _ in 0..ResCapacity::USIZE {
+            if self.res_c.dequeue().is_none() {
+                break;
+            }
+        }
+        for _ in 0..UrcCapacity::USIZE {
+            if self.urc_c.dequeue().is_none() {
+                break;
+            }
+        }
     }
 }
 

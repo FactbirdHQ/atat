@@ -84,7 +84,9 @@ impl Digester for DefaultDigester {
             .unwrap();
         }
 
-        defmt::trace!("Digest {} / {=[u8]:a}", self.state, &buf);
+        if !buf.is_empty() {
+            defmt::trace!("Digest {} / {=[u8]:a}", self.state, &buf);
+        }
 
         match self.state {
             State::Idle => {
@@ -134,7 +136,7 @@ impl Digester for DefaultDigester {
                 // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
                 // ensure that we don't accidentally break a valid response.
                 } else if self.buf_incomplete || buf.len() > 2 {
-                    defmt::trace!(
+                    defmt::error!(
                         "Clearing buffer with invalid response (incomplete: {}, buflen: {})",
                         self.buf_incomplete,
                         buf.len()
@@ -154,10 +156,10 @@ impl Digester for DefaultDigester {
                     );
 
                     if let Some(r) = removed {
-                        defmt::trace!("Cleared partial buffer, removed {=[u8]:a}", &r);
+                        defmt::debug!("Cleared partial buffer, removed {=[u8]:a}", &r);
                     } else {
                         buf.clear();
-                        defmt::trace!("Cleared partial buffer, removed everything");
+                        defmt::debug!("Cleared partial buffer, removed everything");
                     }
 
                     // If the buffer wasn't cleared completely, that means that
@@ -522,32 +524,66 @@ mod test {
         assert_eq!(buf, Vec::<_, TestRxBufLen>::from_slice(b"").unwrap());
     }
 
-    // #[test]
-    // fn clear_buf_partial() {
-    //     let (mut ingress, _res_c, _urc_c) = setup!();
+    #[test]
+    fn clear_buf_partial() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
 
-    //     ingress.write(b"hello\r\nthere\r\ngoodbye\r\n");
-    //     assert_eq!(ingress.buf, b"hello\r\nthere\r\ngoodbye\r\n");
+        buf.extend_from_slice(b"hello\r\nthere\r\ngoodbye\r\n")
+            .unwrap();
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"hello\r\nthere\r\ngoodbye\r\n").unwrap()
+        );
 
-    //     ingress.clear_buf(false);
-    //     assert_eq!(ingress.buf, b"there\r\ngoodbye\r\n");
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
 
-    //     ingress.clear_buf(false);
-    //     assert_eq!(ingress.buf, b"goodbye\r\n");
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"there\r\ngoodbye\r\n").unwrap()
+        );
 
-    //     ingress.clear_buf(false);
-    //     assert_eq!(ingress.buf, b"");
-    // }
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"goodbye\r\n").unwrap()
+        );
 
-    // #[test]
-    // fn clear_buf_partial_no_newlines() {
-    //     let (mut ingress, _res_c, _urc_c) = setup!();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::from_slice(b"").unwrap());
+    }
 
-    //     ingress.write(b"no newlines anywhere");
-    //     assert_eq!(ingress.buf, b"no newlines anywhere");
-    //     ingress.clear_buf(false);
-    //     assert_eq!(ingress.buf, b"");
-    // }
+    #[test]
+    fn clear_buf_partial_no_newlines() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        buf.extend_from_slice(b"no newlines anywhere").unwrap();
+
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"no newlines anywhere").unwrap()
+        );
+
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::from_slice(b"").unwrap());
+    }
 
     #[test]
     fn custom_urc_matcher() {
