@@ -551,7 +551,7 @@ mod test {
             digester.digest(&mut buf, &mut urc_matcher),
             DigestResult::None
         );
-        
+
         assert_eq!(
             buf,
             Vec::<_, TestRxBufLen>::from_slice(b"goodbye\r\n").unwrap()
