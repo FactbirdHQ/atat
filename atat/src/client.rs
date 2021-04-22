@@ -121,7 +121,7 @@ where
 
         if !cmd.expects_response_code() {
             self.state = ClientState::Idle;
-            return Ok(cmd.parse(&[]).map_err(nb::Error::Other)?);
+            return cmd.parse(&[]).map_err(nb::Error::Other);
         }
 
         match self.config.mode {
@@ -155,7 +155,7 @@ where
                     if let ClientState::AwaitingResponse = self.state {
                         self.timer.try_start(self.config.cmd_cooldown).ok();
                         self.state = ClientState::Idle;
-                        Ok(cmd.parse(resp).map_err(nb::Error::Other)?)
+                        cmd.parse(resp).map_err(nb::Error::Other)
                     } else {
                         // FIXME: Is this correct?
                         Err(nb::Error::WouldBlock)
