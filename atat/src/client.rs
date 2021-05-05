@@ -121,7 +121,7 @@ where
 
         if !cmd.expects_response_code() {
             self.state = ClientState::Idle;
-            return cmd.parse(&[]).map_err(nb::Error::Other);
+            return cmd.parse(Ok(&[])).map_err(nb::Error::Other);
         }
 
         match self.config.mode {
@@ -160,6 +160,7 @@ where
                         Ok(r)
                     } else {
                         // FIXME: Is this correct?
+                        defmt::error!("Is this correct?! WouldBlock");
                         Err(nb::Error::WouldBlock)
                     }
                 })

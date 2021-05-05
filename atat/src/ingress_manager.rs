@@ -88,7 +88,7 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        // defmt::trace!("Write: \"{=[u8]:a}\"", data);
+        defmt::trace!("Write: \"{=[u8]:a}\"", data);
 
         if self.buf.extend_from_slice(data).is_err() {
             defmt::error!(
@@ -132,7 +132,7 @@ where
                     defmt::debug!("Received response: \"{=[u8]:a}\"", &r);
                 }
             }
-            Err(_e) => defmt::error!("Received error response"),
+            Err(e) => defmt::error!("Received error response {:?}", e),
         }
         if self.res_p.ready() {
             unsafe { self.res_p.enqueue_unchecked(resp) };
@@ -160,9 +160,9 @@ where
         if let Some(com) = self.com_c.dequeue() {
             match com {
                 Command::Reset => {
+                    defmt::debug!("Cleared complete buffer as requested by client [{=[u8]:a}]", &self.buf);
                     self.digester.reset();
                     self.buf.clear();
-                    defmt::debug!("Cleared complete buffer as requested by client");
                 }
                 Command::ForceReceiveState => self.digester.force_receive_state(),
             }

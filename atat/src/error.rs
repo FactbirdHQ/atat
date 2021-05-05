@@ -21,6 +21,21 @@ pub enum InternalError {
     Error(Vec<u8, consts::U85>),
 }
 
+impl defmt::Format for InternalError {
+    fn format(&self, f: defmt::Formatter) {
+        match self {
+            InternalError::Read => defmt::write!(f, "Read"),
+            InternalError::Write => defmt::write!(f, "Write"),
+            InternalError::Timeout => defmt::write!(f, "Timeout"),
+            InternalError::InvalidResponse => defmt::write!(f, "InvalidResponse"),
+            InternalError::Aborted => defmt::write!(f, "Aborted"),
+            InternalError::Overflow => defmt::write!(f, "Overflow"),
+            InternalError::Parse => defmt::write!(f, "Parse"),
+            InternalError::Error(e) => defmt::write!(f, "Error({=[u8]:a})", &e),
+        }
+    }
+}
+
 /// Errors returned by the crate
 #[derive(Clone, Debug, PartialEq, defmt::Format)]
 pub enum Error<E = GenericError>

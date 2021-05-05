@@ -213,7 +213,7 @@ impl Digester for DefaultDigester {
                             true,
                             true,
                         )
-                        .unwrap_or_else(Vec::new),
+                        .unwrap_or_else(|| Vec::from_slice(&line).unwrap_or_default()),
                     ))
                 } else if get_line::<L, _>(
                     buf,
@@ -242,6 +242,9 @@ impl Digester for DefaultDigester {
                 };
 
                 defmt::trace!("Switching to state Idle");
+                if let Err(e) = &resp {
+                    defmt::error!("Error: {:?}", defmt::Debug2Format(e));
+                }
                 self.state = State::Idle;
                 return DigestResult::Response(resp);
             }
@@ -765,6 +768,92 @@ mod test {
                     b"+CME ERROR: Operation not allowed.. This is a very long error message, that will neve"
                 )
                 .unwrap()
+            )))
+        );
+    }
+
+    #[test]
+    fn data_ready_prompt() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+USECMNG=0,0,\"Verisign\",1758\r>")
+            .unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(digester.state, State::Idle);
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(result, DigestResult::Response(Ok(heapless::Vec::new())));
+    }
+
+    // Regression test for #87
+    #[test]
+    fn cpin_parsing() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+CPIN?\r\r\n+CPIN: READY\r\n\r\nOK\r\n")
+            .unwrap();
+
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"+CPIN: READY\r\n\r\nOK\r\n").unwrap()
+        );
+
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(digester.state, State::Idle);
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(
+            result,
+            DigestResult::Response(Ok(Vec::from_slice(b"+CPIN: READY").unwrap()))
+        );
+    }
+
+    // Regression test for #87
+    #[test]
+    fn cpin_error() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+CPIN?\r\r\n+CME ERROR: 10\r\n")
+            .unwrap();
+
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"+CME ERROR: 10\r\n").unwrap()
+        );
+
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(digester.state, State::Idle);
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(
+            result,
+            DigestResult::Response(Err(InternalError::Error(
+                Vec::from_slice(b"+CME ERROR: 10").unwrap()
             )))
         );
     }
