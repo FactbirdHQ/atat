@@ -160,7 +160,10 @@ where
         if let Some(com) = self.com_c.dequeue() {
             match com {
                 Command::Reset => {
-                    defmt::debug!("Cleared complete buffer as requested by client [{=[u8]:a}]", &self.buf);
+                    defmt::debug!(
+                        "Cleared complete buffer as requested by client [{=[u8]:a}]",
+                        &self.buf
+                    );
                     self.digester.reset();
                     self.buf.clear();
                 }
