@@ -242,9 +242,6 @@ impl Digester for DefaultDigester {
                 };
 
                 defmt::trace!("Switching to state Idle");
-                if let Err(e) = &resp {
-                    defmt::error!("Error: {:?}", defmt::Debug2Format(e));
-                }
                 self.state = State::Idle;
                 return DigestResult::Response(resp);
             }
