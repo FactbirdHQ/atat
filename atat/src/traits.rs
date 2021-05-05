@@ -1,5 +1,8 @@
-use crate::error::{Error, InternalError};
 use crate::Mode;
+use crate::{
+    error::{Error, InternalError},
+    GenericError,
+};
 use core::str::FromStr;
 use heapless::{ArrayLength, Vec};
 
@@ -190,6 +193,33 @@ where
     T: AtatResp,
     L: ArrayLength<T>,
 {
+}
+
+impl<L> AtatResp for heapless::String<L> where L: ArrayLength<u8> {}
+
+impl<L> AtatCmd for heapless::String<L>
+where
+    L: ArrayLength<u8>,
+{
+    type CommandLen = L;
+
+    type Response = heapless::String<heapless::consts::U256>;
+    type Error = GenericError;
+
+    fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+        self.clone().into_bytes()
+    }
+
+    fn parse(
+        &self,
+        resp: Result<&[u8], &InternalError>,
+    ) -> Result<Self::Response, Error<Self::Error>> {
+        resp.map(|r| {
+            heapless::String::from_utf8(Vec::from_slice(r).map_err(|_| Error::Parse)?)
+                .map_err(|_| Error::Parse)
+        })
+        .map_err(Error::from)?
+    }
 }
 
 #[cfg(all(test, feature = "derive"))]
