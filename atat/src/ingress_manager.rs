@@ -162,7 +162,7 @@ where
                 Command::Reset => {
                     self.digester.reset();
                     self.buf.clear();
-                    defmt::trace!("Cleared complete buffer");
+                    defmt::debug!("Cleared complete buffer as requested by client");
                 }
                 Command::ForceReceiveState => self.digester.force_receive_state(),
             }
