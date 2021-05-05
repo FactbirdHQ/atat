@@ -16,7 +16,7 @@ keywords = ["derive", "AT"]
 quote = "^1"
 syn = { version = "^1", features = ["full"] }
 proc-macro2 = "^1"
-serde_at = { path = "../serde_at", version = "^0.10.0"}
+serde_at = { path = "../serde_at", version = "^0.10.1-alpha.0"}
 
 [lib]
 proc-macro = true
