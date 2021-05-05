@@ -68,6 +68,7 @@ impl Digester for DefaultDigester {
         self.state = State::ReceivingResponse;
     }
 
+    #[allow(clippy::cognitive_complexity)]
     fn digest<L: ArrayLength<u8>>(
         &mut self,
         buf: &mut Vec<u8, L>,
@@ -84,7 +85,9 @@ impl Digester for DefaultDigester {
             .unwrap();
         }
 
-        defmt::trace!("Digest {} / {=[u8]:a}", self.state, &buf);
+        if !buf.is_empty() {
+            defmt::trace!("Digest {} / {=[u8]:a}", self.state, &buf);
+        }
 
         match self.state {
             State::Idle => {
@@ -136,7 +139,7 @@ impl Digester for DefaultDigester {
                 // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
                 // ensure that we don't accidentally break a valid response.
                 } else if self.buf_incomplete || buf.len() > 2 {
-                    defmt::trace!(
+                    defmt::error!(
                         "Clearing buffer with invalid response (incomplete: {}, buflen: {})",
                         self.buf_incomplete,
                         buf.len()
@@ -157,10 +160,10 @@ impl Digester for DefaultDigester {
                     );
 
                     if let Some(r) = removed {
-                        defmt::trace!("Cleared partial buffer, removed {=[u8]:a}", &r);
+                        defmt::debug!("Cleared partial buffer, removed {=[u8]:a}", &r);
                     } else {
                         buf.clear();
-                        defmt::trace!("Cleared partial buffer, removed everything");
+                        defmt::debug!("Cleared partial buffer, removed everything");
                     }
 
                     // If the buffer wasn't cleared completely, that means that
@@ -541,6 +544,67 @@ mod test {
             digester.digest(&mut buf, &mut urc_matcher),
             DigestResult::None
         );
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::from_slice(b"").unwrap());
+    }
+
+    #[test]
+    fn clear_buf_partial() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        buf.extend_from_slice(b"hello\r\nthere\r\ngoodbye\r\n")
+            .unwrap();
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"hello\r\nthere\r\ngoodbye\r\n").unwrap()
+        );
+
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"there\r\ngoodbye\r\n").unwrap()
+        );
+
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"goodbye\r\n").unwrap()
+        );
+
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::from_slice(b"").unwrap());
+    }
+
+    #[test]
+    fn clear_buf_partial_no_newlines() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        buf.extend_from_slice(b"no newlines anywhere").unwrap();
+
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"no newlines anywhere").unwrap()
+        );
+
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+
         assert_eq!(buf, Vec::<_, TestRxBufLen>::from_slice(b"").unwrap());
     }
 

@@ -1,10 +1,11 @@
 use embedded_hal::{serial, timer::CountDown};
 
-use crate::error::Error;
 use crate::queues::{ComProducer, ResConsumer, UrcConsumer, UrcItem};
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
+use crate::{error::Error, queues::ResCapacity};
 use crate::{Command, Config};
 use heapless::{consts, ArrayLength};
+use typenum::Unsigned;
 
 #[derive(Debug, PartialEq)]
 enum ClientState {
@@ -120,7 +121,7 @@ where
 
         if !cmd.expects_response_code() {
             self.state = ClientState::Idle;
-            return Ok(cmd.parse(Ok(&[])).map_err(nb::Error::Other)?);
+            return cmd.parse(&[]).map_err(nb::Error::Other);
         }
 
         match self.config.mode {
@@ -141,7 +142,7 @@ where
                     return;
                 }
             } else {
-                defmt::debug!("Parsing URC FAILED: {=[u8]:a}", urc)
+                defmt::error!("Parsing URC FAILED: {=[u8]:a}", urc)
             }
             unsafe { self.urc_c.dequeue_unchecked() };
         }
@@ -158,6 +159,7 @@ where
                         self.state = ClientState::Idle;
                         Ok(r)
                     } else {
+                        // FIXME: Is this correct?
                         Err(nb::Error::WouldBlock)
                     }
                 })
@@ -189,8 +191,17 @@ where
             // TODO: Consider how to act in this situation.
             defmt::error!("Failed to signal ingress manager to reset!");
         }
-        while self.res_c.dequeue().is_some() {}
-        while self.urc_c.dequeue().is_some() {}
+
+        for _ in 0..ResCapacity::USIZE {
+            if self.res_c.dequeue().is_none() {
+                break;
+            }
+        }
+        for _ in 0..UrcCapacity::USIZE {
+            if self.urc_c.dequeue().is_none() {
+                break;
+            }
+        }
     }
 }
 

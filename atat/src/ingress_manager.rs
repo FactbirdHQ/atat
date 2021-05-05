@@ -88,11 +88,11 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        defmt::trace!("Write: \"{}\"", data);
+        // defmt::trace!("Write: \"{=[u8]:a}\"", data);
 
         if self.buf.extend_from_slice(data).is_err() {
             defmt::error!(
-                "OVERFLOW DATA! Buffer: {}",
+                "OVERFLOW DATA! Buffer: {=[u8]:a}",
                 core::convert::AsRef::<[u8]>::as_ref(&self.buf)
             );
             self.notify_response(Err(InternalError::Overflow));
@@ -162,7 +162,7 @@ where
                 Command::Reset => {
                     self.digester.reset();
                     self.buf.clear();
-                    defmt::trace!("Cleared complete buffer");
+                    defmt::debug!("Cleared complete buffer as requested by client");
                 }
                 Command::ForceReceiveState => self.digester.force_receive_state(),
             }
@@ -170,7 +170,7 @@ where
     }
 
     pub fn digest(&mut self) {
-        loop {
+        for _ in 0..5 {
             // Handle commands every loop to catch timeouts asap
             self.handle_com();
 
