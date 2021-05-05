@@ -1,6 +1,6 @@
 use heapless::{consts, ArrayLength, Vec};
 
-use crate::error::Error;
+use crate::error::InternalError;
 use crate::queues::{ComConsumer, ResProducer, UrcItem, UrcProducer};
 use crate::Command;
 use crate::{
@@ -88,14 +88,14 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        // defmt::trace!("Write: \"{=[u8]:a}\"", data);
+        defmt::trace!("Write: \"{=[u8]:a}\"", data);
 
         if self.buf.extend_from_slice(data).is_err() {
             defmt::error!(
                 "OVERFLOW DATA! Buffer: {=[u8]:a}",
                 core::convert::AsRef::<[u8]>::as_ref(&self.buf)
             );
-            self.notify_response(Err(Error::Overflow));
+            self.notify_response(Err(InternalError::Overflow));
         }
     }
 
@@ -123,7 +123,7 @@ where
 
     /// Notify the client that an appropriate response code, or error has been
     /// received
-    pub fn notify_response(&mut self, resp: Result<Vec<u8, BufLen>, Error>) {
+    fn notify_response(&mut self, resp: Result<Vec<u8, BufLen>, InternalError>) {
         match &resp {
             Ok(r) => {
                 if r.is_empty() {
@@ -132,7 +132,7 @@ where
                     defmt::debug!("Received response: \"{=[u8]:a}\"", &r);
                 }
             }
-            Err(e) => defmt::error!("Received error response: {}", e),
+            Err(e) => defmt::error!("Received error response {:?}", e),
         }
         if self.res_p.ready() {
             unsafe { self.res_p.enqueue_unchecked(resp) };
@@ -144,7 +144,7 @@ where
 
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
-    pub fn notify_urc(&mut self, resp: Vec<u8, BufLen>) {
+    fn notify_urc(&mut self, resp: Vec<u8, BufLen>) {
         defmt::debug!("Received response: \"{=[u8]:a}\"", &resp);
 
         if self.urc_p.ready() {
@@ -156,13 +156,16 @@ where
     }
 
     /// Handle receiving internal config commands from the client.
-    pub fn handle_com(&mut self) {
+    fn handle_com(&mut self) {
         if let Some(com) = self.com_c.dequeue() {
             match com {
                 Command::Reset => {
+                    defmt::debug!(
+                        "Cleared complete buffer as requested by client [{=[u8]:a}]",
+                        &self.buf
+                    );
                     self.digester.reset();
                     self.buf.clear();
-                    defmt::trace!("Cleared complete buffer");
                 }
                 Command::ForceReceiveState => self.digester.force_receive_state(),
             }
@@ -215,6 +218,6 @@ mod test {
         }
         ingress.write(b"\"\r\n");
         ingress.digest();
-        assert_eq!(res_c.dequeue().unwrap(), Err(Error::Overflow));
+        assert_eq!(res_c.dequeue().unwrap(), Err(InternalError::Overflow));
     }
 }

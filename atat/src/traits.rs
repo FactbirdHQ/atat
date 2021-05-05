@@ -1,4 +1,9 @@
-use crate::{error::Error, Mode};
+use crate::Mode;
+use crate::{
+    error::{Error, InternalError},
+    GenericError,
+};
+use core::str::FromStr;
 use heapless::{ArrayLength, Vec};
 
 /// This trait needs to be implemented for every response type.
@@ -20,7 +25,7 @@ pub trait AtatUrc {
     type Response;
 
     /// Parse the response into a `Self::Response` instance.
-    fn parse(resp: &[u8]) -> Result<Self::Response, Error>;
+    fn parse(resp: &[u8]) -> Option<Self::Response>;
 }
 
 /// This trait needs to be implemented for every command type.
@@ -31,7 +36,7 @@ pub trait AtatUrc {
 ///
 /// Example:
 /// ```
-/// use atat::{AtatCmd, AtatResp, Error};
+/// use atat::{AtatCmd, AtatResp, Error, InternalError, GenericError};
 /// use core::fmt::Write;
 /// use heapless::Vec;
 ///
@@ -46,6 +51,7 @@ pub trait AtatUrc {
 /// impl<'a> AtatCmd for SetGreetingText<'a> {
 ///     type CommandLen = heapless::consts::U64;
 ///     type Response = NoResponse;
+///     type Error = GenericError;
 ///
 ///     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
 ///         let mut buf: Vec<u8, Self::CommandLen> = Vec::new();
@@ -53,7 +59,7 @@ pub trait AtatUrc {
 ///         buf
 ///     }
 ///
-///     fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error> {
+///     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 ///         Ok(NoResponse)
 ///     }
 /// }
@@ -71,11 +77,17 @@ pub trait AtatCmd {
     /// The type of the response. Must implement the `AtatResp` trait.
     type Response: AtatResp;
 
+    /// The type of the error.
+    type Error: FromStr + defmt::Format;
+
     /// Return the command as a heapless `Vec` of bytes.
     fn as_bytes(&self) -> Vec<u8, Self::CommandLen>;
 
-    /// Parse the response into a `Self::Response` instance.
-    fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error>;
+    /// Parse the response into a `Self::Response` or `Error<Self::Error>` instance.
+    fn parse(
+        &self,
+        resp: Result<&[u8], &InternalError>,
+    ) -> Result<Self::Response, Error<Self::Error>>;
 
     /// Whether or not this command can be aborted.
     fn can_abort(&self) -> bool {
@@ -114,7 +126,7 @@ pub trait AtatClient {
     /// This function will also make sure that atleast `self.config.cmd_cooldown`
     /// has passed since the last response or URC has been received, to allow
     /// the slave AT device time to deliver URC's.
-    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error>;
+    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
 
     /// Checks if there are any URC's (Unsolicited Response Code) in
     /// queue from the ingress manager.
@@ -162,7 +174,7 @@ pub trait AtatClient {
     /// This function is usually only called through [`send`].
     ///
     /// [`send`]: #method.send
-    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error>;
+    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
 
     /// Get the configured mode of the client.
     ///
@@ -181,6 +193,33 @@ where
     T: AtatResp,
     L: ArrayLength<T>,
 {
+}
+
+impl<L> AtatResp for heapless::String<L> where L: ArrayLength<u8> {}
+
+impl<L> AtatCmd for heapless::String<L>
+where
+    L: ArrayLength<u8>,
+{
+    type CommandLen = L;
+
+    type Response = heapless::String<heapless::consts::U256>;
+    type Error = GenericError;
+
+    fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+        self.clone().into_bytes()
+    }
+
+    fn parse(
+        &self,
+        resp: Result<&[u8], &InternalError>,
+    ) -> Result<Self::Response, Error<Self::Error>> {
+        resp.map(|r| {
+            heapless::String::from_utf8(Vec::from_slice(r).map_err(|_| Error::Parse)?)
+                .map_err(|_| Error::Parse)
+        })
+        .map_err(Error::from)?
+    }
 }
 
 #[cfg(all(test, feature = "derive"))]

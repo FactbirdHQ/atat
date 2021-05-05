@@ -28,15 +28,15 @@ use heapless::{consts, spsc::Queue};
 #[app(device = hal::pac, peripherals = true)]
 const APP: () = {
     struct Resources {
-        ingress: atat::IngressManager<DefaultDigester, DefaultUrcMatcher, consts::U256>,
+        ingress: atat::IngressManager<consts::U256>,
         rx: Rx<USART2>,
     }
 
     #[init(spawn = [at_loop])]
     fn init(ctx: init::Context) -> init::LateResources {
-        static mut RES_QUEUE: ResQueue<consts::U256, consts::U1> = Queue(heapless::i::Queue::u8());
+        static mut RES_QUEUE: ResQueue<consts::U256> = Queue(heapless::i::Queue::u8());
         static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
-        static mut COM_QUEUE: ComQueue<consts::U3> = Queue(heapless::i::Queue::u8());
+        static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
 
         let p = Peripherals::take().unwrap();
 

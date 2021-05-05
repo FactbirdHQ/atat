@@ -7,12 +7,12 @@ use heapless::{
     ArrayLength,
 };
 
-pub use crate::error::Error;
+pub use crate::error::InternalError;
 pub use crate::Command;
 
 // Queue item types
 pub type ComItem = Command;
-pub type ResItem<BufLen> = Result<Vec<u8, BufLen>, Error>;
+pub type ResItem<BufLen> = Result<Vec<u8, BufLen>, InternalError>;
 pub type UrcItem<BufLen> = Vec<u8, BufLen>;
 
 pub type ResCapacity = consts::U1;

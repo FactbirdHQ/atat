@@ -30,8 +30,7 @@ use heapless::{consts, spsc::Queue};
 
 use crate::rt::entry;
 
-static mut INGRESS: Option<atat::IngressManager<DefaultDigester, DefaultUrcMatcher, consts::U256>> =
-    None;
+static mut INGRESS: Option<atat::IngressManager<consts::U256>> = None;
 static mut RX: Option<Rx<USART2>> = None;
 
 #[entry]
@@ -74,9 +73,9 @@ fn main() -> ! {
 
     serial.listen(Rxne);
 
-    static mut RES_QUEUE: ResQueue<consts::U256, consts::U1> = Queue(heapless::i::Queue::u8());
+    static mut RES_QUEUE: ResQueue<consts::U256> = Queue(heapless::i::Queue::u8());
     static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
-    static mut COM_QUEUE: ComQueue<consts::U3> = Queue(heapless::i::Queue::u8());
+    static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
 
     let queues = Queues {
         res_queue: unsafe { RES_QUEUE.split() },

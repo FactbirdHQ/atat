@@ -87,7 +87,7 @@ where
     BufLen: ArrayLength<u8>,
     UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
-    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {
+    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>> {
         if let ClientState::Idle = self.state {
             if cmd.force_receive_state() && self.com_p.enqueue(Command::ForceReceiveState).is_err()
             {
@@ -121,7 +121,7 @@ where
 
         if !cmd.expects_response_code() {
             self.state = ClientState::Idle;
-            return cmd.parse(&[]).map_err(nb::Error::Other);
+            return cmd.parse(Ok(&[])).map_err(nb::Error::Other);
         }
 
         match self.config.mode {
@@ -137,7 +137,7 @@ where
     fn peek_urc_with<URC: AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F) {
         if let Some(urc) = self.urc_c.peek() {
             self.timer.try_start(self.config.cmd_cooldown).ok();
-            if let Ok(urc) = URC::parse(urc) {
+            if let Some(urc) = URC::parse(urc) {
                 if !f(urc) {
                     return;
                 }
@@ -148,25 +148,27 @@ where
         }
     }
 
-    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error> {
+    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>> {
         if let Some(result) = self.res_c.dequeue() {
-            return match result {
-                Ok(ref resp) => {
+            return cmd
+                .parse(result.as_deref())
+                .map_err(nb::Error::from)
+                .and_then(|r| {
                     if let ClientState::AwaitingResponse = self.state {
                         self.timer.try_start(self.config.cmd_cooldown).ok();
                         self.state = ClientState::Idle;
-                        cmd.parse(resp).map_err(nb::Error::Other)
+                        Ok(r)
                     } else {
                         // FIXME: Is this correct?
+                        defmt::error!("Is this correct?! WouldBlock");
                         Err(nb::Error::WouldBlock)
                     }
-                }
-                Err(e) => {
+                })
+                .map_err(|e| {
                     self.timer.try_start(self.config.cmd_cooldown).ok();
                     self.state = ClientState::Idle;
-                    Err(nb::Error::Other(e))
-                }
-            };
+                    e
+                });
         } else if let Mode::Timeout = self.config.mode {
             if self.timer.try_wait().is_ok() {
                 self.state = ClientState::Idle;
@@ -207,9 +209,12 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate as atat;
-    use crate::atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc};
     use crate::queues;
+    use crate::{self as atat, InternalError};
+    use crate::{
+        atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc},
+        GenericError,
+    };
     use heapless::{consts, spsc::Queue, String, Vec};
     use nb;
 
@@ -249,6 +254,26 @@ mod test {
         fn try_flush(&mut self) -> nb::Result<(), Self::Error> {
             Ok(())
         }
+    }
+
+    #[derive(Debug, defmt::Format, PartialEq, Eq)]
+    pub enum InnerError {
+        Test,
+    }
+
+    impl core::str::FromStr for InnerError {
+        // This error will always get mapped to `atat::Error::Parse`
+        type Err = ();
+
+        fn from_str(_s: &str) -> Result<Self, Self::Err> {
+            Ok(Self::Test)
+        }
+    }
+
+    #[derive(Debug, PartialEq, AtatCmd)]
+    #[at_cmd("+CFUN", NoResponse, error = "InnerError")]
+    struct ErrorTester {
+        x: u8,
     }
 
     #[derive(Clone, AtatCmd)]
@@ -382,6 +407,41 @@ mod test {
                 Client::new(tx_mock, res_c, urc_c, com_p, CdMock, $config);
             (client, res_p, urc_p)
         }};
+    }
+
+    #[test]
+    fn error_response() {
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
+
+        let cmd = ErrorTester { x: 7 };
+
+        p.enqueue(Err(InternalError::Error(Vec::new()))).unwrap();
+
+        assert_eq!(client.state, ClientState::Idle);
+        assert_eq!(
+            nb::block!(client.send(&cmd)),
+            Err(Error::Error(InnerError::Test))
+        );
+        assert_eq!(client.state, ClientState::Idle);
+    }
+
+    #[test]
+    fn generic_error_response() {
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
+
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        p.enqueue(Err(InternalError::Error(Vec::new()))).unwrap();
+
+        assert_eq!(client.state, ClientState::Idle);
+        assert_eq!(
+            nb::block!(client.send(&cmd)),
+            Err(Error::Error(GenericError))
+        );
+        assert_eq!(client.state, ClientState::Idle);
     }
 
     #[test]
@@ -582,7 +642,7 @@ mod test {
         p.enqueue(Ok(response)).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
-        assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::ParseString)));
+        assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Parse)));
         assert_eq!(client.state, ClientState::Idle);
     }
 }

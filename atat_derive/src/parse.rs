@@ -19,6 +19,7 @@ pub struct ParseInput {
 pub struct CmdAttributes {
     pub cmd: String,
     pub resp: Path,
+    pub error: Option<Path>,
     pub timeout_ms: Option<u32>,
     pub abortable: Option<bool>,
     pub force_receive_state: Option<bool>,
@@ -253,6 +254,7 @@ impl Parse for CmdAttributes {
         let mut at_cmd = Self {
             cmd: cmd.value(),
             resp: response_ident,
+            error: None,
             timeout_ms: None,
             abortable: None,
             force_receive_state: None,
@@ -279,6 +281,13 @@ impl Parse for CmdAttributes {
                 match optional.lit {
                     Lit::Bool(v) => {
                         at_cmd.abortable = Some(v.value);
+                    }
+                    _ => return Err(Error::new(call_site, "expected bool value for 'abortable'")),
+                }
+            } else if optional.path.is_ident("error") {
+                match optional.lit {
+                    Lit::Str(v) => {
+                        at_cmd.error = Some(v.parse().unwrap());
                     }
                     _ => return Err(Error::new(call_site, "expected bool value for 'abortable'")),
                 }

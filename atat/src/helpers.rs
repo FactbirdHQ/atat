@@ -44,7 +44,7 @@ impl SliceExt for [u8] {
 /// let mut buf: Vec<u8, consts::U128> =
 ///     Vec::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\nAT+GMR\r\r\n").unwrap();
 /// let response: Option<Vec<u8, consts::U64>> =
-///     get_line(&mut buf, b"OK", b'\r', b'\n', false, false);
+///     get_line(&mut buf, b"OK", b'\r', b'\n', false, false, false);
 /// assert_eq!(
 ///     response,
 ///     Some(Vec::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n").unwrap())
@@ -61,6 +61,7 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     format_char: u8,
     trim_response: bool,
     reverse: bool,
+    swap: bool,
 ) -> Option<Vec<u8, L>> {
     if buf.len() == 0 {
         return None;
@@ -74,15 +75,23 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
             .position(|window| window == needle)
     };
 
+    #[cfg(test)]
+    println!("{:?}", ind);
+
     match ind {
         Some(index) => {
             let white_space = buf
                 .iter()
                 .skip(index + needle.len())
+                .skip_while(|c| ![format_char, line_term_char, b'>', b'@'].contains(c))
                 .position(|c| ![format_char, line_term_char].contains(c))
                 .unwrap_or(buf.len() - index - needle.len());
 
-            let (left, right) = buf.split_at(index + needle.len() + white_space);
+            let (left, right) = match buf.split_at(index + needle.len() + white_space) {
+                (left, right) if !swap => (left, right),
+                (left, right) if swap => (right, left),
+                _ => return None,
+            };
 
             let return_buf = if trim_response {
                 left.trim(&[b'\t', b' ', format_char, line_term_char])
@@ -90,6 +99,8 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
                 left
             }
             .iter()
+            // Truncate the response, rather than panic in case of buffer overflow!
+            .take(L::to_usize())
             .cloned()
             .collect();
 

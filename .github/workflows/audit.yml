@@ -5,6 +5,14 @@ on:
       - '**/Cargo.toml'
       - '**/Cargo.lock'
 jobs:
+  cancel_previous_runs:
+    name: Cancel previous runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: styfle/cancel-workflow-action@0.4.1
+        with:
+          access_token: ${{ secrets.GITHUB_TOKEN }}
+          
   security_audit:
     runs-on: ubuntu-latest
     steps:

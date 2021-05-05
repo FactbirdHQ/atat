@@ -1,7 +1,7 @@
 use crate::{
     helpers::{get_line, SliceExt},
     urc_matcher::{UrcMatcher, UrcMatcherResult},
-    Error,
+    InternalError,
 };
 use heapless::{ArrayLength, Vec};
 
@@ -26,7 +26,7 @@ pub trait Digester {
 #[derive(Debug, PartialEq)]
 pub enum DigestResult<L: ArrayLength<u8>> {
     Urc(Vec<u8, L>),
-    Response(Result<Vec<u8, L>, Error>),
+    Response(Result<Vec<u8, L>, InternalError>),
     None,
 }
 
@@ -100,6 +100,7 @@ impl Digester for DefaultDigester {
                         Self::FORMAT_CHAR,
                         false,
                         false,
+                        false,
                     )
                     .is_some()
                     {
@@ -128,6 +129,7 @@ impl Digester for DefaultDigester {
                             Self::FORMAT_CHAR,
                             true,
                             false,
+                            false,
                         ) {
                             self.buf_incomplete = false;
                             return DigestResult::Urc(line);
@@ -152,6 +154,7 @@ impl Digester for DefaultDigester {
                         &[Self::LINE_TERM_CHAR],
                         Self::LINE_TERM_CHAR,
                         Self::FORMAT_CHAR,
+                        false,
                         false,
                         false,
                     );
@@ -179,6 +182,7 @@ impl Digester for DefaultDigester {
                     Self::FORMAT_CHAR,
                     true,
                     false,
+                    false,
                 ) {
                     Ok(get_line(
                         &mut line,
@@ -187,24 +191,36 @@ impl Digester for DefaultDigester {
                         Self::FORMAT_CHAR,
                         true,
                         true,
+                        false,
                     )
                     .unwrap_or_else(Vec::new))
-                } else if get_line::<L, _>(
+                } else if let Some(mut line) = get_line::<L, _>(
                     buf,
                     b"ERROR",
                     Self::LINE_TERM_CHAR,
                     Self::FORMAT_CHAR,
                     true,
                     false,
-                )
-                .is_some()
-                {
-                    Err(Error::InvalidResponse)
+                    false,
+                ) {
+                    Err(InternalError::Error(
+                        get_line(
+                            &mut line,
+                            &[Self::LINE_TERM_CHAR],
+                            Self::LINE_TERM_CHAR,
+                            Self::FORMAT_CHAR,
+                            true,
+                            true,
+                            true,
+                        )
+                        .unwrap_or_else(|| Vec::from_slice(&line).unwrap_or_default()),
+                    ))
                 } else if get_line::<L, _>(
                     buf,
                     b">",
                     Self::LINE_TERM_CHAR,
                     Self::FORMAT_CHAR,
+                    false,
                     false,
                     false,
                 )
@@ -214,6 +230,7 @@ impl Digester for DefaultDigester {
                         b"@",
                         Self::LINE_TERM_CHAR,
                         Self::FORMAT_CHAR,
+                        false,
                         false,
                         false,
                     )
@@ -403,7 +420,12 @@ mod test {
 
         assert_eq!(digester.state, State::Idle);
         assert_eq!(buf, Vec::<_, TestRxBufLen>::new());
-        assert_eq!(result, DigestResult::Response(Err(Error::InvalidResponse)));
+        assert_eq!(
+            result,
+            DigestResult::Response(Err(InternalError::Error(
+                Vec::from_slice(b"ERROR").unwrap()
+            )))
+        );
     }
 
     /// By breaking up non-AT-commands into chunks, it's possible that
@@ -635,6 +657,201 @@ mod test {
         assert_eq!(
             result,
             DigestResult::Urc(Vec::<_, TestRxBufLen>::from_slice(b"+match").unwrap())
+        );
+    }
+
+    #[test]
+    fn numeric_error_response() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        buf.extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
+            .unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        buf.extend_from_slice(b"+CME ERROR: 123\r\n").unwrap();
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(digester.state, State::Idle);
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(
+            result,
+            DigestResult::Response(Err(InternalError::Error(
+                Vec::from_slice(b"+CME ERROR: 123").unwrap()
+            )))
+        );
+    }
+
+    #[test]
+    fn verbose_error_response() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        buf.extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
+            .unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        buf.extend_from_slice(b"+CME ERROR: Operation not allowed\r\n")
+            .unwrap();
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(digester.state, State::Idle);
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(
+            result,
+            DigestResult::Response(Err(InternalError::Error(
+                Vec::from_slice(b"+CME ERROR: Operation not allowed").unwrap()
+            )))
+        );
+    }
+
+    #[test]
+    fn truncate_verbose_error_response() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        buf.extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
+            .unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        buf.extend_from_slice(b"+CME ERROR: Operation not allowed.. This is a very long error message, that will never fit in my buffer!\r\n").unwrap();
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(digester.state, State::Idle);
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(
+            result,
+            DigestResult::Response(Err(InternalError::Error(
+                Vec::from_slice(
+                    b"+CME ERROR: Operation not allowed.. This is a very long error message, that will neve"
+                )
+                .unwrap()
+            )))
+        );
+    }
+
+    #[test]
+    fn data_ready_prompt() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+USECMNG=0,0,\"Verisign\",1758\r>")
+            .unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(digester.state, State::Idle);
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(result, DigestResult::Response(Ok(heapless::Vec::new())));
+    }
+
+    // Regression test for #87
+    #[test]
+    fn cpin_parsing() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+CPIN?\r\r\n+CPIN: READY\r\n\r\nOK\r\n")
+            .unwrap();
+
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"+CPIN: READY\r\n\r\nOK\r\n").unwrap()
+        );
+
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(digester.state, State::Idle);
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(
+            result,
+            DigestResult::Response(Ok(Vec::from_slice(b"+CPIN: READY").unwrap()))
+        );
+    }
+
+    // Regression test for #87
+    #[test]
+    fn cpin_error() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TestRxBufLen>::new();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+CPIN?\r\r\n+CME ERROR: 10\r\n")
+            .unwrap();
+
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+        assert_eq!(
+            buf,
+            Vec::<_, TestRxBufLen>::from_slice(b"+CME ERROR: 10\r\n").unwrap()
+        );
+
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(digester.state, State::Idle);
+        assert_eq!(buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(
+            result,
+            DigestResult::Response(Err(InternalError::Error(
+                Vec::from_slice(b"+CME ERROR: 10").unwrap()
+            )))
         );
     }
 }
