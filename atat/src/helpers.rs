@@ -75,9 +75,6 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
             .position(|window| window == needle)
     };
 
-    #[cfg(test)]
-    println!("{:?}", ind);
-
     match ind {
         Some(index) => {
             let white_space = buf
