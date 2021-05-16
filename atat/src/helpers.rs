@@ -111,7 +111,7 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
     }
 }
 
-#[cfg(feature = "log-logging")]
+#[cfg(feature = "log")]
 #[macro_export]
 macro_rules! atat_log {
     ($level:ident, $($arg:expr),*) => {
@@ -119,15 +119,8 @@ macro_rules! atat_log {
     }
 }
 #[cfg(all(
-    any(
-        feature = "defmt-default",
-        feature = "defmt-trace",
-        feature = "defmt-debug",
-        feature = "defmt-info",
-        feature = "defmt-warn",
-        feature = "defmt-error"
-    ),
-    not(feature = "log-logging")
+    feature = "defmt",
+    not(feature = "log")
 ))]
 #[macro_export]
 macro_rules! atat_log {
@@ -136,13 +129,8 @@ macro_rules! atat_log {
     }
 }
 #[cfg(not(any(
-    feature = "defmt-default",
-    feature = "defmt-trace",
-    feature = "defmt-debug",
-    feature = "defmt-info",
-    feature = "defmt-warn",
-    feature = "defmt-error",
-    feature = "log-logging"
+    feature = "defmt",
+    feature = "log"
 )))]
 #[macro_export]
 macro_rules! atat_log {
@@ -155,15 +143,8 @@ macro_rules! atat_log {
     }
 }
 #[cfg(all(
-    any(
-        feature = "defmt-default",
-        feature = "defmt-trace",
-        feature = "defmt-debug",
-        feature = "defmt-info",
-        feature = "defmt-warn",
-        feature = "defmt-error"
-    ),
-    feature = "log-logging"
+    feature = "defmt",
+    feature = "log"
 ))]
 compile_error!("You must enable at most one of the following features: defmt-*, log");
 
@@ -182,6 +163,7 @@ impl<'a> core::fmt::Debug for LossyStr<'a> {
     }
 }
 
+#[cfg(feature = "defmt")]
 impl<'a> defmt::Format for LossyStr<'a> {
     fn format(&self, fmt: defmt::Formatter) {
         defmt::write!(

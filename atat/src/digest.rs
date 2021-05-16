@@ -33,7 +33,8 @@ pub enum DigestResult<L: ArrayLength<u8>> {
 
 /// State of the `DefaultDigester`, used to distiguish URCs from solicited
 /// responses
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, defmt::Format)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 enum State {
     Idle,
     ReceivingResponse,

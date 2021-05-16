@@ -27,7 +27,7 @@ serde = { version = "^1", default-features = false }
 typenum = "^1"
 
 log = { version = "^0.4", default-features = false, optional = true }
-defmt = { version = "^0.2" }
+defmt = { version = "^0.2", optional = true }
 
 [dev-dependencies]
 cortex-m = "0.7.1"
@@ -40,13 +40,11 @@ stm32l4xx-hal = { version = "0.6", features = ["stm32l4x5", "rt"] }
 default = ["derive"]
 derive = ["atat_derive"]
 
-log-logging = ["log"]
-
 std = ["serde_at/std"]
 
-defmt-default = []
-defmt-trace = []
-defmt-debug = []
-defmt-info = []
-defmt-warn = []
-defmt-error = []
+defmt-default = ["defmt"]
+defmt-trace = ["defmt"]
+defmt-debug = ["defmt"]
+defmt-info = ["defmt"]
+defmt-warn = ["defmt"]
+defmt-error = ["defmt"]

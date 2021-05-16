@@ -260,7 +260,7 @@ mod test {
         }
     }
 
-    #[derive(Debug, defmt::Format, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq)]
     pub enum InnerError {
         Test,
     }

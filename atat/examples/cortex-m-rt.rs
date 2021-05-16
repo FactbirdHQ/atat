@@ -104,7 +104,9 @@ fn main() -> ! {
             Ok(response) => {
                 // Do something with response here
             }
-            Err(e) => {}
+            Err(e) => {
+
+            }
         }
     }
 }
