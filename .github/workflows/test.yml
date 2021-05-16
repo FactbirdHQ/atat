@@ -53,15 +53,15 @@ jobs:
         with:
           command: build
           args: --all 
-          --features "
-              derive
-              std
-              defmt-default
-              defmt-trace
-              defmt-debug
-              defmt-info
-              defmt-warn
-              defmt-error"
+            --features "
+                derive
+                std
+                defmt-default
+                defmt-trace
+                defmt-debug
+                defmt-info
+                defmt-warn
+                defmt-error"
 
       - name: Build (ARM - default features)
         uses: actions-rs/cargo@v1
