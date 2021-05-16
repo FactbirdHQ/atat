@@ -41,7 +41,7 @@ This crate attempts to work from these AT best practices:
 
 ## Tests
 
-> The crate is covered by tests. These tests can be run by `cargo test --tests --all-features`, and are run by the CI on every push.
+> The crate is covered by tests. These tests can be run by `cargo test --tests`, and are run by the CI on every push.
 
 
 ## Examples
@@ -96,7 +96,7 @@ The following dependent crates provide platform-agnostic device drivers built on
 ## Features
 
  - `derive`: Enabled by default. Re-exports `atat_derive` to allow deriving `Atat__` traits.
- - `log-logging`: Disabled by default. Enable log statements on various log levels to aid debugging. Powered by `log`.
+ - `log`: Disabled by default. Enable log statements on various log levels to aid debugging. Powered by `log`.
  - `defmt-default`: Disabled by default. Enable log statements at INFO, or TRACE, level and up, to aid debugging. Powered by `defmt`.
  - `defmt-trace`: Disabled by default. Enable log statements at TRACE level and up, to aid debugging. Powered by `defmt`.
  - `defmt-debug`: Disabled by default. Enable log statements at DEBUG level and up, to aid debugging. Powered by `defmt`.
