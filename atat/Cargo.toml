@@ -26,7 +26,8 @@ atat_derive = { path = "../atat_derive", version = "^0.10.1-alpha.0", optional =
 serde = { version = "^1", default-features = false }
 typenum = "^1"
 
-defmt = { version = "^0.2" }
+log = { version = "^0.4", default-features = false, optional = true }
+defmt = { version = "^0.2", optional = true }
 
 [dev-dependencies]
 cortex-m = "0.7.1"
@@ -41,9 +42,9 @@ derive = ["atat_derive"]
 
 std = ["serde_at/std"]
 
-defmt-default = []
-defmt-trace = []
-defmt-debug = []
-defmt-info = []
-defmt-warn = []
-defmt-error = []
+defmt-default = ["defmt"]
+defmt-trace = ["defmt"]
+defmt-debug = ["defmt"]
+defmt-info = ["defmt"]
+defmt-warn = ["defmt"]
+defmt-error = ["defmt"]

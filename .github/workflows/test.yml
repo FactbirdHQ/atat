@@ -30,19 +30,67 @@ jobs:
           target: thumbv7m-none-eabi
           override: true
 
-      - name: Build (native)
+      - name: Build (native - default features)
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --all --all-features
+          args: --all
 
-      - name: Build (ARM)
+      - name: Build (native - no logging)
         uses: actions-rs/cargo@v1
         with:
           command: build
-          # every feature except std. Can't specify --features in the root so
-          # directly specify just the atat crate
-          args: --manifest-path=atat/Cargo.toml
+          args: --all --features "derive, std"
+
+      - name: Build (native - log logging)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all --features "derive, std, log"
+
+      - name: Build (native - defmt logging)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all 
+            --features "
+                derive
+                std
+                defmt-default
+                defmt-trace
+                defmt-debug
+                defmt-info
+                defmt-warn
+                defmt-error"
+
+      - name: Build (ARM - default features)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all
+            --target thumbv7m-none-eabi
+
+      - name: Build (ARM - no logging)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all
+            --target thumbv7m-none-eabi
+            --features "derive"
+
+      - name: Build (ARM - log logging)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all
+            --target thumbv7m-none-eabi
+            --features "derive, log"
+
+      - name: Build (ARM - defmt logging)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all
             --target thumbv7m-none-eabi
             --features "
               derive
@@ -57,10 +105,10 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --lib --all-features
+          args: --lib
       # TODO: Change this to a single --all test, when the examples work
       - name: Doctests
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --doc --all-features
+          args: --doc

@@ -78,7 +78,7 @@ pub trait AtatCmd {
     type Response: AtatResp;
 
     /// The type of the error.
-    type Error: FromStr + defmt::Format;
+    type Error: FromStr;
 
     /// Return the command as a heapless `Vec` of bytes.
     fn as_bytes(&self) -> Vec<u8, Self::CommandLen>;
