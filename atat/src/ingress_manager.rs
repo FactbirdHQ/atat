@@ -1,8 +1,8 @@
 use heapless::{consts, ArrayLength, Vec};
 
 use crate::atat_log;
-use crate::helpers::LossyStr;
 use crate::error::InternalError;
+use crate::helpers::LossyStr;
 use crate::queues::{ComConsumer, ResProducer, UrcItem, UrcProducer};
 use crate::Command;
 use crate::{
@@ -93,10 +93,7 @@ where
         atat_log!(trace, "Write: \"{:?}\"", LossyStr(data));
 
         if self.buf.extend_from_slice(data).is_err() {
-            atat_log!(error,
-                "OVERFLOW DATA! Buffer: {:?}",
-                LossyStr(&self.buf)
-            );
+            atat_log!(error, "OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
             self.notify_response(Err(InternalError::Overflow));
         }
     }
@@ -131,7 +128,7 @@ where
                 if r.is_empty() {
                     atat_log!(debug, "Received OK")
                 } else {
-                    atat_log!(debug, "Received response: \"{:?}\"", LossyStr(&r));
+                    atat_log!(debug, "Received response: \"{:?}\"", LossyStr(r));
                 }
             }
             Err(e) => atat_log!(error, "Received error response {:?}", e),

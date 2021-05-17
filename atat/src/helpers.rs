@@ -118,39 +118,28 @@ macro_rules! atat_log {
         log::$level!($($arg),*);
     }
 }
-#[cfg(all(
-    feature = "defmt",
-    not(feature = "log")
-))]
+#[cfg(all(feature = "defmt", not(feature = "log")))]
 #[macro_export]
 macro_rules! atat_log {
     ($level:ident, $($arg:expr),*) => {
         defmt::$level!($($arg),*);
     }
 }
-#[cfg(not(any(
-    feature = "defmt",
-    feature = "log"
-)))]
+#[cfg(not(any(feature = "defmt", feature = "log")))]
 #[macro_export]
 macro_rules! atat_log {
-    ($level:ident, $($arg:expr),*) => { 
+    ($level:ident, $($arg:expr),*) => {
         {
             $( let _ = $arg; )*
             ()
         }
-        
+
     }
 }
-#[cfg(all(
-    feature = "defmt",
-    feature = "log"
-))]
+#[cfg(all(feature = "defmt", feature = "log"))]
 compile_error!("You must enable at most one of the following features: defmt-*, log");
 
-
-
-/// Wrapper for a byte-slice that formats it as a string if possible and as 
+/// Wrapper for a byte-slice that formats it as a string if possible and as
 /// bytes otherwise.
 pub struct LossyStr<'a>(pub &'a [u8]);
 
@@ -166,11 +155,7 @@ impl<'a> core::fmt::Debug for LossyStr<'a> {
 #[cfg(feature = "defmt")]
 impl<'a> defmt::Format for LossyStr<'a> {
     fn format(&self, fmt: defmt::Formatter) {
-        defmt::write!(
-            fmt,
-            "{=[u8]:a}",
-            self.0
-        )
+        defmt::write!(fmt, "{=[u8]:a}", self.0)
     }
 }
 

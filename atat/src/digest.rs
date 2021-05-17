@@ -88,7 +88,7 @@ impl Digester for DefaultDigester {
         }
 
         if !buf.is_empty() {
-            atat_log!(trace, "Digest {:?} / {:?}", self.state, LossyStr(&buf));
+            atat_log!(trace, "Digest {:?} / {:?}", self.state, LossyStr(buf));
         }
 
         match self.state {

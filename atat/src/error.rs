@@ -40,8 +40,7 @@ impl defmt::Format for InternalError {
 /// Errors returned by the crate
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum Error<E = GenericError>
-{
+pub enum Error<E = GenericError> {
     /// Serial read error
     Read,
     /// Serial write error
