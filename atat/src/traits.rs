@@ -1,5 +1,10 @@
-use crate::{error::Error, Mode};
-use heapless::{ArrayLength, Vec};
+use crate::Mode;
+use crate::{
+    error::{Error, InternalError},
+    GenericError,
+};
+use core::str::FromStr;
+use heapless::{String, Vec};
 
 /// This trait needs to be implemented for every response type.
 ///
@@ -8,7 +13,7 @@ use heapless::{ArrayLength, Vec};
 /// use atat::AtatResp;
 ///
 /// pub struct GreetingText {
-///     pub text: heapless::String<heapless::consts::U64>,
+///     pub text: heapless::String<heapless::64>,
 /// }
 ///
 /// impl AtatResp for GreetingText {}
@@ -20,7 +25,7 @@ pub trait AtatUrc {
     type Response;
 
     /// Parse the response into a `Self::Response` instance.
-    fn parse(resp: &[u8]) -> Result<Self::Response, Error>;
+    fn parse(resp: &[u8]) -> Option<Self::Response>;
 }
 
 /// This trait needs to be implemented for every command type.
@@ -31,7 +36,7 @@ pub trait AtatUrc {
 ///
 /// Example:
 /// ```
-/// use atat::{AtatCmd, AtatResp, Error};
+/// use atat::{AtatCmd, AtatResp, Error, InternalError, GenericError};
 /// use core::fmt::Write;
 /// use heapless::Vec;
 ///
@@ -44,16 +49,17 @@ pub trait AtatUrc {
 /// impl AtatResp for NoResponse {};
 ///
 /// impl<'a> AtatCmd for SetGreetingText<'a> {
-///     type CommandLen = heapless::consts::U64;
+///     const COMMAND_LEN: usize = 64;
 ///     type Response = NoResponse;
+///     type Error = GenericError;
 ///
-///     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
-///         let mut buf: Vec<u8, Self::CommandLen> = Vec::new();
+///     fn as_bytes(&self) -> Vec<u8, Self::COMMAND_LEN> {
+///         let mut buf: Vec<u8, Self::COMMAND_LEN> = Vec::new();
 ///         write!(buf, "AT+CSGT={}", self.text);
 ///         buf
 ///     }
 ///
-///     fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error> {
+///     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 ///         Ok(NoResponse)
 ///     }
 /// }
@@ -64,18 +70,24 @@ pub trait AtatCmd {
     /// Example: For the command "AT+RST" you would specify
     ///
     /// ```
-    /// type CommandLen = heapless::consts::U6;
+    /// const COMMAND_LEN: usize = 6;
     /// ```
-    type CommandLen: ArrayLength<u8>;
+    const COMMAND_LEN: usize;
 
     /// The type of the response. Must implement the `AtatResp` trait.
     type Response: AtatResp;
 
-    /// Return the command as a heapless `Vec` of bytes.
-    fn as_bytes(&self) -> Vec<u8, Self::CommandLen>;
+    /// The type of the error.
+    type Error: FromStr + defmt::Format;
 
-    /// Parse the response into a `Self::Response` instance.
-    fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error>;
+    /// Return the command as a heapless `Vec` of bytes.
+    fn as_bytes(&self) -> Vec<u8, { Self::COMMAND_LEN }>;
+
+    /// Parse the response into a `Self::Response` or `Error<Self::Error>` instance.
+    fn parse(
+        &self,
+        resp: Result<&[u8], &InternalError>,
+    ) -> Result<Self::Response, Error<Self::Error>>;
 
     /// Whether or not this command can be aborted.
     fn can_abort(&self) -> bool {
@@ -114,7 +126,7 @@ pub trait AtatClient {
     /// This function will also make sure that atleast `self.config.cmd_cooldown`
     /// has passed since the last response or URC has been received, to allow
     /// the slave AT device time to deliver URC's.
-    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error>;
+    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
 
     /// Checks if there are any URC's (Unsolicited Response Code) in
     /// queue from the ingress manager.
@@ -162,7 +174,7 @@ pub trait AtatClient {
     /// This function is usually only called through [`send`].
     ///
     /// [`send`]: #method.send
-    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error>;
+    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
 
     /// Get the configured mode of the client.
     ///
@@ -176,11 +188,27 @@ pub trait AtatClient {
     fn reset(&mut self);
 }
 
-impl<T, L> AtatResp for heapless::Vec<T, L>
-where
-    T: AtatResp,
-    L: ArrayLength<T>,
-{
+impl<T, const L: usize> AtatResp for Vec<T, L> where T: AtatResp {}
+
+impl<const L: usize> AtatResp for String<L> {}
+
+impl<const L: usize> AtatCmd for String<L> {
+    const COMMAND_LEN: usize = L;
+
+    type Response = String<256>;
+    type Error = GenericError;
+
+    fn as_bytes(&self) -> Vec<u8, { Self::COMMAND_LEN }> {
+        self.clone().into_bytes()
+    }
+
+    fn parse(
+        &self,
+        resp: Result<&[u8], &InternalError>,
+    ) -> Result<Self::Response, Error<Self::Error>> {
+        let str = core::str::from_utf8(resp.map_err(Error::from)?).map_err(|_| Error::Parse)?;
+        Ok(String::from(str))
+    }
 }
 
 #[cfg(all(test, feature = "derive"))]
@@ -188,7 +216,7 @@ mod test {
     use super::*;
     use crate as atat;
     use atat_derive::{AtatEnum, AtatResp};
-    use heapless::{consts, String};
+    use heapless::String;
 
     #[derive(Debug, Clone, PartialEq, AtatEnum)]
     pub enum PDPContextStatus {
@@ -211,11 +239,11 @@ mod test {
         #[at_arg(position = 0)]
         pub cid: u8,
         #[at_arg(position = 1)]
-        pub pdp_type: String<consts::U6>,
+        pub pdp_type: String<6>,
         #[at_arg(position = 2)]
-        pub apn: String<consts::U99>,
+        pub apn: String<99>,
         #[at_arg(position = 3)]
-        pub pdp_addr: String<consts::U99>,
+        pub pdp_addr: String<99>,
         #[at_arg(position = 4)]
         pub d_comp: u8,
         #[at_arg(position = 5)]
@@ -234,14 +262,13 @@ mod test {
 
     #[test]
     fn single_multi_response() {
-        let mut v = Vec::<_, heapless::consts::U1>::from_slice(&[PDPContextState {
+        let mut v = Vec::<_, 1>::from_slice(&[PDPContextState {
             cid: 1,
             status: PDPContextStatus::Deactivated,
         }])
         .unwrap();
 
-        let mut resp: heapless::Vec<PDPContextState, heapless::consts::U1> =
-            serde_at::from_slice(b"+CGACT: 1,0\r\n").unwrap();
+        let mut resp: Vec<PDPContextState, 1> = serde_at::from_slice(b"+CGACT: 1,0\r\n").unwrap();
 
         assert_eq!(resp.pop(), v.pop());
         assert_eq!(resp.pop(), None);
@@ -249,7 +276,7 @@ mod test {
 
     #[test]
     fn multi_response() {
-        let mut v = Vec::<_, heapless::consts::U3>::from_slice(&[
+        let mut v = Vec::<_, 3>::from_slice(&[
             PDPContextState {
                 cid: 1,
                 status: PDPContextStatus::Deactivated,
@@ -265,7 +292,7 @@ mod test {
         ])
         .unwrap();
 
-        let mut resp: heapless::Vec<PDPContextState, heapless::consts::U3> =
+        let mut resp: Vec<PDPContextState, 3> =
             serde_at::from_slice(b"+CGACT: 1,0\r\n+CGACT: 2,1\r\n+CGACT: 3,0").unwrap();
 
         assert_eq!(resp.pop(), v.pop());
@@ -276,7 +303,7 @@ mod test {
 
     #[test]
     fn multi_response_advanced() {
-        let mut v = Vec::<_, heapless::consts::U3>::from_slice(&[
+        let mut v = Vec::<_, 3>::from_slice(&[
             PDPContextDefinition {
                 cid: 2,
                 pdp_type: String::from("IP"),
@@ -316,7 +343,7 @@ mod test {
         ])
         .unwrap();
 
-        let mut resp: heapless::Vec<PDPContextDefinition, heapless::consts::U3> =
+        let mut resp: Vec<PDPContextDefinition, 3> =
             serde_at::from_slice(b"+CGDCONT: 2,\"IP\",\"em\",\"100.92.188.66\",0,0,0,0,0,0\r\n+CGDCONT: 1,\"IP\",\"STATREAL\",\"0.0.0.0\",0,0\r\n+CGDCONT: 3,\"IP\",\"tim.ibox.it\",\"0.0.0.0\",0,0").unwrap();
 
         assert_eq!(resp.pop(), v.pop());

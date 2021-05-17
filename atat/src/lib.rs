@@ -15,9 +15,9 @@
 //!
 //! ### Command and response example without `atat_derive`:
 //! ```
-//! use atat::{AtatCmd, AtatResp, Error};
+//! use atat::{AtatCmd, AtatResp, Error, InternalError, GenericError};
 //! use core::fmt::Write;
-//! use heapless::{consts, String, Vec};
+//! use heapless::{String, Vec};
 //!
 //! pub struct SetGreetingText<'a> {
 //!     pub text: &'a str,
@@ -30,14 +30,15 @@
 //! impl AtatResp for NoResponse {};
 //!
 //! pub struct GreetingText {
-//!     pub text: String<consts::U64>,
+//!     pub text: String<64>,
 //! };
 //!
 //! impl AtatResp for GreetingText {};
 //!
 //! impl<'a> AtatCmd for SetGreetingText<'a> {
-//!     type CommandLen = consts::U64;
+//!     type CommandLen = 64;
 //!     type Response = NoResponse;
+//!     type Error = GenericError;
 //!
 //!     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
 //!         let mut buf: Vec<u8, Self::CommandLen> = Vec::new();
@@ -45,23 +46,24 @@
 //!         buf
 //!     }
 //!
-//!     fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error> {
+//!     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 //!         Ok(NoResponse)
 //!     }
 //! }
 //!
 //! impl AtatCmd for GetGreetingText {
-//!     type CommandLen = consts::U8;
+//!     type CommandLen = 8;
 //!     type Response = GreetingText;
+//!     type Error = GenericError;
 //!
 //!     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
 //!         Vec::from_slice(b"AT+CSGT?").unwrap()
 //!     }
 //!
-//!     fn parse(&self, resp: &[u8]) -> Result<Self::Response, Error> {
+//!     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 //!         // Parse resp into `GreetingText`
 //!         Ok(GreetingText {
-//!             text: String::from(core::str::from_utf8(resp).unwrap()),
+//!             text: String::from(core::str::from_utf8(resp.unwrap()).unwrap()),
 //!         })
 //!     }
 //! }
@@ -70,7 +72,7 @@
 //! ### Same example with `atat_derive`:
 //! ```
 //! use atat::atat_derive::{AtatCmd, AtatResp};
-//! use heapless::{consts, String};
+//! use heapless::String;
 //!
 //! #[derive(Clone, AtatCmd)]
 //! #[at_cmd("+CSGT", NoResponse)]
@@ -89,7 +91,7 @@
 //! #[derive(Clone, AtatResp)]
 //! pub struct GreetingText {
 //!     #[at_arg(position = 0)]
-//!     pub text: String<consts::U64>,
+//!     pub text: String<64>,
 //! };
 //! ```
 //!
@@ -110,7 +112,7 @@
 //!
 //! use atat::{atat_derive::{AtatResp, AtatCmd}};
 //!
-//! use heapless::{consts, spsc::Queue, String};
+//! use heapless::{spsc::Queue, String};
 //!
 //! use crate::rt::entry;
 //! static mut INGRESS: Option<atat::IngressManager> = None;
@@ -152,9 +154,9 @@
 //!
 //!     serial.listen(Rxne);
 //!
-//!     static mut RES_QUEUE: ResQueue<consts::U256> = Queue(heapless::i::Queue::u8());
-//!     static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
-//!     static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
+//!     static mut RES_QUEUE: ResQueue<256> = Queue::new();
+//!     static mut URC_QUEUE: UrcQueue<256, 10> = Queue::new();
+//!     static mut COM_QUEUE: ComQueue = Queue::new();
 //!
 //!     let queues = Queues {
 //!         res_queue: unsafe { RES_QUEUE.split() },
@@ -191,7 +193,7 @@
 //! #[interrupt]
 //! fn TIM7() {
 //!     let ingress = unsafe { INGRESS.as_mut().unwrap() };
-//!     ingress.parse_at();
+//!     ingress.digest();
 //! }
 //!
 //! #[interrupt]
@@ -260,7 +262,7 @@ pub use heapless;
 pub use builder::ClientBuilder;
 pub use client::{Client, Mode};
 pub use digest::{DefaultDigester, DigestResult, Digester};
-pub use error::Error;
+pub use error::{Error, GenericError, InternalError};
 pub use ingress_manager::IngressManager;
 pub use queues::{ComQueue, Queues, ResQueue, UrcQueue};
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
@@ -336,4 +338,9 @@ mod tests {
     }
 
     defmt::timestamp!("");
+
+    #[export_name = "_defmt_panic"]
+    fn panic() -> ! {
+        panic!()
+    }
 }

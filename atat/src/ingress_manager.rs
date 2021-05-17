@@ -1,31 +1,25 @@
-use heapless::{consts, ArrayLength, Vec};
+use heapless::Vec;
 
-use crate::error::Error;
-use crate::queues::{ComConsumer, ResProducer, UrcItem, UrcProducer};
+use crate::error::InternalError;
+use crate::queues::{ComConsumer, ResProducer, UrcProducer};
 use crate::Command;
 use crate::{
     digest::{DefaultDigester, DigestResult, Digester},
     urc_matcher::{DefaultUrcMatcher, UrcMatcher},
 };
 
-pub struct IngressManager<
-    BufLen = consts::U256,
-    D = DefaultDigester,
-    U = DefaultUrcMatcher,
-    UrcCapacity = consts::U10,
-> where
-    BufLen: ArrayLength<u8>,
-    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
+pub struct IngressManager<D, U, const BUF_LEN: usize, const URC_CAPACITY: usize>
+where
     U: UrcMatcher,
     D: Digester,
 {
     /// Buffer holding incoming bytes.
-    buf: Vec<u8, BufLen>,
+    buf: Vec<u8, BUF_LEN>,
 
     /// The response producer sends responses to the client
-    res_p: ResProducer<BufLen>,
+    res_p: ResProducer<BUF_LEN>,
     /// The URC producer sends URCs to the client
-    urc_p: UrcProducer<BufLen, UrcCapacity>,
+    urc_p: UrcProducer<BUF_LEN, URC_CAPACITY>,
     /// The command consumer receives commands from the client
     com_c: ComConsumer,
 
@@ -36,15 +30,13 @@ pub struct IngressManager<
     urc_matcher: U,
 }
 
-impl<BufLen, UrcCapacity> IngressManager<BufLen, DefaultDigester, DefaultUrcMatcher, UrcCapacity>
-where
-    BufLen: ArrayLength<u8>,
-    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
+impl<const BUF_LEN: usize, const URC_CAPACITY: usize>
+    IngressManager<DefaultDigester, DefaultUrcMatcher, BUF_LEN, URC_CAPACITY>
 {
     #[must_use]
     pub fn new(
-        res_p: ResProducer<BufLen>,
-        urc_p: UrcProducer<BufLen, UrcCapacity>,
+        res_p: ResProducer<BUF_LEN>,
+        urc_p: UrcProducer<BUF_LEN, URC_CAPACITY>,
         com_c: ComConsumer,
     ) -> Self {
         Self::with_customs(
@@ -57,16 +49,15 @@ where
     }
 }
 
-impl<BufLen, U, D, UrcCapacity> IngressManager<BufLen, D, U, UrcCapacity>
+impl<U, D, const BUF_LEN: usize, const URC_CAPACITY: usize>
+    IngressManager<D, U, BUF_LEN, URC_CAPACITY>
 where
     D: Digester,
     U: UrcMatcher,
-    BufLen: ArrayLength<u8>,
-    UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
     pub fn with_customs(
-        res_p: ResProducer<BufLen>,
-        urc_p: UrcProducer<BufLen, UrcCapacity>,
+        res_p: ResProducer<BUF_LEN>,
+        urc_p: UrcProducer<BUF_LEN, URC_CAPACITY>,
         com_c: ComConsumer,
         urc_matcher: U,
         digester: D,
@@ -88,14 +79,14 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        defmt::trace!("Write: \"{}\"", data);
+        defmt::trace!("Write: \"{=[u8]:a}\"", data);
 
         if self.buf.extend_from_slice(data).is_err() {
             defmt::error!(
-                "OVERFLOW DATA! Buffer: {}",
+                "OVERFLOW DATA! Buffer: {=[u8]:a}",
                 core::convert::AsRef::<[u8]>::as_ref(&self.buf)
             );
-            self.notify_response(Err(Error::Overflow));
+            self.notify_response(Err(InternalError::Overflow));
         }
     }
 
@@ -118,12 +109,12 @@ where
     /// This can be useful for custom flowcontrol implementations
     #[allow(clippy::unused_self)]
     pub fn capacity(&self) -> usize {
-        BufLen::to_usize()
+        BUF_LEN
     }
 
     /// Notify the client that an appropriate response code, or error has been
     /// received
-    pub fn notify_response(&mut self, resp: Result<Vec<u8, BufLen>, Error>) {
+    fn notify_response(&mut self, resp: Result<Vec<u8, BUF_LEN>, InternalError>) {
         match &resp {
             Ok(r) => {
                 if r.is_empty() {
@@ -132,7 +123,7 @@ where
                     defmt::debug!("Received response: \"{=[u8]:a}\"", &r);
                 }
             }
-            Err(e) => defmt::error!("Received error response: {}", e),
+            Err(e) => defmt::error!("Received error response {:?}", e),
         }
         if self.res_p.ready() {
             unsafe { self.res_p.enqueue_unchecked(resp) };
@@ -144,7 +135,7 @@ where
 
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
-    pub fn notify_urc(&mut self, resp: Vec<u8, BufLen>) {
+    fn notify_urc(&mut self, resp: Vec<u8, BUF_LEN>) {
         defmt::debug!("Received response: \"{=[u8]:a}\"", &resp);
 
         if self.urc_p.ready() {
@@ -156,13 +147,16 @@ where
     }
 
     /// Handle receiving internal config commands from the client.
-    pub fn handle_com(&mut self) {
+    fn handle_com(&mut self) {
         if let Some(com) = self.com_c.dequeue() {
             match com {
                 Command::Reset => {
+                    defmt::debug!(
+                        "Cleared complete buffer as requested by client [{=[u8]:a}]",
+                        &self.buf
+                    );
                     self.digester.reset();
                     self.buf.clear();
-                    defmt::trace!("Cleared complete buffer");
                 }
                 Command::ForceReceiveState => self.digester.force_receive_state(),
             }
@@ -170,7 +164,7 @@ where
     }
 
     pub fn digest(&mut self) {
-        loop {
+        for _ in 0..5 {
             // Handle commands every loop to catch timeouts asap
             self.handle_com();
 
@@ -187,18 +181,18 @@ where
 mod test {
     use super::*;
     use crate::queues::{ComQueue, ResQueue, UrcQueue};
-    use heapless::{consts, spsc::Queue};
+    use heapless::spsc::Queue;
 
-    type TestRxBufLen = consts::U256;
-    type TestUrcCapacity = consts::U10;
+    const TEST_RX_BUF_LEN: usize = 256;
+    const TEST_URC_CAPACITY: usize = 10;
 
     #[test]
     fn overflow() {
-        static mut RES_Q: ResQueue<TestRxBufLen> = Queue(heapless::i::Queue::u8());
+        static mut RES_Q: ResQueue<TEST_RX_BUF_LEN> = Queue::new();
         let (res_p, mut res_c) = unsafe { RES_Q.split() };
-        static mut URC_Q: UrcQueue<TestRxBufLen, TestUrcCapacity> = Queue(heapless::i::Queue::u8());
+        static mut URC_Q: UrcQueue<TEST_RX_BUF_LEN, TEST_URC_CAPACITY> = Queue::new();
         let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-        static mut COM_Q: ComQueue = Queue(heapless::i::Queue::u8());
+        static mut COM_Q: ComQueue = Queue::new();
         let (_com_p, com_c) = unsafe { COM_Q.split() };
 
         let mut ingress = IngressManager::with_customs(
@@ -215,6 +209,6 @@ mod test {
         }
         ingress.write(b"\"\r\n");
         ingress.digest();
-        assert_eq!(res_c.dequeue().unwrap(), Err(Error::Overflow));
+        assert_eq!(res_c.dequeue().unwrap(), Err(InternalError::Overflow));
     }
 }

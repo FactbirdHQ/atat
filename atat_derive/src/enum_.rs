@@ -289,7 +289,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
 
         #[automatically_derived]
         impl #atat_len_impl_generics atat::AtatLen for #ident #atat_len_ty_generics #atat_len_where_clause {
-            type Len = #enum_len;
+            const LEN: usize = #enum_len;
         }
 
         #[automatically_derived]

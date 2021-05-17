@@ -1,67 +1,60 @@
-use core::ops::Mul;
-use heapless::{ArrayLength, String, Vec};
+use heapless::{String, Vec};
 use serde_at::CharVec;
-use typenum::Unsigned;
 
 /// Trait used by [`atat_derive`] to estimate lengths of the serialized commands, at compile time.
 ///
 /// [`atat_derive`]: https://crates.io/crates/atat_derive
 pub trait AtatLen {
-    type Len: ArrayLength<u8>;
+    const LEN: usize;
 }
 
 macro_rules! impl_length {
-    ($type:ty, $len:ident) => {
+    ($type:ty, $len:expr) => {
         #[allow(clippy::use_self)]
         impl AtatLen for $type {
-            type Len = heapless::consts::$len;
+            const LEN: usize = $len;
         }
     };
 }
 
-impl_length!(char, U1);
-impl_length!(bool, U5);
-impl_length!(isize, U19);
-impl_length!(usize, U20);
-impl_length!(u8, U3);
-impl_length!(u16, U5);
-impl_length!(u32, U10);
-impl_length!(u64, U20);
-impl_length!(u128, U39);
-impl_length!(i8, U4);
-impl_length!(i16, U6);
-impl_length!(i32, U11);
-impl_length!(i64, U20);
-impl_length!(i128, U40);
-impl_length!(f32, U42);
-impl_length!(f64, U312);
+impl_length!(char, 1);
+impl_length!(bool, 5);
+impl_length!(isize, 19);
+impl_length!(usize, 20);
+impl_length!(u8, 3);
+impl_length!(u16, 5);
+impl_length!(u32, 10);
+impl_length!(u64, 20);
+impl_length!(u128, 39);
+impl_length!(i8, 4);
+impl_length!(i16, 6);
+impl_length!(i32, 11);
+impl_length!(i64, 20);
+impl_length!(i128, 40);
+impl_length!(f32, 42);
+impl_length!(f64, 312);
 
-impl<T: ArrayLength<u8>> AtatLen for String<T> {
-    type Len = T;
+impl<const T: usize> AtatLen for String<T> {
+    const LEN: usize = T;
 }
 
 impl<T: AtatLen> AtatLen for Option<T> {
-    type Len = T::Len;
+    const LEN: usize = T::LEN;
 }
 
 impl<T: AtatLen> AtatLen for &T {
-    type Len = T::Len;
+    const LEN: usize = T::LEN;
 }
 
-impl<T, L> AtatLen for Vec<T, L>
+impl<T, const L: usize> AtatLen for Vec<T, L>
 where
     T: AtatLen,
-    L: ArrayLength<T> + Unsigned + Mul<<T as AtatLen>::Len>,
-    <L as Mul<<T as AtatLen>::Len>>::Output: ArrayLength<u8>,
 {
-    type Len = <L as Mul<<T as AtatLen>::Len>>::Output;
+    const LEN: usize = L * <T as AtatLen>::LEN;
 }
 
-impl<T> AtatLen for CharVec<T>
-where
-    T: ArrayLength<char> + ArrayLength<u8>,
-{
-    type Len = T;
+impl<const T: usize> AtatLen for CharVec<T> {
+    const LEN: usize = T;
 }
 
 #[cfg(test)]
@@ -69,9 +62,8 @@ mod tests {
     use crate as atat;
     use atat::{derive::AtatLen, AtatCmd};
     use atat_derive::{AtatCmd, AtatEnum, AtatResp};
-    use heapless::{consts, String, Vec};
+    use heapless::{String, Vec};
     use serde_at::{from_str, to_string, SerializeOptions};
-    use typenum::marker_traits::Unsigned;
 
     #[derive(Debug, PartialEq, AtatResp)]
     struct NoResponse {}
@@ -104,13 +96,13 @@ mod tests {
         #[at_arg(value = 1)]
         SingleSimpleTuple(u8),
         #[at_arg(default, value = 2)]
-        AdvancedTuple(u8, String<consts::U10>, i64, SimpleEnumU32),
+        AdvancedTuple(u8, String<10>, i64, SimpleEnumU32),
         #[at_arg(value = 3)]
         SingleSimpleStruct { x: u8 },
         #[at_arg(value = 4)]
         AdvancedStruct {
             a: u8,
-            b: String<consts::U10>,
+            b: String<10>,
             c: i64,
             d: SimpleEnum,
         },
@@ -122,7 +114,7 @@ mod tests {
     #[at_cmd("+CFUN", NoResponse)]
     struct LengthTester<'a> {
         x: u8,
-        y: String<consts::U128>,
+        y: String<128>,
         #[at_arg(len = 2)]
         z: u16,
         #[at_arg(len = 150)]
@@ -131,38 +123,38 @@ mod tests {
         b: SimpleEnumU32,
         #[at_arg(len = 3)]
         c: SimpleEnumU32,
-        // d: Vec<SimpleEnumU32, consts::U5>,
+        // d: Vec<SimpleEnumU32, 5>,
     }
 
     #[test]
     fn test_atat_len() {
-        assert_eq!(<char as AtatLen>::Len::to_usize(), 1);
-        assert_eq!(<bool as AtatLen>::Len::to_usize(), 5);
-        assert_eq!(<isize as AtatLen>::Len::to_usize(), 19);
-        assert_eq!(<usize as AtatLen>::Len::to_usize(), 20);
-        assert_eq!(<u8 as AtatLen>::Len::to_usize(), 3);
-        assert_eq!(<u16 as AtatLen>::Len::to_usize(), 5);
-        assert_eq!(<u32 as AtatLen>::Len::to_usize(), 10);
-        assert_eq!(<u64 as AtatLen>::Len::to_usize(), 20);
-        assert_eq!(<u128 as AtatLen>::Len::to_usize(), 39);
-        assert_eq!(<i8 as AtatLen>::Len::to_usize(), 4);
-        assert_eq!(<i16 as AtatLen>::Len::to_usize(), 6);
-        assert_eq!(<i32 as AtatLen>::Len::to_usize(), 11);
-        assert_eq!(<i64 as AtatLen>::Len::to_usize(), 20);
-        assert_eq!(<i128 as AtatLen>::Len::to_usize(), 40);
-        assert_eq!(<f32 as AtatLen>::Len::to_usize(), 42);
-        assert_eq!(<f64 as AtatLen>::Len::to_usize(), 312);
+        assert_eq!(<char as AtatLen>::LEN, 1);
+        assert_eq!(<bool as AtatLen>::LEN, 5);
+        assert_eq!(<isize as AtatLen>::LEN, 19);
+        assert_eq!(<usize as AtatLen>::LEN, 20);
+        assert_eq!(<u8 as AtatLen>::LEN, 3);
+        assert_eq!(<u16 as AtatLen>::LEN, 5);
+        assert_eq!(<u32 as AtatLen>::LEN, 10);
+        assert_eq!(<u64 as AtatLen>::LEN, 20);
+        assert_eq!(<u128 as AtatLen>::LEN, 39);
+        assert_eq!(<i8 as AtatLen>::LEN, 4);
+        assert_eq!(<i16 as AtatLen>::LEN, 6);
+        assert_eq!(<i32 as AtatLen>::LEN, 11);
+        assert_eq!(<i64 as AtatLen>::LEN, 20);
+        assert_eq!(<i128 as AtatLen>::LEN, 40);
+        assert_eq!(<f32 as AtatLen>::LEN, 42);
+        assert_eq!(<f64 as AtatLen>::LEN, 312);
 
-        assert_eq!(<SimpleEnum as AtatLen>::Len::to_usize(), 3);
-        assert_eq!(<SimpleEnumU32 as AtatLen>::Len::to_usize(), 10);
+        assert_eq!(<SimpleEnum as AtatLen>::LEN, 3);
+        assert_eq!(<SimpleEnumU32 as AtatLen>::LEN, 10);
         // (fields) + (n_fields - 1)
         // (3 + 128 + 2 + 150 + 3 + 10 + 3 + (10*5)) + 7
         assert_eq!(
-            <LengthTester<'_> as AtatLen>::Len::to_usize(),
+            <LengthTester<'_> as AtatLen>::LEN,
             (3 + 128 + 2 + 150 + 3 + 10 + 3) + 6
         );
         assert_eq!(
-            <MixedEnum<'_> as AtatLen>::Len::to_usize(),
+            <MixedEnum<'_> as AtatLen>::LEN,
             (3 + 3 + 10 + 20 + 10) + 4
         );
     }
@@ -181,52 +173,51 @@ mod tests {
                 // d: Vec::new()
             }
             .as_bytes(),
-            Vec::<u8, consts::U360>::from_slice(b"AT+CFUN=8,\"SomeString\",2,\"whatup\",0,0,1\r\n")
-                .unwrap()
+            Vec::<u8, 360>::from_slice(b"AT+CFUN=8,\"SomeString\",2,\"whatup\",0,0,1\r\n").unwrap()
         );
     }
 
     #[test]
     fn test_mixed_enum() {
         assert_eq!(
-            to_string::<consts::U1, consts::U3, _>(
+            to_string::<1, 3, _>(
                 &MixedEnum::UnitVariant,
                 String::from("CMD"),
                 SerializeOptions::default()
             )
             .unwrap(),
-            String::<consts::U1>::from("0")
+            String::<1>::from("0")
         );
         assert_eq!(
-            to_string::<consts::U10, consts::U3, _>(
+            to_string::<10, 3, _>(
                 &MixedEnum::SingleSimpleTuple(15),
                 String::from("CMD"),
                 SerializeOptions::default()
             )
             .unwrap(),
-            String::<consts::U10>::from("1,15")
+            String::<10>::from("1,15")
         );
         assert_eq!(
-            to_string::<consts::U50, consts::U3, _>(
+            to_string::<50, 3, _>(
                 &MixedEnum::AdvancedTuple(25, String::from("testing"), -54, SimpleEnumU32::A),
                 String::from("CMD"),
                 SerializeOptions::default()
             )
             .unwrap(),
-            String::<consts::U50>::from("2,25,\"testing\",-54,0")
+            String::<50>::from("2,25,\"testing\",-54,0")
         );
         assert_eq!(
-            to_string::<consts::U10, consts::U3, _>(
+            to_string::<10, 3, _>(
                 &MixedEnum::SingleSimpleStruct { x: 35 },
                 String::from("CMD"),
                 SerializeOptions::default()
             )
             .unwrap(),
-            String::<consts::U10>::from("3,35")
+            String::<10>::from("3,35")
         );
 
         assert_eq!(
-            to_string::<consts::U50, consts::U3, _>(
+            to_string::<50, 3, _>(
                 &MixedEnum::AdvancedStruct {
                     a: 77,
                     b: String::from("whaat"),
@@ -237,7 +228,7 @@ mod tests {
                 SerializeOptions::default()
             )
             .unwrap(),
-            String::<consts::U50>::from("4,77,\"whaat\",88,1")
+            String::<50>::from("4,77,\"whaat\",88,1")
         );
 
         assert_eq!(Ok(MixedEnum::UnitVariant), from_str::<MixedEnum<'_>>("0"));

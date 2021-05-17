@@ -1,6 +1,6 @@
 use crate::proc_macro::TokenStream;
 
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::parse_macro_input;
 
 use crate::parse::{CmdAttributes, ParseInput};
@@ -17,6 +17,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
     let CmdAttributes {
         cmd,
         resp,
+        error,
         timeout_ms,
         abortable,
         force_receive_state,
@@ -64,13 +65,13 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         None => quote! {},
     };
 
-    let subcmd_len_ident = format_ident!("U{}", cmd.len());
+    let subcmd_len = cmd.len();
     let mut cmd_len = cmd_prefix.len() + cmd.len() + termination.len();
     if value_sep {
         cmd_len += 1;
     }
 
-    let cmd_len_ident = format_ident!("U{}", cmd_len);
+    let err = error.unwrap_or_else(|| syn::parse_str("atat::GenericError").unwrap());
 
     let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants
         .iter()
@@ -85,17 +86,18 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
     TokenStream::from(quote! {
         #[automatically_derived]
         impl #impl_generics atat::AtatLen for #ident #ty_generics #where_clause {
-            type Len = #struct_len;
+            const LEN: usize = #struct_len;
         }
 
         #[automatically_derived]
         impl #impl_generics atat::AtatCmd for #ident #ty_generics #where_clause {
             type Response = #resp;
-            type CommandLen = <<Self as atat::AtatLen>::Len as core::ops::Add<::heapless::consts::#cmd_len_ident>>::Output;
+            type Error = #err;
+            const COMMAND_LEN: usize = <Self as atat::AtatLen>::LEN + #cmd_len;
 
             #[inline]
-            fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
-                let s: atat::heapless::String<::heapless::consts::#subcmd_len_ident> = atat::heapless::String::from(#cmd);
+            fn as_bytes(&self) -> atat::heapless::Vec<u8, { Self::COMMAND_LEN }> {
+                let s: atat::heapless::String<#subcmd_len> = atat::heapless::String::from(#cmd);
                 match atat::serde_at::to_vec(self, s, atat::serde_at::SerializeOptions {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,
@@ -107,10 +109,13 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             }
 
             #[inline]
-            fn parse(&self, resp: &[u8]) -> core::result::Result<#resp, atat::Error> {
-                atat::serde_at::from_slice::<#resp>(resp).map_err(|e| {
-                    atat::Error::ParseString
-                })
+            fn parse(&self, res: Result<&[u8], &atat::InternalError>) -> core::result::Result<Self::Response, atat::Error<Self::Error>> {
+                match res {
+                    Ok(resp) => atat::serde_at::from_slice::<#resp>(resp).map_err(|e| {
+                        atat::Error::Parse
+                    }),
+                    Err(e) => Err(e.into())
+                }
             }
 
             #timeout
