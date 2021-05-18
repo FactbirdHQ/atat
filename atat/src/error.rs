@@ -21,6 +21,7 @@ pub enum InternalError {
     Error(Vec<u8, 85>),
 }
 
+#[cfg(feature = "defmt")]
 impl defmt::Format for InternalError {
     fn format(&self, f: defmt::Formatter) {
         match self {
@@ -37,11 +38,9 @@ impl defmt::Format for InternalError {
 }
 
 /// Errors returned by the crate
-#[derive(Clone, Debug, PartialEq, defmt::Format)]
-pub enum Error<E = GenericError>
-where
-    E: defmt::Format,
-{
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum Error<E = GenericError> {
     /// Serial read error
     Read,
     /// Serial write error
@@ -62,7 +61,7 @@ where
 
 impl<E> From<&InternalError> for Error<E>
 where
-    E: core::str::FromStr + defmt::Format,
+    E: core::str::FromStr,
 {
     fn from(ie: &InternalError) -> Self {
         match ie {
@@ -85,7 +84,8 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, defmt::Format)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct GenericError;
 
 impl core::str::FromStr for GenericError {

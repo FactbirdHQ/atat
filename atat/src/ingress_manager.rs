@@ -1,6 +1,8 @@
 use heapless::Vec;
 
+use crate::atat_log;
 use crate::error::InternalError;
+use crate::helpers::LossyStr;
 use crate::queues::{ComConsumer, ResProducer, UrcProducer};
 use crate::Command;
 use crate::{
@@ -79,13 +81,10 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        defmt::trace!("Write: \"{=[u8]:a}\"", data);
+        atat_log!(trace, "Write: \"{:?}\"", LossyStr(data));
 
         if self.buf.extend_from_slice(data).is_err() {
-            defmt::error!(
-                "OVERFLOW DATA! Buffer: {=[u8]:a}",
-                core::convert::AsRef::<[u8]>::as_ref(&self.buf)
-            );
+            atat_log!(error, "OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
             self.notify_response(Err(InternalError::Overflow));
         }
     }
@@ -118,31 +117,31 @@ where
         match &resp {
             Ok(r) => {
                 if r.is_empty() {
-                    defmt::debug!("Received OK")
+                    atat_log!(debug, "Received OK")
                 } else {
-                    defmt::debug!("Received response: \"{=[u8]:a}\"", &r);
+                    atat_log!(debug, "Received response: \"{:?}\"", LossyStr(r));
                 }
             }
-            Err(e) => defmt::error!("Received error response {:?}", e),
+            Err(e) => atat_log!(error, "Received error response {:?}", e),
         }
         if self.res_p.ready() {
             unsafe { self.res_p.enqueue_unchecked(resp) };
         } else {
             // FIXME: Handle queue not being ready
-            defmt::error!("Response queue full!");
+            atat_log!(error, "Response queue full!");
         }
     }
 
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
     fn notify_urc(&mut self, resp: Vec<u8, BUF_LEN>) {
-        defmt::debug!("Received response: \"{=[u8]:a}\"", &resp);
+        atat_log!(debug, "Received response: \"{:?}\"", LossyStr(&resp));
 
         if self.urc_p.ready() {
             unsafe { self.urc_p.enqueue_unchecked(resp) };
         } else {
             // FIXME: Handle queue not being ready
-            defmt::error!("URC queue full!");
+            atat_log!(error, "URC queue full!");
         }
     }
 
@@ -151,9 +150,10 @@ where
         if let Some(com) = self.com_c.dequeue() {
             match com {
                 Command::Reset => {
-                    defmt::debug!(
-                        "Cleared complete buffer as requested by client [{=[u8]:a}]",
-                        &self.buf
+                    atat_log!(
+                        debug,
+                        "Cleared complete buffer as requested by client [{:?}]",
+                        LossyStr(&self.buf)
                     );
                     self.digester.reset();
                     self.buf.clear();

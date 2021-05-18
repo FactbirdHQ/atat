@@ -111,6 +111,54 @@ pub fn get_line<const L: usize, const I: usize>(
     }
 }
 
+#[cfg(feature = "log")]
+#[macro_export]
+macro_rules! atat_log {
+    ($level:ident, $($arg:expr),*) => {
+        log::$level!($($arg),*);
+    }
+}
+#[cfg(all(feature = "defmt", not(feature = "log")))]
+#[macro_export]
+macro_rules! atat_log {
+    ($level:ident, $($arg:expr),*) => {
+        defmt::$level!($($arg),*);
+    }
+}
+#[cfg(not(any(feature = "defmt", feature = "log")))]
+#[macro_export]
+macro_rules! atat_log {
+    ($level:ident, $($arg:expr),*) => {
+        {
+            $( let _ = $arg; )*
+            ()
+        }
+
+    }
+}
+#[cfg(all(feature = "defmt", feature = "log"))]
+compile_error!("You must enable at most one of the following features: defmt-*, log");
+
+/// Wrapper for a byte-slice that formats it as a string if possible and as
+/// bytes otherwise.
+pub struct LossyStr<'a>(pub &'a [u8]);
+
+impl<'a> core::fmt::Debug for LossyStr<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match core::str::from_utf8(self.0) {
+            Ok(s) => write!(f, "{:?}", s),
+            Err(_) => write!(f, "{:?}", self.0),
+        }
+    }
+}
+
+#[cfg(feature = "defmt")]
+impl<'a> defmt::Format for LossyStr<'a> {
+    fn format(&self, fmt: defmt::Formatter) {
+        defmt::write!(fmt, "{=[u8]:a}", self.0)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
