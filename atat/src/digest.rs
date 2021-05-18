@@ -147,7 +147,7 @@ impl Digester for DefaultDigester {
                         self.buf_incomplete,
                         buf.len()
                     );
-                    
+
                     self.buf_incomplete = buf.is_empty()
                         || (buf.len() > 0
                             && buf.get(buf.len() - 1) != Some(&Self::LINE_TERM_CHAR)
