@@ -78,7 +78,7 @@ pub trait AtatCmd {
     type Response: AtatResp;
 
     /// The type of the error.
-    type Error: FromStr + defmt::Format;
+    type Error: FromStr;
 
     /// Whether or not this command can be aborted.
     const CAN_ABORT: bool = false;

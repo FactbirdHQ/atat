@@ -1,5 +1,7 @@
 use embedded_hal::{serial, timer::CountDown};
 
+use crate::atat_log;
+use crate::helpers::LossyStr;
 use crate::queues::{ComProducer, ResConsumer, UrcConsumer, UrcItem};
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
 use crate::{error::Error, queues::ResCapacity};
@@ -91,7 +93,8 @@ where
         if let ClientState::Idle = self.state {
             if A::FORCE_RECEIVE_STATE && self.com_p.enqueue(Command::ForceReceiveState).is_err() {
                 // TODO: Consider how to act in this situation.
-                defmt::error!(
+                atat_log!(
+                    error,
                     "Failed to signal parser to force state transition to 'ReceivingResponse'!"
                 );
             }
@@ -103,9 +106,10 @@ where
             let cmd_buf = cmd.as_bytes();
 
             if cmd_buf.len() < 50 {
-                defmt::debug!("Sending command: \"{=[u8]:a}\"", &cmd_buf);
+                atat_log!(debug, "Sending command: \"{:?}\"", LossyStr(&cmd_buf));
             } else {
-                defmt::debug!(
+                atat_log!(
+                    debug,
                     "Sending command with too long payload ({} bytes) to log!",
                     cmd_buf.len()
                 );
@@ -141,7 +145,7 @@ where
                     return;
                 }
             } else {
-                defmt::error!("Parsing URC FAILED: {=[u8]:a}", urc)
+                atat_log!(error, "Parsing URC FAILED: {:?}", LossyStr(urc));
             }
             unsafe { self.urc_c.dequeue_unchecked() };
         }
@@ -159,7 +163,7 @@ where
                         Ok(r)
                     } else {
                         // FIXME: Is this correct?
-                        defmt::error!("Is this correct?! WouldBlock");
+                        atat_log!(error, "Is this correct?! WouldBlock");
                         Err(nb::Error::WouldBlock)
                     }
                 })
@@ -174,7 +178,7 @@ where
                 // Tell the parser to reset to initial state due to timeout
                 if self.com_p.enqueue(Command::Reset).is_err() {
                     // TODO: Consider how to act in this situation.
-                    defmt::error!("Failed to signal parser to clear buffer on timeout!");
+                    atat_log!(error, "Failed to signal parser to clear buffer on timeout!");
                 }
                 return Err(nb::Error::Other(Error::Timeout));
             }
@@ -189,7 +193,7 @@ where
     fn reset(&mut self) {
         if self.com_p.enqueue(Command::Reset).is_err() {
             // TODO: Consider how to act in this situation.
-            defmt::error!("Failed to signal ingress manager to reset!");
+            atat_log!(error, "Failed to signal ingress manager to reset!");
         }
 
         for _ in 0..ResCapacity::USIZE {
@@ -255,7 +259,7 @@ mod test {
         }
     }
 
-    #[derive(Debug, defmt::Format, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq)]
     pub enum InnerError {
         Test,
     }

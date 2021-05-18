@@ -1,5 +1,6 @@
 use crate::{
-    helpers::{get_line, SliceExt},
+    atat_log,
+    helpers::{get_line, LossyStr, SliceExt},
     urc_matcher::{UrcMatcher, UrcMatcherResult},
     InternalError,
 };
@@ -32,7 +33,8 @@ pub enum DigestResult<L: ArrayLength<u8>> {
 
 /// State of the `DefaultDigester`, used to distiguish URCs from solicited
 /// responses
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, defmt::Format)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 enum State {
     Idle,
     ReceivingResponse,
@@ -86,7 +88,7 @@ impl Digester for DefaultDigester {
         }
 
         if !buf.is_empty() {
-            defmt::trace!("Digest {} / {=[u8]:a}", self.state, &buf);
+            atat_log!(trace, "Digest {:?} / {:?}", self.state, LossyStr(buf));
         }
 
         match self.state {
@@ -106,7 +108,7 @@ impl Digester for DefaultDigester {
                     {
                         self.state = State::ReceivingResponse;
                         self.buf_incomplete = false;
-                        defmt::trace!("Switching to state ReceivingResponse");
+                        atat_log!(trace, "Switching to state ReceivingResponse");
                     }
 
                 // Handle URCs
@@ -139,7 +141,8 @@ impl Digester for DefaultDigester {
                 // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
                 // ensure that we don't accidentally break a valid response.
                 } else if self.buf_incomplete || buf.len() > 2 {
-                    defmt::error!(
+                    atat_log!(
+                        error,
                         "Clearing buffer with invalid response (incomplete: {}, buflen: {})",
                         self.buf_incomplete,
                         buf.len()
@@ -160,10 +163,10 @@ impl Digester for DefaultDigester {
                     );
 
                     if let Some(r) = removed {
-                        defmt::debug!("Cleared partial buffer, removed {=[u8]:a}", &r);
+                        atat_log!(debug, "Cleared partial buffer, removed {:?}", LossyStr(&r));
                     } else {
                         buf.clear();
-                        defmt::debug!("Cleared partial buffer, removed everything");
+                        atat_log!(debug, "Cleared partial buffer, removed everything");
                     }
 
                     // If the buffer wasn't cleared completely, that means that
@@ -241,7 +244,7 @@ impl Digester for DefaultDigester {
                     return DigestResult::None;
                 };
 
-                defmt::trace!("Switching to state Idle");
+                atat_log!(trace, "Switching to state Idle");
                 self.state = State::Idle;
                 return DigestResult::Response(resp);
             }
