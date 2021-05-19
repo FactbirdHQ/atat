@@ -80,6 +80,21 @@ pub trait AtatCmd<const LEN: usize> {
     /// The type of the error.
     type Error: FromStr;
 
+    /// Whether or not this command can be aborted.
+    const CAN_ABORT: bool = false;
+
+    /// The max timeout in milliseconds.
+    const MAX_TIMEOUT_MS: u32 = 1000;
+
+    /// Force the ingress manager into receive state immediately after sending
+    /// the command.
+    const FORCE_RECEIVE_STATE: bool = false;
+
+    /// Force client to look for a response.
+    /// Empty slice is then passed to parse by client.
+    /// Implemented to enhance expandability fo ATAT
+    const EXPECTS_RESPONSE_CODE: bool = true;
+
     /// Return the command as a heapless `Vec` of bytes.
     fn as_bytes(&self) -> Vec<u8, LEN>;
 
@@ -88,29 +103,6 @@ pub trait AtatCmd<const LEN: usize> {
         &self,
         resp: Result<&[u8], &InternalError>,
     ) -> Result<Self::Response, Error<Self::Error>>;
-
-    /// Whether or not this command can be aborted.
-    fn can_abort(&self) -> bool {
-        false
-    }
-
-    /// The max timeout in milliseconds.
-    fn max_timeout_ms(&self) -> u32 {
-        1000
-    }
-
-    /// Force the ingress manager into receive state immediately after sending
-    /// the command.
-    fn force_receive_state(&self) -> bool {
-        false
-    }
-
-    /// Force client to look for a response.
-    /// Empty slice is then passed to parse by client.
-    /// Implemented to enhance expandability fo ATAT
-    fn expects_response_code(&self) -> bool {
-        true
-    }
 }
 
 pub trait AtatClient {
@@ -126,7 +118,10 @@ pub trait AtatClient {
     /// This function will also make sure that atleast `self.config.cmd_cooldown`
     /// has passed since the last response or URC has been received, to allow
     /// the slave AT device time to deliver URC's.
-    fn send<A: AtatCmd<LEN>, const LEN: usize>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
+    fn send<A: AtatCmd<LEN>, const LEN: usize>(
+        &mut self,
+        cmd: &A,
+    ) -> nb::Result<A::Response, Error<A::Error>>;
 
     /// Checks if there are any URC's (Unsolicited Response Code) in
     /// queue from the ingress manager.
@@ -174,7 +169,10 @@ pub trait AtatClient {
     /// This function is usually only called through [`send`].
     ///
     /// [`send`]: #method.send
-    fn check_response<A: AtatCmd<LEN>, const LEN: usize>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
+    fn check_response<A: AtatCmd<LEN>, const LEN: usize>(
+        &mut self,
+        cmd: &A,
+    ) -> nb::Result<A::Response, Error<A::Error>>;
 
     /// Get the configured mode of the client.
     ///

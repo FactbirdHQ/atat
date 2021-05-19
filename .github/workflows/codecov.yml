@@ -83,4 +83,4 @@ jobs:
         with:
           # file: ${{ steps.grcov.outputs.report }}
           file: lcov.info
-          fail_ci_if_error: true
+          fail_ci_if_error: false

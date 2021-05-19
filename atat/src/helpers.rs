@@ -75,9 +75,6 @@ pub fn get_line<const L: usize, const I: usize>(
             .position(|window| window == needle)
     };
 
-    #[cfg(test)]
-    println!("{:?}", ind);
-
     match ind {
         Some(index) => {
             let white_space = buf
