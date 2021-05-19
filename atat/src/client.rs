@@ -91,8 +91,7 @@ where
 {
     fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>> {
         if let ClientState::Idle = self.state {
-            if cmd.force_receive_state() && self.com_p.enqueue(Command::ForceReceiveState).is_err()
-            {
+            if A::FORCE_RECEIVE_STATE && self.com_p.enqueue(Command::ForceReceiveState).is_err() {
                 // TODO: Consider how to act in this situation.
                 atat_log!(
                     error,
@@ -123,7 +122,7 @@ where
             self.state = ClientState::AwaitingResponse;
         }
 
-        if !cmd.expects_response_code() {
+        if !A::EXPECTS_RESPONSE_CODE {
             self.state = ClientState::Idle;
             return cmd.parse(Ok(&[])).map_err(nb::Error::Other);
         }
@@ -132,7 +131,7 @@ where
             Mode::Blocking => Ok(nb::block!(self.check_response(cmd))?),
             Mode::NonBlocking => self.check_response(cmd),
             Mode::Timeout => {
-                self.timer.try_start(cmd.max_timeout_ms()).ok();
+                self.timer.try_start(A::MAX_TIMEOUT_MS).ok();
                 Ok(nb::block!(self.check_response(cmd))?)
             }
         }

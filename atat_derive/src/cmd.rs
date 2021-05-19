@@ -35,9 +35,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
     let timeout = match timeout_ms {
         Some(timeout_ms) => {
             quote! {
-                fn max_timeout_ms(&self) -> u32 {
-                    #timeout_ms
-                }
+                const MAX_TIMEOUT_MS: u32 = #timeout_ms;
             }
         }
         None => quote! {},
@@ -46,9 +44,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
     let abortable = match abortable {
         Some(abortable) => {
             quote! {
-                fn can_abort(&self) -> bool {
-                    #abortable
-                }
+                const CAN_ABORT: bool = #abortable;
             }
         }
         None => quote! {},
@@ -57,9 +53,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
     let force_receive = match force_receive_state {
         Some(force_receive_state) => {
             quote! {
-                fn force_receive_state(&self) -> bool {
-                    #force_receive_state
-                }
+                const FORCE_RECEIVE_STATE: bool = #force_receive_state;
             }
         }
         None => quote! {},
@@ -96,6 +90,12 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             type Error = #err;
             type CommandLen = <<Self as atat::AtatLen>::Len as core::ops::Add<::heapless::consts::#cmd_len_ident>>::Output;
 
+            #timeout
+
+            #abortable
+
+            #force_receive
+
             #[inline]
             fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
                 let s: atat::heapless::String<::heapless::consts::#subcmd_len_ident> = atat::heapless::String::from(#cmd);
@@ -118,12 +118,6 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
                     Err(e) => Err(e.into())
                 }
             }
-
-            #timeout
-
-            #abortable
-
-            #force_receive
         }
 
         #[automatically_derived]
