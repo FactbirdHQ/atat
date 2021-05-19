@@ -82,7 +82,7 @@ where
     T: CountDown,
     T::Time: From<u32>,
 {
-    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>> {
+    fn send<A: AtatCmd<LEN>, const LEN: usize>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>> {
         if let ClientState::Idle = self.state {
             if cmd.force_receive_state() && self.com_p.enqueue(Command::ForceReceiveState).is_err()
             {
@@ -145,7 +145,7 @@ where
         }
     }
 
-    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>> {
+    fn check_response<A: AtatCmd<LEN>, const LEN: usize>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>> {
         if let Some(result) = self.res_c.dequeue() {
             return cmd
                 .parse(result.as_deref())

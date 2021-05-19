@@ -90,13 +90,13 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         }
 
         #[automatically_derived]
-        impl #impl_generics atat::AtatCmd for #ident #ty_generics #where_clause {
+        impl #impl_generics atat::AtatCmd<{ <Self as atat::AtatLen>::LEN + #cmd_len }> for #ident #ty_generics #where_clause {
             type Response = #resp;
             type Error = #err;
-            const COMMAND_LEN: usize = <Self as atat::AtatLen>::LEN + #cmd_len;
+            // const COMMAND_LEN: usize = <Self as atat::AtatLen>::LEN + #cmd_len;
 
             #[inline]
-            fn as_bytes(&self) -> atat::heapless::Vec<u8, { Self::COMMAND_LEN }> {
+            fn as_bytes(&self) -> atat::heapless::Vec<u8, { <Self as atat::AtatLen>::LEN + #cmd_len }> {
                 let s: atat::heapless::String<#subcmd_len> = atat::heapless::String::from(#cmd);
                 match atat::serde_at::to_vec(self, s, atat::serde_at::SerializeOptions {
                     value_sep: #value_sep,

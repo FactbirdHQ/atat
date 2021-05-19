@@ -64,15 +64,15 @@ pub trait AtatUrc {
 ///     }
 /// }
 /// ```
-pub trait AtatCmd {
-    /// The max length of the command.
-    ///
-    /// Example: For the command "AT+RST" you would specify
-    ///
-    /// ```
-    /// const COMMAND_LEN: usize = 6;
-    /// ```
-    const COMMAND_LEN: usize;
+pub trait AtatCmd<const LEN: usize> {
+    // /// The max length of the command.
+    // ///
+    // /// Example: For the command "AT+RST" you would specify
+    // ///
+    // /// ```
+    // /// const COMMAND_LEN: usize = 6;
+    // /// ```
+    // const COMMAND_LEN: usize;
 
     /// The type of the response. Must implement the `AtatResp` trait.
     type Response: AtatResp;
@@ -81,7 +81,7 @@ pub trait AtatCmd {
     type Error: FromStr;
 
     /// Return the command as a heapless `Vec` of bytes.
-    fn as_bytes(&self) -> Vec<u8, { Self::COMMAND_LEN }>;
+    fn as_bytes(&self) -> Vec<u8, LEN>;
 
     /// Parse the response into a `Self::Response` or `Error<Self::Error>` instance.
     fn parse(
@@ -126,7 +126,7 @@ pub trait AtatClient {
     /// This function will also make sure that atleast `self.config.cmd_cooldown`
     /// has passed since the last response or URC has been received, to allow
     /// the slave AT device time to deliver URC's.
-    fn send<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
+    fn send<A: AtatCmd<LEN>, const LEN: usize>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
 
     /// Checks if there are any URC's (Unsolicited Response Code) in
     /// queue from the ingress manager.
@@ -174,7 +174,7 @@ pub trait AtatClient {
     /// This function is usually only called through [`send`].
     ///
     /// [`send`]: #method.send
-    fn check_response<A: AtatCmd>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
+    fn check_response<A: AtatCmd<LEN>, const LEN: usize>(&mut self, cmd: &A) -> nb::Result<A::Response, Error<A::Error>>;
 
     /// Get the configured mode of the client.
     ///
@@ -192,13 +192,13 @@ impl<T, const L: usize> AtatResp for Vec<T, L> where T: AtatResp {}
 
 impl<const L: usize> AtatResp for String<L> {}
 
-impl<const L: usize> AtatCmd for String<L> {
-    const COMMAND_LEN: usize = L;
+impl<const L: usize> AtatCmd<L> for String<L> {
+    // const COMMAND_LEN: usize = L;
 
     type Response = String<256>;
     type Error = GenericError;
 
-    fn as_bytes(&self) -> Vec<u8, { Self::COMMAND_LEN }> {
+    fn as_bytes(&self) -> Vec<u8, L> {
         self.clone().into_bytes()
     }
 

@@ -254,9 +254,6 @@ pub use self::derive::AtatLen;
 pub use serde_at;
 
 #[cfg(feature = "derive")]
-pub use typenum;
-
-#[cfg(feature = "derive")]
 pub use heapless;
 
 pub use builder::ClientBuilder;
