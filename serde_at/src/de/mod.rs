@@ -53,6 +53,7 @@ impl<const T: usize> CharVec<T> {
         Self(heapless::Vec::<char, T>::new())
     }
 
+    #[must_use]
     pub fn to_string(&self) -> heapless::String<T> {
         let mut str = heapless::String::new();
         for c in self.0.iter() {
