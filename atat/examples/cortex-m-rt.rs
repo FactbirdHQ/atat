@@ -1,15 +1,7 @@
 #![no_main]
 #![no_std]
 
-extern crate atat;
-extern crate cortex_m;
-extern crate cortex_m_rt as rt;
-extern crate heapless;
-extern crate nb;
-
-#[cfg(not(test))]
-extern crate panic_halt;
-extern crate stm32l4xx_hal as hal;
+use stm32l4xx_hal as hal;
 
 mod common;
 
@@ -30,7 +22,7 @@ use heapless::{consts, spsc::Queue};
 
 use crate::rt::entry;
 
-static mut INGRESS: Option<atat::IngressManager<consts::U256>> = None;
+static mut INGRESS: Option<atat::IngressManager<256>> = None;
 static mut RX: Option<Rx<USART2>> = None;
 
 #[entry]
@@ -73,8 +65,8 @@ fn main() -> ! {
 
     serial.listen(Rxne);
 
-    static mut RES_QUEUE: ResQueue<consts::U256> = Queue(heapless::i::Queue::u8());
-    static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
+    static mut RES_QUEUE: ResQueue<256> = Queue(heapless::i::Queue::u8());
+    static mut URC_QUEUE: UrcQueue<256, 10> = Queue(heapless::i::Queue::u8());
     static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
 
     let queues = Queues {

@@ -53,8 +53,8 @@ where
     const LEN: usize = L * <T as AtatLen>::LEN;
 }
 
-impl<const T: usize> AtatLen for CharVec<T> {
-    const LEN: usize = T;
+impl<const N: usize> AtatLen for CharVec<N> {
+    const LEN: usize = N;
 }
 
 #[cfg(test)]

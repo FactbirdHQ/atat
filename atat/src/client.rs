@@ -220,6 +220,9 @@ mod test {
     use heapless::{spsc::Queue, String, Vec};
     use nb;
 
+    const TEST_RX_BUF_LEN: usize = 256;
+    const TEST_URC_CAPACITY: usize = 10;
+
     struct CdMock;
 
     impl CountDown for CdMock {
@@ -390,9 +393,6 @@ mod test {
         #[at_urc(b"+UMWI")]
         MessageWaitingIndication(MessageWaitingIndication),
     }
-
-    const TEST_RX_BUF_LEN: usize = 256;
-    const TEST_URC_CAPACITY: usize = 10;
 
     macro_rules! setup {
         ($config:expr) => {{

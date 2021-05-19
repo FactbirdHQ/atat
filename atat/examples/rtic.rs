@@ -1,12 +1,7 @@
 #![no_main]
 #![no_std]
 
-extern crate atat;
-extern crate heapless;
-
-#[cfg(not(test))]
-extern crate panic_halt;
-extern crate stm32l4xx_hal as hal;
+use stm32l4xx_hal as hal;
 
 mod common;
 
@@ -23,19 +18,19 @@ use atat::{
 };
 use rtic::{app, export::wfi};
 
-use heapless::{consts, spsc::Queue};
+use heapless::spsc::Queue;
 
 #[app(device = hal::pac, peripherals = true)]
 const APP: () = {
     struct Resources {
-        ingress: atat::IngressManager<consts::U256>,
+        ingress: atat::IngressManager<atat::DefaultDigester, atat::DefaultUrcMatcher, 256, 10>,
         rx: Rx<USART2>,
     }
 
     #[init(spawn = [at_loop])]
     fn init(ctx: init::Context) -> init::LateResources {
-        static mut RES_QUEUE: ResQueue<consts::U256> = Queue(heapless::i::Queue::u8());
-        static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
+        static mut RES_QUEUE: ResQueue<256> = Queue(heapless::i::Queue::u8());
+        static mut URC_QUEUE: UrcQueue<256, 10> = Queue(heapless::i::Queue::u8());
         static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
 
         let p = Peripherals::take().unwrap();

@@ -64,15 +64,6 @@ pub trait AtatUrc {
 /// }
 /// ```
 pub trait AtatCmd<const LEN: usize> {
-    // /// The max length of the command.
-    // ///
-    // /// Example: For the command "AT+RST" you would specify
-    // ///
-    // /// ```
-    // /// const COMMAND_LEN: usize = 6;
-    // /// ```
-    // const COMMAND_LEN: usize;
-
     /// The type of the response. Must implement the `AtatResp` trait.
     type Response: AtatResp;
 
@@ -201,8 +192,9 @@ impl<const L: usize> AtatCmd<L> for String<L> {
         &self,
         resp: Result<&[u8], &InternalError>,
     ) -> Result<Self::Response, Error<Self::Error>> {
-        let str = core::str::from_utf8(resp.map_err(Error::from)?).map_err(|_| Error::Parse)?;
-        Ok(String::from(str))
+        let utf8_string =
+            core::str::from_utf8(resp.map_err(Error::from)?).map_err(|_| Error::Parse)?;
+        Ok(String::from(utf8_string))
     }
 }
 

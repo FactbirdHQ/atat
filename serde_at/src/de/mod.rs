@@ -45,16 +45,16 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// assert_eq!(incoming, expected);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
-pub struct CharVec<const T: usize>(pub heapless::Vec<char, T>);
+pub struct CharVec<const N: usize>(pub heapless::Vec<char, N>);
 
-impl<const T: usize> CharVec<T> {
+impl<const N: usize> CharVec<N> {
     #[must_use]
     pub fn new() -> Self {
-        Self(heapless::Vec::<char, T>::new())
+        Self(heapless::Vec::<char, N>::new())
     }
 
     #[must_use]
-    pub fn to_string(&self) -> heapless::String<T> {
+    pub fn to_string(&self) -> heapless::String<N> {
         let mut str = heapless::String::new();
         for c in self.0.iter() {
             // Ignore result here, as length of both `self.0` and `str` is `T`
@@ -63,12 +63,12 @@ impl<const T: usize> CharVec<T> {
         str
     }
 }
-impl<const T: usize> Default for CharVec<T> {
+impl<const N: usize> Default for CharVec<N> {
     fn default() -> Self {
         Self::new()
     }
 }
-impl<'de, const T: usize> Deserialize<'de> for CharVec<T> {
+impl<'de, const N: usize> Deserialize<'de> for CharVec<N> {
     fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
