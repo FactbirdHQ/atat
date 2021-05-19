@@ -63,13 +63,15 @@ pub fn enum_len(
                     quote! { <#ty as atat::AtatLen>::LEN }
                 };
                 fields_len = quote! {
-                    #field_len + #fields_len + 1
+                    #fields_len + #field_len + 1
                 };
             }
 
-            // core::cmp::max(#fields_len, #enum_len)
             enum_len = quote! {
-                [#fields_len, #enum_len][(#fields_len < #enum_len) as usize]
+                {
+                    const e_len: usize = #enum_len;
+                    if #fields_len < e_len { e_len } else { #fields_len }
+                }
             };
         }
     }
