@@ -35,13 +35,12 @@
 //!
 //! impl AtatResp for GreetingText {};
 //!
-//! impl<'a> AtatCmd for SetGreetingText<'a> {
-//!     type CommandLen = 64;
+//! impl<'a> AtatCmd<64> for SetGreetingText<'a> {
 //!     type Response = NoResponse;
 //!     type Error = GenericError;
 //!
-//!     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
-//!         let mut buf: Vec<u8, Self::CommandLen> = Vec::new();
+//!     fn as_bytes(&self) -> Vec<u8, 64> {
+//!         let mut buf: Vec<u8, 64> = Vec::new();
 //!         write!(buf, "AT+CSGT={}", self.text);
 //!         buf
 //!     }
@@ -51,12 +50,11 @@
 //!     }
 //! }
 //!
-//! impl AtatCmd for GetGreetingText {
-//!     type CommandLen = 8;
+//! impl AtatCmd<8> for GetGreetingText {
 //!     type Response = GreetingText;
 //!     type Error = GenericError;
 //!
-//!     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+//!     fn as_bytes(&self) -> Vec<u8, 8> {
 //!         Vec::from_slice(b"AT+CSGT?").unwrap()
 //!     }
 //!

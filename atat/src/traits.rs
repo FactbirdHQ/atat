@@ -13,7 +13,7 @@ use heapless::{String, Vec};
 /// use atat::AtatResp;
 ///
 /// pub struct GreetingText {
-///     pub text: heapless::String<heapless::64>,
+///     pub text: heapless::String<64>,
 /// }
 ///
 /// impl AtatResp for GreetingText {}
@@ -48,13 +48,12 @@ pub trait AtatUrc {
 ///
 /// impl AtatResp for NoResponse {};
 ///
-/// impl<'a> AtatCmd for SetGreetingText<'a> {
-///     const COMMAND_LEN: usize = 64;
+/// impl<'a> AtatCmd<64> for SetGreetingText<'a> {
 ///     type Response = NoResponse;
 ///     type Error = GenericError;
 ///
-///     fn as_bytes(&self) -> Vec<u8, Self::COMMAND_LEN> {
-///         let mut buf: Vec<u8, Self::COMMAND_LEN> = Vec::new();
+///     fn as_bytes(&self) -> Vec<u8, 64> {
+///         let mut buf: Vec<u8, 64> = Vec::new();
 ///         write!(buf, "AT+CSGT={}", self.text);
 ///         buf
 ///     }
@@ -191,8 +190,6 @@ impl<T, const L: usize> AtatResp for Vec<T, L> where T: AtatResp {}
 impl<const L: usize> AtatResp for String<L> {}
 
 impl<const L: usize> AtatCmd<L> for String<L> {
-    // const COMMAND_LEN: usize = L;
-
     type Response = String<256>;
     type Error = GenericError;
 
