@@ -66,9 +66,10 @@ pub fn enum_len(
                     #field_len + #fields_len + 1
                 };
             }
+
             // core::cmp::max(#fields_len, #enum_len)
             enum_len = quote! {
-                #fields_len
+                [#fields_len, #enum_len][(#fields_len < #enum_len) as usize]
             };
         }
     }

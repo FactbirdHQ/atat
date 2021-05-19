@@ -398,6 +398,10 @@ mod test {
             static mut COM_Q: queues::ComQueue = Queue::new();
             let (com_p, _com_c) = unsafe { COM_Q.split() };
 
+            assert_eq!(res_p.capacity(), crate::queues::RES_CAPACITY);
+            assert_eq!(urc_p.capacity(), TEST_URC_CAPACITY - 1);
+            assert_eq!(com_p.capacity(), crate::queues::COM_CAPACITY);
+
             let tx_mock = TxMock::new(String::new());
             let client: Client<TxMock, CdMock, TEST_RX_BUF_LEN, TEST_URC_CAPACITY> =
                 Client::new(tx_mock, res_c, urc_c, com_p, CdMock, $config);

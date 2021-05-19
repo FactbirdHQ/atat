@@ -1,6 +1,6 @@
 use crate::proc_macro::TokenStream;
 
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::parse_macro_input;
 
 use crate::parse::{CmdAttributes, ParseInput};
@@ -83,20 +83,23 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
     let struct_len = crate::len::struct_len(variants, n_fields.checked_sub(1).unwrap_or(n_fields));
 
+    let ident_len = format_ident!("ATAT_{}_LEN", ident.to_string().to_uppercase());
+
     TokenStream::from(quote! {
         #[automatically_derived]
         impl #impl_generics atat::AtatLen for #ident #ty_generics #where_clause {
             const LEN: usize = #struct_len;
         }
 
+        const #ident_len: usize = #struct_len;
+
         #[automatically_derived]
-        impl #impl_generics atat::AtatCmd<{ <Self as atat::AtatLen>::LEN + #cmd_len }> for #ident #ty_generics #where_clause {
+        impl #impl_generics atat::AtatCmd<{ #ident_len + #cmd_len }> for #ident #ty_generics #where_clause {
             type Response = #resp;
             type Error = #err;
-            // const COMMAND_LEN: usize = <Self as atat::AtatLen>::LEN + #cmd_len;
 
             #[inline]
-            fn as_bytes(&self) -> atat::heapless::Vec<u8, { <Self as atat::AtatLen>::LEN + #cmd_len }> {
+            fn as_bytes(&self) -> atat::heapless::Vec<u8, { #ident_len + #cmd_len }> {
                 let s: atat::heapless::String<#subcmd_len> = atat::heapless::String::from(#cmd);
                 match atat::serde_at::to_vec(self, s, atat::serde_at::SerializeOptions {
                     value_sep: #value_sep,
