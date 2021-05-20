@@ -1,4 +1,4 @@
-use heapless::{consts, String, Vec};
+use heapless::Vec;
 
 /// Errors returned used internally within the crate
 #[derive(Clone, Debug, PartialEq)]
@@ -18,7 +18,7 @@ pub enum InternalError {
     /// Failed to parse received response
     Parse,
     /// Error response containing any error message
-    Error(Vec<u8, consts::U85>),
+    Error(Vec<u8, 85>),
 }
 
 #[cfg(feature = "defmt")]
@@ -73,8 +73,8 @@ where
             InternalError::Overflow => Self::Overflow,
             InternalError::Parse => Self::Parse,
             InternalError::Error(ref e) => {
-                if let Ok(s) = String::from_utf8(e.clone()) {
-                    if let Ok(e) = core::str::FromStr::from_str(s.as_str()) {
+                if let Ok(s) = core::str::from_utf8(&e.clone()) {
+                    if let Ok(e) = core::str::FromStr::from_str(s) {
                         return Self::Error(e);
                     }
                 }

@@ -6,10 +6,7 @@ use serde::ser;
 
 use crate::de::CharVec;
 
-use heapless::{
-    consts::{U16, U32},
-    String, Vec,
-};
+use heapless::{String, Vec};
 
 mod enum_;
 mod struct_;
@@ -25,7 +22,7 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 ///
 /// Example:
 /// ```
-/// use heapless::{consts, String};
+/// use heapless::String;
 /// use serde_at::{to_string, Bytes, SerializeOptions};
 /// use serde_derive::Serialize;
 ///
@@ -38,14 +35,14 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 /// let b = WithBytes {
 ///     s: Bytes(&slice[..]),
 /// };
-/// let s: String<consts::U32> = to_string(
+/// let s: String<32> = to_string(
 ///     &b,
-///     String::<consts::U32>::from("+CMD"),
+///     String::<32>::from("+CMD"),
 ///     SerializeOptions::default(),
 /// )
 /// .unwrap();
 ///
-/// assert_eq!(s, String::<consts::U32>::from("AT+CMD=Some bytes\r\n"));
+/// assert_eq!(s, String::<32>::from("AT+CMD=Some bytes\r\n"));
 /// ```
 #[derive(Clone, PartialEq)]
 pub struct Bytes<'a>(pub &'a [u8]);
@@ -59,10 +56,7 @@ impl<'a> serde::Serialize for Bytes<'a> {
     }
 }
 
-impl<T> serde::Serialize for CharVec<T>
-where
-    T: heapless::ArrayLength<char> + heapless::ArrayLength<u8>,
-{
+impl<const T: usize> serde::Serialize for CharVec<T> {
     fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -131,21 +125,13 @@ impl fmt::Display for Error {
 #[cfg(any(test, feature = "std"))]
 impl std::error::Error for Error {}
 
-pub(crate) struct Serializer<'a, B, C>
-where
-    B: heapless::ArrayLength<u8>,
-    C: heapless::ArrayLength<u8>,
-{
+pub(crate) struct Serializer<'a, const B: usize, const C: usize> {
     buf: Vec<u8, B>,
     cmd: String<C>,
     options: SerializeOptions<'a>,
 }
 
-impl<'a, B, C> Serializer<'a, B, C>
-where
-    B: heapless::ArrayLength<u8>,
-    C: heapless::ArrayLength<u8>,
-{
+impl<'a, const B: usize, const C: usize> Serializer<'a, B, C> {
     fn new(cmd: String<C>, options: SerializeOptions<'a>) -> Self {
         Serializer {
             buf: Vec::new(),
@@ -213,19 +199,15 @@ macro_rules! serialize_signed {
 }
 
 macro_rules! serialize_fmt {
-    ($self:ident, $uxx:ident, $fmt:expr, $v:expr) => {{
-        let mut s: String<$uxx> = String::new();
+    ($self:ident, $N:expr, $fmt:expr, $v:expr) => {{
+        let mut s: String<$N> = String::new();
         write!(&mut s, $fmt, $v).unwrap();
         $self.buf.extend_from_slice(s.as_bytes())?;
         Ok(())
     }};
 }
 
-impl<'a, 'b, B, C> ser::Serializer for &'a mut Serializer<'b, B, C>
-where
-    B: heapless::ArrayLength<u8>,
-    C: heapless::ArrayLength<u8>,
-{
+impl<'a, 'b, const B: usize, const C: usize> ser::Serializer for &'a mut Serializer<'b, B, C> {
     type Ok = ();
     type Error = Error;
     type SerializeSeq = Unreachable;
@@ -287,11 +269,11 @@ where
     }
 
     fn serialize_f32(self, v: f32) -> Result<Self::Ok> {
-        serialize_fmt!(self, U16, "{:e}", v)
+        serialize_fmt!(self, 16, "{:e}", v)
     }
 
     fn serialize_f64(self, v: f64) -> Result<Self::Ok> {
-        serialize_fmt!(self, U32, "{:e}", v)
+        serialize_fmt!(self, 32, "{:e}", v)
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok> {
@@ -426,30 +408,28 @@ where
 }
 
 /// Serializes the given data structure as a string
-pub fn to_string<B, C, T>(
+pub fn to_string<T, const B: usize, const C: usize>(
     value: &T,
     cmd: String<C>,
     options: SerializeOptions<'_>,
 ) -> Result<String<B>>
 where
-    B: heapless::ArrayLength<u8>,
-    C: heapless::ArrayLength<u8>,
     T: ser::Serialize + ?Sized,
 {
-    let mut ser = Serializer::new(cmd, options);
+    let mut ser = Serializer::<B, C>::new(cmd, options);
     value.serialize(&mut ser)?;
-    Ok(unsafe { String::from_utf8_unchecked(ser.buf) })
+    Ok(String::from(unsafe {
+        core::str::from_utf8_unchecked(&ser.buf)
+    }))
 }
 
 /// Serializes the given data structure as a byte vector
-pub fn to_vec<B, C, T>(
+pub fn to_vec<T, const B: usize, const C: usize>(
     value: &T,
     cmd: String<C>,
     options: SerializeOptions<'_>,
 ) -> Result<Vec<u8, B>>
 where
-    B: heapless::ArrayLength<u8>,
-    C: heapless::ArrayLength<u8>,
     T: ser::Serialize + ?Sized,
 {
     let mut ser = Serializer::new(cmd, options);
@@ -531,7 +511,7 @@ impl ser::SerializeTuple for Unreachable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use heapless::{consts, String};
+    use heapless::String;
     use serde_derive::{Deserialize, Serialize};
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -541,14 +521,14 @@ mod tests {
         ProtocolType(bool),
         /// • 1: APN - <param_val> defines the APN text string, e.g. "apn.provider.com"; the
         /// maximum length is 99. The factory-programmed value is an empty string.
-        APN(String<consts::U128>),
+        APN(String<128>),
         /// • 2: username - <param_val> is the user name text string for the authentication
         /// phase. The factory-programmed value is an empty string.
-        Username(String<consts::U128>),
+        Username(String<128>),
         /// • 3: password - <param_val> is the password text string for the authentication phase.
         /// Note: the AT+UPSD read command with param_tag = 3 is not allowed and the read
         /// all command does not display it
-        Password(String<consts::U128>),
+        Password(String<128>),
 
         QoSDelay3G(u32),
         CurrentProfileMap(u8),
@@ -580,26 +560,26 @@ mod tests {
 
     #[test]
     fn tuple_struct() {
-        let s: String<consts::U32> = to_string(
+        let s: String<32> = to_string(
             &PacketSwitchedParam::QoSDelay3G(15),
-            String::<consts::U32>::from(""),
+            String::<32>::from(""),
             SerializeOptions::default(),
         )
         .unwrap();
 
-        assert_eq!(s, String::<consts::U32>::from("4,15"));
+        assert_eq!(s, String::<32>::from("4,15"));
     }
 
     #[test]
     fn newtype_struct() {
-        let s: String<consts::U32> = to_string(
+        let s: String<32> = to_string(
             &Handle(15),
-            String::<consts::U32>::from(""),
+            String::<32>::from(""),
             SerializeOptions::default(),
         )
         .unwrap();
 
-        assert_eq!(s, String::<consts::U32>::from("15"));
+        assert_eq!(s, String::<32>::from("15"));
     }
 
     #[test]
@@ -612,43 +592,31 @@ mod tests {
         let b = WithBytes {
             s: Bytes(&slice[..]),
         };
-        let s: String<consts::U32> = to_string(
-            &b,
-            String::<consts::U32>::from("+CMD"),
-            SerializeOptions::default(),
-        )
-        .unwrap();
-        assert_eq!(s, String::<consts::U32>::from("AT+CMD=Some bytes\r\n"));
+        let s: String<32> =
+            to_string(&b, String::<32>::from("+CMD"), SerializeOptions::default()).unwrap();
+        assert_eq!(s, String::<32>::from("AT+CMD=Some bytes\r\n"));
     }
 
     #[test]
     fn char_vec_serialize() {
-        let test: CharVec<consts::U8> =
+        let test: CharVec<8> =
             CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap());
 
-        let s: String<consts::U32> = to_string(
-            &test,
-            String::<consts::U32>::from(""),
-            SerializeOptions::default(),
-        )
-        .unwrap();
-        assert_eq!(s, String::<consts::U32>::from("IMP_MSG"));
+        let s: String<32> =
+            to_string(&test, String::<32>::from(""), SerializeOptions::default()).unwrap();
+        assert_eq!(s, String::<32>::from("IMP_MSG"));
 
         #[derive(Clone, PartialEq, Serialize)]
         pub struct WithCharVec {
-            s: CharVec<consts::U8>,
+            s: CharVec<8>,
             n: u8,
         }
         let b = WithCharVec {
             s: CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
             n: 12,
         };
-        let s: String<consts::U32> = to_string(
-            &b,
-            String::<consts::U32>::from("+CMD"),
-            SerializeOptions::default(),
-        )
-        .unwrap();
-        assert_eq!(s, String::<consts::U32>::from("AT+CMD=IMP_MSG,12\r\n"));
+        let s: String<32> =
+            to_string(&b, String::<32>::from("+CMD"), SerializeOptions::default()).unwrap();
+        assert_eq!(s, String::<32>::from("AT+CMD=IMP_MSG,12\r\n"));
     }
 }

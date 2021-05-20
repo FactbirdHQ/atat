@@ -32,7 +32,7 @@ pub struct CmdAttributes {
 pub struct ArgAttributes {
     pub value: Option<i64>,
     pub position: Option<usize>,
-    pub len: Option<u32>,
+    pub len: Option<usize>,
     pub default: bool,
 }
 

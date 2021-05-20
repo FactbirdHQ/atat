@@ -1,32 +1,19 @@
+use crate::ser::{Error, Result, Serializer};
 use serde::ser;
 
-use heapless::ArrayLength;
-
-use crate::ser::{Error, Result, Serializer};
-
-pub struct SerializeTupleVariant<'a, 'b, B, C>
-where
-    B: ArrayLength<u8>,
-    C: ArrayLength<u8>,
-{
+pub struct SerializeTupleVariant<'a, 'b, const B: usize, const C: usize> {
     ser: &'a mut Serializer<'b, B, C>,
     first: bool,
 }
 
-impl<'a, 'b, B, C> SerializeTupleVariant<'a, 'b, B, C>
-where
-    B: ArrayLength<u8>,
-    C: ArrayLength<u8>,
-{
+impl<'a, 'b, const B: usize, const C: usize> SerializeTupleVariant<'a, 'b, B, C> {
     pub(crate) fn new(ser: &'a mut Serializer<'b, B, C>) -> Self {
         SerializeTupleVariant { ser, first: true }
     }
 }
 
-impl<'a, 'b, B, C> ser::SerializeTupleVariant for SerializeTupleVariant<'a, 'b, B, C>
-where
-    B: ArrayLength<u8>,
-    C: ArrayLength<u8>,
+impl<'a, 'b, const B: usize, const C: usize> ser::SerializeTupleVariant
+    for SerializeTupleVariant<'a, 'b, B, C>
 {
     type Ok = ();
     type Error = Error;
@@ -49,29 +36,19 @@ where
     }
 }
 
-pub struct SerializeStructVariant<'a, 'b, B, C>
-where
-    B: ArrayLength<u8>,
-    C: ArrayLength<u8>,
-{
+pub struct SerializeStructVariant<'a, 'b, const B: usize, const C: usize> {
     ser: &'a mut Serializer<'b, B, C>,
     first: bool,
 }
 
-impl<'a, 'b, B, C> SerializeStructVariant<'a, 'b, B, C>
-where
-    B: ArrayLength<u8>,
-    C: ArrayLength<u8>,
-{
+impl<'a, 'b, const B: usize, const C: usize> SerializeStructVariant<'a, 'b, B, C> {
     pub(crate) fn new(ser: &'a mut Serializer<'b, B, C>) -> Self {
         SerializeStructVariant { ser, first: true }
     }
 }
 
-impl<'a, 'b, B, C> ser::SerializeStructVariant for SerializeStructVariant<'a, 'b, B, C>
-where
-    B: ArrayLength<u8>,
-    C: ArrayLength<u8>,
+impl<'a, 'b, const B: usize, const C: usize> ser::SerializeStructVariant
+    for SerializeStructVariant<'a, 'b, B, C>
 {
     type Ok = ();
     type Error = Error;

@@ -1,13 +1,13 @@
 //! Responses for General Commands
 use atat::atat_derive::AtatResp;
-use heapless::{consts, String};
+use heapless::String;
 
 /// 4.1 Manufacturer identification
 /// Text string identifying the manufacturer.
 #[derive(Clone, Debug, AtatResp)]
 pub struct ManufacturerId {
     #[at_arg(position = 0)]
-    pub id: String<consts::U64>,
+    pub id: String<64>,
 }
 
 /// 4.7 IMEI identification +CGSN

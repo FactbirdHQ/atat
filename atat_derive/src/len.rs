@@ -1,5 +1,5 @@
 use crate::proc_macro::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::{parse_macro_input, Ident};
 
 use crate::parse::{parse_field_attr, ArgAttributes, FieldAttributes, ParseInput, Variant};
@@ -10,18 +10,16 @@ use crate::parse::{parse_field_attr, ArgAttributes, FieldAttributes, ParseInput,
 /// types `AtatLen` implementation, allowing overwriting the max length of all
 /// types, including borrowed data
 pub fn struct_len(variants: Vec<Variant>, init_len: usize) -> proc_macro2::TokenStream {
-    let init_len_ident = format_ident!("U{}", init_len);
-    let mut struct_len = quote! { atat::heapless::consts::#init_len_ident };
+    let mut struct_len = quote! { #init_len };
     for field in variants {
         let len = if let Some(ArgAttributes { len: Some(len), .. }) = field.attrs.at_arg {
-            let len_ident = format_ident!("U{}", len);
-            quote! { atat::heapless::consts::#len_ident }
+            quote! { #len }
         } else {
             let ty = field.ty.unwrap();
-            quote! { <#ty as atat::AtatLen>::Len }
+            quote! { <#ty as atat::AtatLen>::LEN }
         };
         struct_len = quote! {
-            <#len as core::ops::Add<#struct_len>>::Output
+            #len + #struct_len
         };
     }
     struct_len
@@ -37,10 +35,10 @@ pub fn enum_len(
     repr: &Ident,
     _generics: &mut syn::Generics,
 ) -> proc_macro2::TokenStream {
-    let mut enum_len = quote! { atat::heapless::consts::U0 };
+    let mut enum_len = quote! { 0 };
     for variant in variants {
         if let Some(ref fields) = variant.fields {
-            let mut fields_len = quote! { atat::heapless::consts::U0 };
+            let mut fields_len = quote! { 0 };
             for field in fields {
                 let field_len = if let Ok(FieldAttributes {
                     at_arg:
@@ -59,22 +57,25 @@ pub fn enum_len(
                     if position.is_some() {
                         panic!("position is not allowed in this position");
                     }
-                    let len_ident = format_ident!("U{}", len);
-                    quote! { atat::heapless::consts::#len_ident }
+                    quote! { #len }
                 } else {
                     let ty = &field.ty;
-                    quote! { <#ty as atat::AtatLen>::Len }
+                    quote! { <#ty as atat::AtatLen>::LEN }
                 };
                 fields_len = quote! {
-                    <<#field_len as core::ops::Add<#fields_len>>::Output as core::ops::Add<::heapless::consts::U1>>::Output
+                    #fields_len + #field_len + 1
                 };
             }
+
             enum_len = quote! {
-                <#fields_len as atat::typenum::type_operators::Max<#enum_len>>::Output
+                {
+                    const e_len: usize = #enum_len;
+                    if #fields_len < e_len { e_len } else { #fields_len }
+                }
             };
         }
     }
-    quote! { <<#repr as atat::AtatLen>::Len as core::ops::Add<#enum_len>>::Output }
+    quote! { <#repr as atat::AtatLen>::LEN + #enum_len }
 }
 
 pub fn atat_len(input: TokenStream) -> TokenStream {
@@ -94,7 +95,7 @@ pub fn atat_len(input: TokenStream) -> TokenStream {
     TokenStream::from(quote! {
         #[automatically_derived]
         impl #impl_generics atat::AtatLen for #ident #ty_generics #where_clause {
-            type Len = #struct_len;
+            const LEN: usize = #struct_len;
         }
     })
 }

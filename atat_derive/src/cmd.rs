@@ -59,13 +59,12 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         None => quote! {},
     };
 
-    let subcmd_len_ident = format_ident!("U{}", cmd.len());
+    let subcmd_len = cmd.len();
     let mut cmd_len = cmd_prefix.len() + cmd.len() + termination.len();
     if value_sep {
         cmd_len += 1;
     }
 
-    let cmd_len_ident = format_ident!("U{}", cmd_len);
     let err = error.unwrap_or_else(|| syn::parse_str("atat::GenericError").unwrap());
 
     let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants
@@ -78,17 +77,20 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
     let struct_len = crate::len::struct_len(variants, n_fields.checked_sub(1).unwrap_or(n_fields));
 
+    let ident_len = format_ident!("ATAT_{}_LEN", ident.to_string().to_uppercase());
+
     TokenStream::from(quote! {
         #[automatically_derived]
         impl #impl_generics atat::AtatLen for #ident #ty_generics #where_clause {
-            type Len = #struct_len;
+            const LEN: usize = #struct_len;
         }
 
+        const #ident_len: usize = #struct_len;
+
         #[automatically_derived]
-        impl #impl_generics atat::AtatCmd for #ident #ty_generics #where_clause {
+        impl #impl_generics atat::AtatCmd<{ #ident_len + #cmd_len }> for #ident #ty_generics #where_clause {
             type Response = #resp;
             type Error = #err;
-            type CommandLen = <<Self as atat::AtatLen>::Len as core::ops::Add<::heapless::consts::#cmd_len_ident>>::Output;
 
             #timeout
 
@@ -97,8 +99,8 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             #force_receive
 
             #[inline]
-            fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
-                let s: atat::heapless::String<::heapless::consts::#subcmd_len_ident> = atat::heapless::String::from(#cmd);
+            fn as_bytes(&self) -> atat::heapless::Vec<u8, { #ident_len + #cmd_len }> {
+                let s: atat::heapless::String<#subcmd_len> = atat::heapless::String::from(#cmd);
                 match atat::serde_at::to_vec(self, s, atat::serde_at::SerializeOptions {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,

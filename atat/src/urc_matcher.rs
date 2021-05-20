@@ -1,4 +1,4 @@
-use heapless::{ArrayLength, Vec};
+use heapless::Vec;
 
 /// A user-defined URC matcher
 ///
@@ -15,12 +15,12 @@ use heapless::{ArrayLength, Vec};
 ///
 /// ```
 /// use atat::{UrcMatcher, UrcMatcherResult};
-/// use heapless::{consts, ArrayLength, Vec};
+/// use heapless::Vec;
 ///
 /// struct FooUrcMatcher {}
 ///
 /// impl UrcMatcher for FooUrcMatcher {
-///     fn process<L: ArrayLength<u8>>(&mut self, buf: &mut Vec<u8, L>) -> UrcMatcherResult<L> {
+///     fn process<const L: usize>(&mut self, buf: &mut Vec<u8, L>) -> UrcMatcherResult<L> {
 ///         if buf.starts_with(b"+FOO,") {
 ///             if buf.len() >= 9 {
 ///                 if &buf[7..9] == b"\r\n" {
@@ -53,11 +53,11 @@ pub trait UrcMatcher {
     /// [`Complete`]: enum.UrcMatcherResult.html#variant.Complete
     /// [`Incomplete`]: enum.UrcMatcherResult.html#variant.Incomplete
     /// [`NotHandled`]: enum.UrcMatcherResult.html#variant.NotHandled
-    fn process<L: ArrayLength<u8>>(&mut self, buf: &mut Vec<u8, L>) -> UrcMatcherResult<L>;
+    fn process<const L: usize>(&mut self, buf: &mut Vec<u8, L>) -> UrcMatcherResult<L>;
 }
 
 /// The type returned from a custom URC matcher.
-pub enum UrcMatcherResult<L: ArrayLength<u8>> {
+pub enum UrcMatcherResult<const L: usize> {
     NotHandled,
     Incomplete,
     Complete(Vec<u8, L>),
@@ -70,7 +70,7 @@ pub enum UrcMatcherResult<L: ArrayLength<u8>> {
 pub struct DefaultUrcMatcher;
 
 impl UrcMatcher for DefaultUrcMatcher {
-    fn process<L: ArrayLength<u8>>(&mut self, _: &mut Vec<u8, L>) -> UrcMatcherResult<L> {
+    fn process<const L: usize>(&mut self, _: &mut Vec<u8, L>) -> UrcMatcherResult<L> {
         UrcMatcherResult::NotHandled
     }
 }

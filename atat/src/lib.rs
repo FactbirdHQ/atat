@@ -17,7 +17,7 @@
 //! ```
 //! use atat::{AtatCmd, AtatResp, Error, InternalError, GenericError};
 //! use core::fmt::Write;
-//! use heapless::{consts, String, Vec};
+//! use heapless::{String, Vec};
 //!
 //! pub struct SetGreetingText<'a> {
 //!     pub text: &'a str,
@@ -30,18 +30,17 @@
 //! impl AtatResp for NoResponse {};
 //!
 //! pub struct GreetingText {
-//!     pub text: String<consts::U64>,
+//!     pub text: String<64>,
 //! };
 //!
 //! impl AtatResp for GreetingText {};
 //!
-//! impl<'a> AtatCmd for SetGreetingText<'a> {
-//!     type CommandLen = consts::U64;
+//! impl<'a> AtatCmd<64> for SetGreetingText<'a> {
 //!     type Response = NoResponse;
 //!     type Error = GenericError;
 //!
-//!     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
-//!         let mut buf: Vec<u8, Self::CommandLen> = Vec::new();
+//!     fn as_bytes(&self) -> Vec<u8, 64> {
+//!         let mut buf: Vec<u8, 64> = Vec::new();
 //!         write!(buf, "AT+CSGT={}", self.text);
 //!         buf
 //!     }
@@ -51,12 +50,11 @@
 //!     }
 //! }
 //!
-//! impl AtatCmd for GetGreetingText {
-//!     type CommandLen = consts::U8;
+//! impl AtatCmd<8> for GetGreetingText {
 //!     type Response = GreetingText;
 //!     type Error = GenericError;
 //!
-//!     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+//!     fn as_bytes(&self) -> Vec<u8, 8> {
 //!         Vec::from_slice(b"AT+CSGT?").unwrap()
 //!     }
 //!
@@ -72,7 +70,7 @@
 //! ### Same example with `atat_derive`:
 //! ```
 //! use atat::atat_derive::{AtatCmd, AtatResp};
-//! use heapless::{consts, String};
+//! use heapless::String;
 //!
 //! #[derive(Clone, AtatCmd)]
 //! #[at_cmd("+CSGT", NoResponse)]
@@ -91,7 +89,7 @@
 //! #[derive(Clone, AtatResp)]
 //! pub struct GreetingText {
 //!     #[at_arg(position = 0)]
-//!     pub text: String<consts::U64>,
+//!     pub text: String<64>,
 //! };
 //! ```
 //!
@@ -112,7 +110,7 @@
 //!
 //! use atat::{atat_derive::{AtatResp, AtatCmd}};
 //!
-//! use heapless::{consts, spsc::Queue, String};
+//! use heapless::{spsc::Queue, String};
 //!
 //! use crate::rt::entry;
 //! static mut INGRESS: Option<atat::IngressManager> = None;
@@ -154,9 +152,9 @@
 //!
 //!     serial.listen(Rxne);
 //!
-//!     static mut RES_QUEUE: ResQueue<consts::U256> = Queue(heapless::i::Queue::u8());
-//!     static mut URC_QUEUE: UrcQueue<consts::U256, consts::U10> = Queue(heapless::i::Queue::u8());
-//!     static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
+//!     static mut RES_QUEUE: ResQueue<256> = Queue::new();
+//!     static mut URC_QUEUE: UrcQueue<256, 10> = Queue::new();
+//!     static mut COM_QUEUE: ComQueue = Queue::new();
 //!
 //!     let queues = Queues {
 //!         res_queue: unsafe { RES_QUEUE.split() },
@@ -252,9 +250,6 @@ pub use self::derive::AtatLen;
 
 #[cfg(feature = "derive")]
 pub use serde_at;
-
-#[cfg(feature = "derive")]
-pub use typenum;
 
 #[cfg(feature = "derive")]
 pub use heapless;

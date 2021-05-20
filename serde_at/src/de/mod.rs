@@ -23,14 +23,14 @@ pub type Result<T> = core::result::Result<T, Error>;
 ///
 /// Example:
 /// ```
-/// use heapless::{consts, String};
+/// use heapless::String;
 /// use serde_at::{from_str, Bytes, CharVec, SerializeOptions};
 /// use serde_derive::Deserialize;
 ///
 /// #[derive(Debug, Deserialize, PartialEq)]
 /// struct CommandStruct {
 ///     id: u8,
-///     vec: CharVec<consts::U7>,
+///     vec: CharVec<7>,
 ///     value: i32,
 /// }
 ///
@@ -45,21 +45,16 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// assert_eq!(incoming, expected);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
-pub struct CharVec<T: heapless::ArrayLength<char>>(pub heapless::Vec<char, T>);
+pub struct CharVec<const N: usize>(pub heapless::Vec<char, N>);
 
-impl<T> CharVec<T>
-where
-    T: heapless::ArrayLength<char>,
-{
+impl<const N: usize> CharVec<N> {
     #[must_use]
     pub fn new() -> Self {
-        Self(heapless::Vec::<char, T>::new())
+        Self(heapless::Vec::<char, N>::new())
     }
 
-    pub fn to_string(&self) -> heapless::String<T>
-    where
-        T: heapless::ArrayLength<u8>,
-    {
+    #[must_use]
+    pub fn to_string(&self) -> heapless::String<N> {
         let mut str = heapless::String::new();
         for c in self.0.iter() {
             // Ignore result here, as length of both `self.0` and `str` is `T`
@@ -68,28 +63,19 @@ where
         str
     }
 }
-impl<T> Default for CharVec<T>
-where
-    T: heapless::ArrayLength<char>,
-{
+impl<const N: usize> Default for CharVec<N> {
     fn default() -> Self {
         Self::new()
     }
 }
-impl<'de, N> Deserialize<'de> for CharVec<N>
-where
-    N: heapless::ArrayLength<char>,
-{
+impl<'de, const N: usize> Deserialize<'de> for CharVec<N> {
     fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        struct ValueVisitor<'de, N>(core::marker::PhantomData<(&'de (), char, N)>);
+        struct ValueVisitor<'de, const U: usize>(core::marker::PhantomData<(&'de (), char)>);
 
-        impl<'de, N> de::Visitor<'de> for ValueVisitor<'de, N>
-        where
-            N: heapless::ArrayLength<char>,
-        {
+        impl<'de, const N: usize> de::Visitor<'de> for ValueVisitor<'de, N> {
             type Value = CharVec<N>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -161,7 +147,7 @@ pub enum Error {
 
     /// Error with a custom message that was preserved.
     #[cfg(feature = "custom-error-messages")]
-    CustomErrorWithMessage(heapless::String<heapless::consts::U128>),
+    CustomErrorWithMessage(heapless::String<128>),
 }
 
 pub(crate) struct Deserializer<'b> {
@@ -764,7 +750,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::CharVec;
-    use heapless::{consts, String};
+    use heapless::String;
     use serde_derive::Deserialize;
 
     #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -836,7 +822,7 @@ mod tests {
     fn simple_string() {
         #[derive(Clone, Debug, Deserialize, PartialEq)]
         pub struct StringTest {
-            pub string: String<consts::U32>,
+            pub string: String<32>,
         }
 
         assert_eq!(
@@ -851,7 +837,7 @@ mod tests {
     fn cgmi_string() {
         #[derive(Clone, Debug, Deserialize, PartialEq)]
         pub struct CGMI {
-            pub id: CharVec<consts::U32>,
+            pub id: CharVec<32>,
         }
 
         assert_eq!(
@@ -884,17 +870,14 @@ mod tests {
 
     #[test]
     fn char_vec_struct() {
-        assert_eq!(
-            CharVec(heapless::Vec::<char, consts::U4>::new()),
-            CharVec::new()
-        );
+        assert_eq!(CharVec(heapless::Vec::<char, 4>::new()), CharVec::new());
 
-        let res: CharVec<consts::U4> = crate::from_str("+CCID: IMP_").unwrap();
+        let res: CharVec<4> = crate::from_str("+CCID: IMP_").unwrap();
         assert_eq!(
             res,
             CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_']).unwrap())
         );
 
-        assert_eq!(res.to_string(), String::<consts::U4>::from("IMP_"));
+        assert_eq!(res.to_string(), String::<4>::from("IMP_"));
     }
 }

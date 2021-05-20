@@ -84,7 +84,7 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 ///
 /// Eg.
 /// ```ignore
-/// use heapless::{consts, String};
+/// use heapless::String;
 ///
 /// #[derive(AtatEnum)]
 /// pub enum LargeSizeVariations {
@@ -93,12 +93,12 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 ///     #[at_arg(value = 1)]
 ///     VariantTwo(u8),
 ///     #[at_arg(value = 2)]
-///     VariantThree(String<consts::U1024>)
+///     VariantThree(String<1024>)
 ///     #[at_arg(value = 2)]
-///     VariantFour(String<consts::U10>, String<consts::U10>, String<consts::U10>)
+///     VariantFour(String<10>, String<10>, String<10>)
 /// }
 /// ```
-/// will result in `<LargeSizeVariations as AtatLen>::Len == consts::U1026`, even for
+/// will result in `<LargeSizeVariations as AtatLen>::LEN == 1026`, even for
 /// `LargeSizeVariations::VariantOne`
 ///
 /// ### Container attribute (`#[at_enum(..)]`)

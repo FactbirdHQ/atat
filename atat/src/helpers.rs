@@ -1,4 +1,4 @@
-use heapless::{ArrayLength, Vec};
+use heapless::Vec;
 
 pub trait SliceExt {
     fn trim(&self, whitespaces: &[u8]) -> &Self;
@@ -39,11 +39,11 @@ impl SliceExt for [u8] {
 /// Example:
 /// ```
 /// use atat::helpers::get_line;
-/// use heapless::{consts, Vec};
+/// use heapless::Vec;
 ///
-/// let mut buf: Vec<u8, consts::U128> =
+/// let mut buf: Vec<u8, 128> =
 ///     Vec::from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\nAT+GMR\r\r\n").unwrap();
-/// let response: Option<Vec<u8, consts::U64>> =
+/// let response: Option<Vec<u8, 64>> =
 ///     get_line(&mut buf, b"OK", b'\r', b'\n', false, false, false);
 /// assert_eq!(
 ///     response,
@@ -51,10 +51,10 @@ impl SliceExt for [u8] {
 /// );
 /// assert_eq!(
 ///     buf,
-///     Vec::<u8, consts::U128>::from_slice(b"AT+GMR\r\r\n").unwrap()
+///     Vec::<u8, 128>::from_slice(b"AT+GMR\r\r\n").unwrap()
 /// );
 /// ```
-pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
+pub fn get_line<const L: usize, const I: usize>(
     buf: &mut Vec<u8, I>,
     needle: &[u8],
     line_term_char: u8,
@@ -97,7 +97,7 @@ pub fn get_line<L: ArrayLength<u8>, I: ArrayLength<u8>>(
             }
             .iter()
             // Truncate the response, rather than panic in case of buffer overflow!
-            .take(L::to_usize())
+            .take(L)
             .cloned()
             .collect();
 
