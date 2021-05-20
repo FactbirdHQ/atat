@@ -64,8 +64,8 @@ This workspace uses `cargo-release` to do workspace releases to crates.io. It ca
 
 ## About
 
-  - Minimum rustc version 1.31
-  - Tested and built using nightly toolchain, but should work fine for stable as well
+  - Minimum rustc version 1.52
+  - Tested and built using stable toolchain
 
 ## Supported Crates
 
