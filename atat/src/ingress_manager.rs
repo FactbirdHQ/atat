@@ -169,7 +169,7 @@ where
             self.handle_com();
 
             match self.digester.digest(&mut self.buf, &mut self.urc_matcher) {
-                DigestResult::None => return,
+                DigestResult::None => {}
                 DigestResult::Urc(urc_line) => self.notify_urc(urc_line),
                 DigestResult::Response(resp) => self.notify_response(resp),
             };
