@@ -59,7 +59,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         None => quote! {},
     };
 
-    let subcmd_len = cmd.len();
+    let subcmd_len = cmd.len().max(1);
     let mut cmd_len = cmd_prefix.len() + cmd.len() + termination.len();
     if value_sep {
         cmd_len += 1;
