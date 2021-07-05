@@ -17,6 +17,7 @@ pub use self::de::{from_slice, from_str, CharVec};
 #[doc(inline)]
 pub use self::ser::{to_string, to_vec, Bytes, SerializeOptions};
 
+#[allow(clippy::uninit_assumed_init)]
 unsafe fn uninitialized<T>() -> T {
     core::mem::MaybeUninit::uninit().assume_init()
 }

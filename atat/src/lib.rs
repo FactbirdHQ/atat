@@ -225,7 +225,7 @@
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::unused_unit)]
 #![allow(clippy::use_self)]
-#![allow(clippy::clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::used_underscore_binding)]
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]

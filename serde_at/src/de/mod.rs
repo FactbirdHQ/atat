@@ -178,7 +178,7 @@ impl<'a> Deserializer<'a> {
             self.index += 1;
         }
 
-        ch.cloned()
+        ch.copied()
     }
 
     fn parse_ident(&mut self, ident: &[u8]) -> Result<()> {
@@ -252,7 +252,7 @@ impl<'a> Deserializer<'a> {
     fn parse_whitespace(&mut self) -> Option<u8> {
         loop {
             match self.peek() {
-                Some(b' ') | Some(b'\n') | Some(b'\t') | Some(b'\r') => {
+                Some(b' ' | b'\n' | b'\t' | b'\r') => {
                     self.eat_char();
                 }
                 other => {
@@ -263,7 +263,7 @@ impl<'a> Deserializer<'a> {
     }
 
     fn peek(&mut self) -> Option<u8> {
-        self.slice.get(self.index).cloned()
+        self.slice.get(self.index).copied()
     }
 }
 
@@ -663,7 +663,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
                 match self.peek() {
                     // The visitor is expected to be UnknownAny’s visitor, which
                     // implements visit_unit to return its unit Ok result.
-                    Some(b',') | Some(b'}') | Some(b']') => break visitor.visit_unit(),
+                    Some(b',' | b'}' | b']') => break visitor.visit_unit(),
                     Some(_) => self.eat_char(),
                     None => break Err(Error::EofWhileParsingString),
                 }

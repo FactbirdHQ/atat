@@ -134,7 +134,7 @@ fn sorted_variants(data: Data) -> Result<Vec<Variant>> {
                 ))
             })
             .collect::<Result<Vec<(usize, Variant)>>>()?,
-        _ => {
+        Data::Union(_) => {
             return Err(Error::new(Span::call_site(), "union types are unsupported"));
         }
     };

@@ -98,10 +98,10 @@ pub fn get_line<const L: usize, const I: usize>(
             .iter()
             // Truncate the response, rather than panic in case of buffer overflow!
             .take(L)
-            .cloned()
+            .copied()
             .collect();
 
-            *buf = right.iter().cloned().collect();
+            *buf = right.iter().copied().collect();
             Some(return_buf)
         }
         None => None,
