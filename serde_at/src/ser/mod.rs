@@ -141,6 +141,20 @@ impl<'a, const B: usize, const C: usize> Serializer<'a, B, C> {
     }
 }
 
+/// Upper-case hex for value in 0..16, encoded as ASCII bytes
+fn hex_4bit(c: u8) -> u8 {
+    if c <= 9 {
+        0x30 + c
+    } else {
+        0x41 + (c - 10)
+    }
+}
+
+/// Upper-case hex for value in 0..256, encoded as ASCII bytes
+fn hex(c: u8) -> (u8, u8) {
+    (hex_4bit(c >> 4), hex_4bit(c & 0x0F))
+}
+
 // NOTE(serialize_*signed) This is basically the numtoa implementation minus the lookup tables,
 // which take 200+ bytes of ROM / Flash
 macro_rules! serialize_unsigned {
@@ -285,7 +299,65 @@ impl<'a, 'b, const B: usize, const C: usize> ser::Serializer for &'a mut Seriali
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
         self.buf.push(b'"')?;
-        self.buf.extend_from_slice(v.as_bytes())?;
+
+        // Do escaping according to "6. MUST represent all strings (including object member names) in
+        // their minimal-length UTF-8 encoding": https://gibson042.github.io/canonicaljson-spec/
+        //
+        // We don't need to escape lone surrogates because surrogate pairs do not exist in valid UTF-8,
+        // even if they can exist in JSON or JavaScript strings (UCS-2 based). As a result, lone surrogates
+        // cannot exist in a Rust String. If they do, the bug is in the String constructor.
+        // An excellent explanation is available at https://www.youtube.com/watch?v=HhIEDWmQS3w
+
+        // Temporary storage for encoded a single char.
+        // A char is up to 4 bytes long wehn encoded to UTF-8.
+        let mut encoding_tmp = [0u8; 4];
+
+        for c in v.chars() {
+            match c {
+                '\\' => {
+                    self.buf.push(b'\\')?;
+                    self.buf.push(b'\\')?;
+                }
+                '"' => {
+                    self.buf.push(b'\\')?;
+                    self.buf.push(b'"')?;
+                }
+                '\u{0008}' => {
+                    self.buf.push(b'\\')?;
+                    self.buf.push(b'b')?;
+                }
+                '\u{0009}' => {
+                    self.buf.push(b'\\')?;
+                    self.buf.push(b't')?;
+                }
+                '\u{000A}' => {
+                    self.buf.push(b'\\')?;
+                    self.buf.push(b'n')?;
+                }
+                '\u{000C}' => {
+                    self.buf.push(b'\\')?;
+                    self.buf.push(b'f')?;
+                }
+                '\u{000D}' => {
+                    self.buf.push(b'\\')?;
+                    self.buf.push(b'r')?;
+                }
+                '\u{0000}'..='\u{001F}' => {
+                    self.buf.push(b'\\')?;
+                    self.buf.push(b'u')?;
+                    self.buf.push(b'0')?;
+                    self.buf.push(b'0')?;
+                    let (hex1, hex2) = hex(c as u8);
+                    self.buf.push(hex1)?;
+                    self.buf.push(hex2)?;
+                }
+                _ => {
+                    let encoded = c.encode_utf8(&mut encoding_tmp as &mut [u8]);
+                    self.buf.extend_from_slice(encoded.as_bytes())?;
+                }
+            }
+        }
+
         self.buf.push(b'"')?;
         Ok(())
     }
