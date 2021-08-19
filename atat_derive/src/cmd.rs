@@ -112,7 +112,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             }
 
             #[inline]
-            fn parse(&self, res: Result<&[u8], &atat::InternalError>) -> core::result::Result<Self::Response, atat::Error<Self::Error>> {
+            fn parse(&self, res: Result<&[u8], atat::InternalError>) -> core::result::Result<Self::Response, atat::Error<Self::Error>> {
                 match res {
                     Ok(resp) => atat::serde_at::from_slice::<#resp>(resp).map_err(|e| {
                         atat::Error::Parse

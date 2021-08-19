@@ -1,30 +1,30 @@
 use heapless::Vec;
 
 pub trait SliceExt {
-    fn trim(&self, whitespaces: &[u8]) -> &Self;
-    fn trim_start(&self, whitespaces: &[u8]) -> &Self;
+    fn trim(&mut self, whitespaces: &[u8]);
+    fn trim_start(&mut self, whitespaces: &[u8]);
 }
 
-impl SliceExt for [u8] {
-    fn trim(&self, whitespaces: &[u8]) -> &[u8] {
-        let is_not_whitespace = |c| !whitespaces.contains(c);
-
-        if let Some(first) = self.iter().position(is_not_whitespace) {
-            if let Some(last) = self.iter().rposition(is_not_whitespace) {
-                &self[first..=last]
-            } else {
-                unreachable!();
-            }
+impl<const L: usize> SliceExt for Vec<u8, L> {
+    fn trim(&mut self, whitespaces: &[u8]) {
+        if let Some(first) = self.iter().position( |c| !whitespaces.contains(c)) {
+            self.rotate_left(first);
+            self.truncate(self.len() - first);
         } else {
-            &[]
+            return;
+        }
+
+        if let Some(last) = self.iter().rposition( |c| !whitespaces.contains(c)) {
+            self.truncate(last + 1);
         }
     }
 
-    fn trim_start(&self, whitespaces: &[u8]) -> &[u8] {
+    fn trim_start(&mut self, whitespaces: &[u8]) {
         let is_not_whitespace = |c| !whitespaces.contains(c);
-        self.iter()
-            .position(is_not_whitespace)
-            .map_or(&[], |first| &self[first..])
+        if let Some(idx) = self.iter().position(is_not_whitespace) {
+            self.rotate_left(idx);
+            self.truncate(self.len() - idx);
+        }
     }
 }
 
@@ -90,16 +90,16 @@ pub fn get_line<const L: usize, const I: usize>(
                 _ => return None,
             };
 
-            let return_buf = if trim_response {
-                left.trim(&[b'\t', b' ', format_char, line_term_char])
-            } else {
-                left
+            let mut return_buf: Vec<u8, L> = left
+                .iter()
+                // Truncate the response, rather than panic in case of buffer overflow!
+                .take(L)
+                .copied()
+                .collect();
+
+            if trim_response {
+                return_buf.trim(&[b'\t', b' ', format_char, line_term_char])
             }
-            .iter()
-            // Truncate the response, rather than panic in case of buffer overflow!
-            .take(L)
-            .copied()
-            .collect();
 
             *buf = right.iter().copied().collect();
             Some(return_buf)
@@ -159,24 +159,31 @@ impl<'a> defmt::Format for LossyStr<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use heapless::Vec;
 
     #[test]
     fn trim() {
-        assert_eq!(
-            b"  hello  whatup  ".trim(&[b' ', b'\t', b'\r', b'\n']),
-            b"hello  whatup"
-        );
-        assert_eq!(
-            b"  hello  whatup  ".trim_start(&[b' ', b'\t', b'\r', b'\n']),
-            b"hello  whatup  "
-        );
-        assert_eq!(
-            b"  \r\n \thello  whatup  ".trim_start(&[b' ', b'\t', b'\r', b'\n']),
-            b"hello  whatup  "
-        );
-        assert_eq!(
-            b"  \r\n \thello  whatup  \n \t".trim(&[b' ', b'\t', b'\r', b'\n']),
-            b"hello  whatup"
-        );
+        {
+            let mut b = Vec::<u8, 64>::from_slice(b"  hello  whatup  ").unwrap();
+            b.trim(&[b' ', b'\t', b'\r', b'\n']);
+            assert_eq!(b, Vec::<u8, 64>::from_slice(b"hello  whatup").unwrap());
+        }
+        {
+            let mut b = Vec::<u8, 64>::from_slice(b"  hello  whatup  ").unwrap();
+            b.trim_start(&[b' ', b'\t', b'\r', b'\n']);
+            assert_eq!(b, Vec::<u8, 64>::from_slice(b"hello  whatup  ").unwrap());
+        }
+        {
+            let mut b = Vec::<u8, 64>::from_slice(b"  \r\n \thello  whatup  ").unwrap();
+            b.trim_start(&[b' ', b'\t', b'\r', b'\n']);
+
+            assert_eq!(b, Vec::<u8, 64>::from_slice(b"hello  whatup  ").unwrap());
+        }
+        {
+            let mut b = Vec::<u8, 64>::from_slice(b"  \r\n \thello  whatup  \n \t").unwrap();
+            b.trim(&[b' ', b'\t', b'\r', b'\n']);
+
+            assert_eq!(b, Vec::<u8, 64>::from_slice(b"hello  whatup").unwrap());
+        }
     }
 }

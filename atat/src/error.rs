@@ -21,6 +21,36 @@ pub enum InternalError {
     Error(Vec<u8, 85>),
 }
 
+impl InternalError {
+    pub fn as_byte(&self) -> u8 {
+        match self {
+            InternalError::Read => 0x00,
+            InternalError::Write => 0x01,
+            InternalError::Timeout => 0x02,
+            InternalError::InvalidResponse => 0x03,
+            InternalError::Aborted => 0x04,
+            InternalError::Overflow => 0x05,
+            InternalError::Parse => 0x06,
+            InternalError::Error(_) => 0x07,
+        }
+    }
+
+    pub fn from_bytes(b: &[u8]) -> Self {
+        match &b[0] {
+            0x00 => InternalError::Read,
+            0x01 => InternalError::Write,
+            0x02 => InternalError::Timeout,
+            0x03 => InternalError::InvalidResponse,
+            0x04 => InternalError::Aborted,
+            0x05 => InternalError::Overflow,
+            0x06 => InternalError::Parse,
+            0x07 if b.len() > 1 => InternalError::Error(Vec::from_slice(&b[1..]).unwrap()),
+            0x07 => InternalError::Error(Vec::new()),
+            _ => InternalError::Parse,
+        }
+    }
+}
+
 #[cfg(feature = "defmt")]
 impl defmt::Format for InternalError {
     fn format(&self, f: defmt::Formatter) {
@@ -59,11 +89,11 @@ pub enum Error<E = GenericError> {
     Error(E),
 }
 
-impl<E> From<&InternalError> for Error<E>
+impl<E> From<InternalError> for Error<E>
 where
     E: core::str::FromStr,
 {
-    fn from(ie: &InternalError) -> Self {
+    fn from(ie: InternalError) -> Self {
         match ie {
             InternalError::Read => Self::Read,
             InternalError::Write => Self::Write,
@@ -73,7 +103,7 @@ where
             InternalError::Overflow => Self::Overflow,
             InternalError::Parse => Self::Parse,
             InternalError::Error(ref e) => {
-                if let Ok(s) = core::str::from_utf8(&e.clone()) {
+                if let Ok(s) = core::str::from_utf8(e) {
                     if let Ok(e) = core::str::FromStr::from_str(s) {
                         return Self::Error(e);
                     }

@@ -58,7 +58,7 @@ pub trait AtatUrc {
 ///         buf
 ///     }
 ///
-///     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
+///     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 ///         Ok(NoResponse)
 ///     }
 /// }
@@ -91,7 +91,7 @@ pub trait AtatCmd<const LEN: usize> {
     /// Parse the response into a `Self::Response` or `Error<Self::Error>` instance.
     fn parse(
         &self,
-        resp: Result<&[u8], &InternalError>,
+        resp: Result<&[u8], InternalError>,
     ) -> Result<Self::Response, Error<Self::Error>>;
 }
 
@@ -190,7 +190,7 @@ impl<const L: usize> AtatCmd<L> for String<L> {
 
     fn parse(
         &self,
-        resp: Result<&[u8], &InternalError>,
+        resp: Result<&[u8], InternalError>,
     ) -> Result<Self::Response, Error<Self::Error>> {
         let utf8_string =
             core::str::from_utf8(resp.map_err(Error::from)?).map_err(|_| Error::Parse)?;

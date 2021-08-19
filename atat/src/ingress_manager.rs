@@ -1,17 +1,24 @@
+use bbqueue::framed::FrameProducer;
 use heapless::Vec;
 
 use crate::atat_log;
 use crate::error::InternalError;
 use crate::helpers::LossyStr;
-use crate::queues::{ComConsumer, ResProducer, UrcProducer};
+use crate::queues::ComConsumer;
 use crate::Command;
+use crate::ResponseHeader;
 use crate::{
     digest::{DefaultDigester, DigestResult, Digester},
     urc_matcher::{DefaultUrcMatcher, UrcMatcher},
 };
 
-pub struct IngressManager<D, U, const BUF_LEN: usize, const URC_CAPACITY: usize>
-where
+pub struct IngressManager<
+    D,
+    U,
+    const BUF_LEN: usize,
+    const RES_CAPACITY: usize,
+    const URC_CAPACITY: usize,
+> where
     U: UrcMatcher,
     D: Digester,
 {
@@ -19,9 +26,9 @@ where
     buf: Vec<u8, BUF_LEN>,
 
     /// The response producer sends responses to the client
-    res_p: ResProducer<BUF_LEN>,
+    res_p: FrameProducer<'static, RES_CAPACITY>,
     /// The URC producer sends URCs to the client
-    urc_p: UrcProducer<BUF_LEN, URC_CAPACITY>,
+    urc_p: FrameProducer<'static, URC_CAPACITY>,
     /// The command consumer receives commands from the client
     com_c: ComConsumer,
 
@@ -32,13 +39,13 @@ where
     urc_matcher: U,
 }
 
-impl<const BUF_LEN: usize, const URC_CAPACITY: usize>
-    IngressManager<DefaultDigester, DefaultUrcMatcher, BUF_LEN, URC_CAPACITY>
+impl<const BUF_LEN: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
+    IngressManager<DefaultDigester, DefaultUrcMatcher, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
 {
     #[must_use]
     pub fn new(
-        res_p: ResProducer<BUF_LEN>,
-        urc_p: UrcProducer<BUF_LEN, URC_CAPACITY>,
+        res_p: FrameProducer<'static, RES_CAPACITY>,
+        urc_p: FrameProducer<'static, URC_CAPACITY>,
         com_c: ComConsumer,
     ) -> Self {
         Self::with_customs(
@@ -51,15 +58,15 @@ impl<const BUF_LEN: usize, const URC_CAPACITY: usize>
     }
 }
 
-impl<U, D, const BUF_LEN: usize, const URC_CAPACITY: usize>
-    IngressManager<D, U, BUF_LEN, URC_CAPACITY>
+impl<U, D, const BUF_LEN: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
+    IngressManager<D, U, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
 where
     D: Digester,
     U: UrcMatcher,
 {
     pub fn with_customs(
-        res_p: ResProducer<BUF_LEN>,
-        urc_p: UrcProducer<BUF_LEN, URC_CAPACITY>,
+        res_p: FrameProducer<'static, RES_CAPACITY>,
+        urc_p: FrameProducer<'static, URC_CAPACITY>,
         com_c: ComConsumer,
         urc_matcher: U,
         digester: D,
@@ -106,28 +113,34 @@ where
     /// Return the capacity of the internal buffer
     ///
     /// This can be useful for custom flowcontrol implementations
-    #[allow(clippy::unused_self)]
     pub fn capacity(&self) -> usize {
-        BUF_LEN
+        self.buf.capacity()
     }
 
     /// Notify the client that an appropriate response code, or error has been
     /// received
     fn notify_response(&mut self, resp: Result<Vec<u8, BUF_LEN>, InternalError>) {
+        #[cfg(any(feature = "defmt", feature = "log"))]
         match &resp {
             Ok(r) => {
                 if r.is_empty() {
                     atat_log!(debug, "Received OK")
                 } else {
-                    atat_log!(debug, "Received response: \"{:?}\"", LossyStr(r));
+                    atat_log!(debug, "Received response: \"{:?}\"", LossyStr(r.as_ref()));
                 }
             }
-            Err(e) => atat_log!(error, "Received error response {:?}", e),
-        }
-        if self.res_p.ready() {
-            unsafe { self.res_p.enqueue_unchecked(resp) };
+            Err(e) => {
+                atat_log!(error, "Received error response {:?}", e);
+            }
+        };
+
+        let (header, bytes) = ResponseHeader::as_bytes(&resp);
+        if let Ok(mut grant) = self.res_p.grant(bytes.len() + header.len()) {
+            grant[0..header.len()].copy_from_slice(&header);
+            grant[header.len()..header.len() + bytes.len()].copy_from_slice(bytes);
+            grant.commit(bytes.len() + header.len());
         } else {
-            // FIXME: Handle queue not being ready
+            // FIXME: Handle queue being full
             atat_log!(error, "Response queue full!");
         }
     }
@@ -137,10 +150,11 @@ where
     fn notify_urc(&mut self, resp: Vec<u8, BUF_LEN>) {
         atat_log!(debug, "Received response: \"{:?}\"", LossyStr(&resp));
 
-        if self.urc_p.ready() {
-            unsafe { self.urc_p.enqueue_unchecked(resp) };
+        if let Ok(mut grant) = self.urc_p.grant(resp.len()) {
+            grant.copy_from_slice(resp.as_ref());
+            grant.commit(resp.len());
         } else {
-            // FIXME: Handle queue not being ready
+            // FIXME: Handle queue being full
             atat_log!(error, "URC queue full!");
         }
     }
@@ -180,22 +194,32 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::queues::{ComQueue, ResQueue, UrcQueue};
+    use crate::queues;
+    use bbqueue::{BBBuffer, ConstBBBuffer};
     use heapless::spsc::Queue;
 
     const TEST_RX_BUF_LEN: usize = 256;
     const TEST_URC_CAPACITY: usize = 10;
+    const TEST_RES_CAPACITY: usize = 10;
 
     #[test]
     fn overflow() {
-        static mut RES_Q: ResQueue<TEST_RX_BUF_LEN> = Queue::new();
-        let (res_p, mut res_c) = unsafe { RES_Q.split() };
-        static mut URC_Q: UrcQueue<TEST_RX_BUF_LEN, TEST_URC_CAPACITY> = Queue::new();
-        let (urc_p, _urc_c) = unsafe { URC_Q.split() };
-        static mut COM_Q: ComQueue = Queue::new();
+        static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer(ConstBBBuffer::new());
+        let (res_p, mut res_c) = unsafe { RES_Q.try_split_framed().unwrap() };
+
+        static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer(ConstBBBuffer::new());
+        let (urc_p, _urc_c) = unsafe { URC_Q.try_split_framed().unwrap() };
+
+        static mut COM_Q: queues::ComQueue = Queue::new();
         let (_com_p, com_c) = unsafe { COM_Q.split() };
 
-        let mut ingress = IngressManager::with_customs(
+        let mut ingress = IngressManager::<
+            _,
+            _,
+            TEST_RX_BUF_LEN,
+            TEST_RES_CAPACITY,
+            TEST_URC_CAPACITY,
+        >::with_customs(
             res_p,
             urc_p,
             com_c,
@@ -209,6 +233,11 @@ mod test {
         }
         ingress.write(b"\"\r\n");
         ingress.digest();
-        assert_eq!(res_c.dequeue().unwrap(), Err(InternalError::Overflow));
+        let mut grant = res_c.read().unwrap();
+        grant.auto_release(true);
+        assert_eq!(
+            ResponseHeader::from_bytes(grant.as_ref()),
+            Err(InternalError::Overflow)
+        );
     }
 }

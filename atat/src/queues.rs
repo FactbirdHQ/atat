@@ -1,46 +1,29 @@
 //! Type definitions for the queues used in this crate.
 
-use heapless::{
-    spsc::{Consumer, Producer, Queue},
-    Vec,
-};
+use bbqueue::framed::{FrameConsumer, FrameProducer};
+use heapless::spsc::{Consumer, Producer, Queue};
 
-pub use crate::error::InternalError;
 pub use crate::Command;
 
-// Queue item types
-pub type ComItem = Command;
-pub type ResItem<const BUF_LEN: usize> = Result<Vec<u8, BUF_LEN>, InternalError>;
-pub type UrcItem<const BUF_LEN: usize> = Vec<u8, BUF_LEN>;
-
-pub const RES_CAPACITY: usize = 1;
 pub const COM_CAPACITY: usize = 3;
 
 // Consumers
-pub type ComConsumer = Consumer<'static, ComItem, { COM_CAPACITY + 1 }>;
-pub type ResConsumer<const BUF_LEN: usize> =
-    Consumer<'static, ResItem<BUF_LEN>, { RES_CAPACITY + 1 }>;
-pub type UrcConsumer<const BUF_LEN: usize, const URC_CAPACITY: usize> =
-    Consumer<'static, UrcItem<BUF_LEN>, URC_CAPACITY>;
+pub type ComConsumer = Consumer<'static, Command, { COM_CAPACITY + 1 }>;
 
 // Producers
-pub type ComProducer = Producer<'static, ComItem, { COM_CAPACITY + 1 }>;
-pub type ResProducer<const BUF_LEN: usize> =
-    Producer<'static, ResItem<BUF_LEN>, { RES_CAPACITY + 1 }>;
-pub type UrcProducer<const BUF_LEN: usize, const URC_CAPACITY: usize> =
-    Producer<'static, UrcItem<BUF_LEN>, URC_CAPACITY>;
+pub type ComProducer = Producer<'static, Command, { COM_CAPACITY + 1 }>;
 
 // Queues
-pub type ComQueue = Queue<ComItem, { COM_CAPACITY + 1 }>;
-pub type ResQueue<const BUF_LEN: usize> = Queue<ResItem<BUF_LEN>, { RES_CAPACITY + 1 }>;
-pub type UrcQueue<const BUF_LEN: usize, const URC_CAPACITY: usize> =
-    Queue<UrcItem<BUF_LEN>, URC_CAPACITY>;
+pub type ComQueue = Queue<Command, { COM_CAPACITY + 1 }>;
 
-pub struct Queues<const BUF_LEN: usize, const URC_CAPACITY: usize> {
-    pub res_queue: (ResProducer<BUF_LEN>, ResConsumer<BUF_LEN>),
+pub struct Queues<const RES_CAPACITY: usize, const URC_CAPACITY: usize> {
+    pub res_queue: (
+        FrameProducer<'static, RES_CAPACITY>,
+        FrameConsumer<'static, RES_CAPACITY>,
+    ),
     pub urc_queue: (
-        UrcProducer<BUF_LEN, URC_CAPACITY>,
-        UrcConsumer<BUF_LEN, URC_CAPACITY>,
+        FrameProducer<'static, URC_CAPACITY>,
+        FrameConsumer<'static, URC_CAPACITY>,
     ),
     pub com_queue: (ComProducer, ComConsumer),
 }
