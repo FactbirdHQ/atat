@@ -82,6 +82,21 @@ impl<'de, const N: usize> Deserialize<'de> for CharVec<N> {
                 formatter.write_str("a sequence")
             }
 
+            fn visit_bytes<E>(self, v: &[u8]) -> core::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let mut values = heapless::Vec::new();
+
+                for c in v {
+                    values
+                        .push(*c as char)
+                        .map_err(|_| E::invalid_length(values.capacity() + 1, &self))?;
+                }
+
+                Ok(CharVec(values))
+            }
+
             fn visit_seq<A>(self, mut seq: A) -> core::result::Result<Self::Value, A::Error>
             where
                 A: serde::de::SeqAccess<'de>,
@@ -147,7 +162,7 @@ pub enum Error {
 
     /// Error with a custom message that was preserved.
     #[cfg(feature = "custom-error-messages")]
-    CustomErrorWithMessage(heapless::String<128>),
+    CustomErrorWithMessage(heapless::String<256>),
 }
 
 pub(crate) struct Deserializer<'b> {
@@ -171,19 +186,17 @@ impl<'a> Deserializer<'a> {
         }
     }
 
-    fn next_char(&mut self) -> Option<u8> {
-        let ch = self.slice.get(self.index);
-
-        if ch.is_some() {
+    fn next_char(&mut self) -> Option<&u8> {
+        if let Some(ch) = self.slice.get(self.index) {
             self.index += 1;
+            return Some(ch);
         }
-
-        ch.copied()
+        None
     }
 
     fn parse_ident(&mut self, ident: &[u8]) -> Result<()> {
         for c in ident {
-            if Some(*c) != self.next_char() {
+            if Some(c) != self.next_char() {
                 return Err(Error::ExpectedSomeIdent);
             }
         }
@@ -555,7 +568,11 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         self.parse_at()?;
-        visitor.visit_seq(SeqByteAccess::new(self))
+        let r = visitor.visit_bytes(&self.slice[self.index..]);
+        if r.is_ok() {
+            self.index = self.slice.len();
+        }
+        r
     }
 
     /// Unsupported

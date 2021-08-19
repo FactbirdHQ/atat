@@ -1,6 +1,7 @@
 //! Serialize a Rust data structure into AT Command strings
 
 use core::fmt::{self, Write};
+use core::ops::Deref;
 
 use serde::ser;
 
@@ -44,8 +45,16 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 ///
 /// assert_eq!(s, String::<32>::from("AT+CMD=Some bytes\r\n"));
 /// ```
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Bytes<'a>(pub &'a [u8]);
+
+impl Deref for Bytes<'_> {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl<'a> serde::Serialize for Bytes<'a> {
     fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
@@ -125,14 +134,14 @@ impl fmt::Display for Error {
 #[cfg(any(test, feature = "std"))]
 impl std::error::Error for Error {}
 
-pub(crate) struct Serializer<'a, const B: usize, const C: usize> {
+pub(crate) struct Serializer<'a, const B: usize> {
     buf: Vec<u8, B>,
-    cmd: String<C>,
+    cmd: &'a str,
     options: SerializeOptions<'a>,
 }
 
-impl<'a, const B: usize, const C: usize> Serializer<'a, B, C> {
-    fn new(cmd: String<C>, options: SerializeOptions<'a>) -> Self {
+impl<'a, const B: usize> Serializer<'a, B> {
+    fn new(cmd: &'a str, options: SerializeOptions<'a>) -> Self {
         Serializer {
             buf: Vec::new(),
             cmd,
@@ -221,16 +230,16 @@ macro_rules! serialize_fmt {
     }};
 }
 
-impl<'a, 'b, const B: usize, const C: usize> ser::Serializer for &'a mut Serializer<'b, B, C> {
+impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
     type Ok = ();
     type Error = Error;
     type SerializeSeq = Unreachable;
     type SerializeTuple = Unreachable;
     type SerializeTupleStruct = Unreachable;
-    type SerializeTupleVariant = SerializeTupleVariant<'a, 'b, B, C>;
+    type SerializeTupleVariant = SerializeTupleVariant<'a, 'b, B>;
     type SerializeMap = Unreachable;
-    type SerializeStruct = SerializeStruct<'a, 'b, B, C>;
-    type SerializeStructVariant = SerializeStructVariant<'a, 'b, B, C>;
+    type SerializeStruct = SerializeStruct<'a, 'b, B>;
+    type SerializeStructVariant = SerializeStructVariant<'a, 'b, B>;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok> {
         if v {
@@ -480,15 +489,15 @@ impl<'a, 'b, const B: usize, const C: usize> ser::Serializer for &'a mut Seriali
 }
 
 /// Serializes the given data structure as a string
-pub fn to_string<T, const B: usize, const C: usize>(
+pub fn to_string<T, const B: usize>(
     value: &T,
-    cmd: String<C>,
+    cmd: &str,
     options: SerializeOptions<'_>,
 ) -> Result<String<B>>
 where
     T: ser::Serialize + ?Sized,
 {
-    let mut ser = Serializer::<B, C>::new(cmd, options);
+    let mut ser = Serializer::<B>::new(cmd, options);
     value.serialize(&mut ser)?;
     Ok(String::from(unsafe {
         core::str::from_utf8_unchecked(&ser.buf)
@@ -496,9 +505,9 @@ where
 }
 
 /// Serializes the given data structure as a byte vector
-pub fn to_vec<T, const B: usize, const C: usize>(
+pub fn to_vec<T, const B: usize>(
     value: &T,
-    cmd: String<C>,
+    cmd: &str,
     options: SerializeOptions<'_>,
 ) -> Result<Vec<u8, B>>
 where
@@ -634,7 +643,7 @@ mod tests {
     fn tuple_struct() {
         let s: String<32> = to_string(
             &PacketSwitchedParam::QoSDelay3G(15),
-            String::<32>::from(""),
+            "",
             SerializeOptions::default(),
         )
         .unwrap();
@@ -644,12 +653,7 @@ mod tests {
 
     #[test]
     fn newtype_struct() {
-        let s: String<32> = to_string(
-            &Handle(15),
-            String::<32>::from(""),
-            SerializeOptions::default(),
-        )
-        .unwrap();
+        let s: String<32> = to_string(&Handle(15), "", SerializeOptions::default()).unwrap();
 
         assert_eq!(s, String::<32>::from("15"));
     }
@@ -664,8 +668,7 @@ mod tests {
         let b = WithBytes {
             s: Bytes(&slice[..]),
         };
-        let s: String<32> =
-            to_string(&b, String::<32>::from("+CMD"), SerializeOptions::default()).unwrap();
+        let s: String<32> = to_string(&b, "+CMD", SerializeOptions::default()).unwrap();
         assert_eq!(s, String::<32>::from("AT+CMD=Some bytes\r\n"));
     }
 
@@ -674,8 +677,7 @@ mod tests {
         let test: CharVec<8> =
             CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap());
 
-        let s: String<32> =
-            to_string(&test, String::<32>::from(""), SerializeOptions::default()).unwrap();
+        let s: String<32> = to_string(&test, "", SerializeOptions::default()).unwrap();
         assert_eq!(s, String::<32>::from("IMP_MSG"));
 
         #[derive(Clone, PartialEq, Serialize)]
@@ -687,8 +689,7 @@ mod tests {
             s: CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
             n: 12,
         };
-        let s: String<32> =
-            to_string(&b, String::<32>::from("+CMD"), SerializeOptions::default()).unwrap();
+        let s: String<32> = to_string(&b, "+CMD", SerializeOptions::default()).unwrap();
         assert_eq!(s, String::<32>::from("AT+CMD=IMP_MSG,12\r\n"));
     }
 }

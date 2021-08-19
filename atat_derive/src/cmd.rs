@@ -59,7 +59,6 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         None => quote! {},
     };
 
-    let subcmd_len = cmd.len().max(1);
     let mut cmd_len = cmd_prefix.len() + cmd.len() + termination.len();
     if value_sep {
         cmd_len += 1;
@@ -100,8 +99,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
             #[inline]
             fn as_bytes(&self) -> atat::heapless::Vec<u8, { #ident_len + #cmd_len }> {
-                let s: atat::heapless::String<#subcmd_len> = atat::heapless::String::from(#cmd);
-                match atat::serde_at::to_vec(self, s, atat::serde_at::SerializeOptions {
+                match atat::serde_at::to_vec(self, #cmd, atat::serde_at::SerializeOptions {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,
                     termination: #termination
