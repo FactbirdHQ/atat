@@ -78,12 +78,7 @@ impl Digester for DefaultDigester {
     ) -> DigestResult<L> {
         // Trim leading whitespace
         if buf.starts_with(&[Self::LINE_TERM_CHAR]) || buf.starts_with(&[Self::FORMAT_CHAR]) {
-            buf.trim_start(&[
-                b'\t',
-                b' ',
-                Self::FORMAT_CHAR,
-                Self::LINE_TERM_CHAR,
-            ]);
+            buf.trim_start(&[b'\t', b' ', Self::FORMAT_CHAR, Self::LINE_TERM_CHAR]);
         }
 
         if !buf.is_empty() {
@@ -184,7 +179,7 @@ impl Digester for DefaultDigester {
                     Self::LINE_TERM_CHAR,
                     Self::FORMAT_CHAR,
                     true,
-                    false,
+                    true,
                     false,
                 ) {
                     Ok(get_line(
@@ -859,5 +854,75 @@ mod test {
                 Vec::from_slice(b"+CME ERROR: 10").unwrap()
             )))
         );
+    }
+
+    #[test]
+    fn multi_line_response_with_ok() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, 1024>::new();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+URDBLOCK=\"response.txt\",0,512\r\r\n")
+            .unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        buf.extend_from_slice(b"+URDBLOCK: \"response.txt\",512,\"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2553\r\nConnection: close\r\nVary: Accept-Encoding\r\nDate: Mon, 19 Jul 2021 07:47:39 GMT\r\nx-amzn-RequestId: 436ba5b8-2aad-4089-a4fd-1b1c38773c87\r\nx-amz-apigw-id: CtQkMFE_DoEFUzg=\r\nX-Amzn-Trace-Id: Root=1-60f52e1a-0a05343260f3ba3331eea9d6;Sampled=1\r\nVia: 1.1 f99b5b46e77cfe9c3413f99dc8a4088c.cloudfront.net (CloudFront), 1.1 2f194b62c8c43859cbf5af8e53a8d2a7.cloudfront.net (CloudFront)\r\nX-Amz-Cf-Pop: FRA2-C2\r\nX-Cache: Miss from cloudfront\r\nX-Amz-Cf-Pop\"\r\nOK").unwrap();
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(buf, Vec::<_, 1024>::new());
+        assert_eq!(digester.state, State::Idle);
+        {
+            let expectation = Vec::<_, 1024>::from_slice(b"+URDBLOCK: \"response.txt\",512,\"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2553\r\nConnection: close\r\nVary: Accept-Encoding\r\nDate: Mon, 19 Jul 2021 07:47:39 GMT\r\nx-amzn-RequestId: 436ba5b8-2aad-4089-a4fd-1b1c38773c87\r\nx-amz-apigw-id: CtQkMFE_DoEFUzg=\r\nX-Amzn-Trace-Id: Root=1-60f52e1a-0a05343260f3ba3331eea9d6;Sampled=1\r\nVia: 1.1 f99b5b46e77cfe9c3413f99dc8a4088c.cloudfront.net (CloudFront), 1.1 2f194b62c8c43859cbf5af8e53a8d2a7.cloudfront.net (CloudFront)\r\nX-Amz-Cf-Pop: FRA2-C2\r\nX-Cache: Miss from cloudfront\r\nX-Amz-Cf-Pop\"").unwrap();
+            assert_eq!(result, DigestResult::Response(Ok(expectation)));
+        }
+    }
+
+    #[test]
+    #[ignore = "Until https://github.com/BlackbirdHQ/atat/issues/98 is resolved"]
+    fn multi_cmd_multi_line_response_with_ok() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, 2048>::new();
+
+        buf.extend_from_slice(b"AT+CPIN?\r\r\n+CPIN: READY\r\n\r\nOK\r\n")
+            .unwrap();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+URDBLOCK=\"response.txt\",0,512\r\r\n")
+            .unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        buf.extend_from_slice(b"+URDBLOCK: \"response.txt\",512,\"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2553\r\nConnection: close\r\nVary: Accept-Encoding\r\nDate: Mon, 19 Jul 2021 07:47:39 GMT\r\nx-amzn-RequestId: 436ba5b8-2aad-4089-a4fd-1b1c38773c87\r\nx-amz-apigw-id: CtQkMFE_DoEFUzg=\r\nX-Amzn-Trace-Id: Root=1-60f52e1a-0a05343260f3ba3331eea9d6;Sampled=1\r\nVia: 1.1 f99b5b46e77cfe9c3413f99dc8a4088c.cloudfront.net (CloudFront), 1.1 2f194b62c8c43859cbf5af8e53a8d2a7.cloudfront.net (CloudFront)\r\nX-Amz-Cf-Pop: FRA2-C2\r\nX-Cache: Miss from cloudfront\r\nX-Amz-Cf-Pop\"\r\nOK").unwrap();
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(digester.state, State::Idle);
+        assert_eq!(
+            result,
+            DigestResult::Response(Ok(Vec::<_, 2048>::from_slice(b"+CPIN: READY").unwrap()))
+        );
+
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        let result = digester.digest(&mut buf, &mut urc_matcher);
+        assert_eq!(buf, Vec::<_, 2048>::new());
+        assert_eq!(digester.state, State::Idle);
+
+        {
+            let expectation = Vec::<_, 2048>::from_slice(b"+URDBLOCK: \"response.txt\",512,\"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2553\r\nConnection: close\r\nVary: Accept-Encoding\r\nDate: Mon, 19 Jul 2021 07:47:39 GMT\r\nx-amzn-RequestId: 436ba5b8-2aad-4089-a4fd-1b1c38773c87\r\nx-amz-apigw-id: CtQkMFE_DoEFUzg=\r\nX-Amzn-Trace-Id: Root=1-60f52e1a-0a05343260f3ba3331eea9d6;Sampled=1\r\nVia: 1.1 f99b5b46e77cfe9c3413f99dc8a4088c.cloudfront.net (CloudFront), 1.1 2f194b62c8c43859cbf5af8e53a8d2a7.cloudfront.net (CloudFront)\r\nX-Amz-Cf-Pop: FRA2-C2\r\nX-Cache: Miss from cloudfront\r\nX-Amz-Cf-Pop\"").unwrap();
+            assert_eq!(result, DigestResult::Response(Ok(expectation)));
+        }
     }
 }

@@ -2,20 +2,18 @@ use crate::ser::{Error, Result, Serializer};
 use serde::ser;
 
 #[allow(clippy::module_name_repetitions)]
-pub struct SerializeStruct<'a, 'b, const B: usize, const C: usize> {
-    ser: &'a mut Serializer<'b, B, C>,
+pub struct SerializeStruct<'a, 'b, const B: usize> {
+    ser: &'a mut Serializer<'b, B>,
     first: bool,
 }
 
-impl<'a, 'b, const B: usize, const C: usize> SerializeStruct<'a, 'b, B, C> {
-    pub(crate) fn new(ser: &'a mut Serializer<'b, B, C>) -> Self {
+impl<'a, 'b, const B: usize> SerializeStruct<'a, 'b, B> {
+    pub(crate) fn new(ser: &'a mut Serializer<'b, B>) -> Self {
         SerializeStruct { ser, first: true }
     }
 }
 
-impl<'a, 'b, const B: usize, const C: usize> ser::SerializeStruct
-    for SerializeStruct<'a, 'b, B, C>
-{
+impl<'a, 'b, const B: usize> ser::SerializeStruct for SerializeStruct<'a, 'b, B> {
     type Ok = ();
     type Error = Error;
 

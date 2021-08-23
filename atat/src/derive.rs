@@ -177,36 +177,31 @@ mod tests {
     #[test]
     fn test_mixed_enum() {
         assert_eq!(
-            to_string::<_, 1, 3>(
-                &MixedEnum::UnitVariant,
-                String::from("CMD"),
-                SerializeOptions::default()
-            )
-            .unwrap(),
+            to_string::<_, 1>(&MixedEnum::UnitVariant, "CMD", SerializeOptions::default()).unwrap(),
             String::<1>::from("0")
         );
         assert_eq!(
-            to_string::<_, 10, 3>(
+            to_string::<_, 10>(
                 &MixedEnum::SingleSimpleTuple(15),
-                String::from("CMD"),
+                "CMD",
                 SerializeOptions::default()
             )
             .unwrap(),
             String::<10>::from("1,15")
         );
         assert_eq!(
-            to_string::<_, 50, 3>(
+            to_string::<_, 50>(
                 &MixedEnum::AdvancedTuple(25, String::from("testing"), -54, SimpleEnumU32::A),
-                String::from("CMD"),
+                "CMD",
                 SerializeOptions::default()
             )
             .unwrap(),
             String::<50>::from("2,25,\"testing\",-54,0")
         );
         assert_eq!(
-            to_string::<_, 10, 3>(
+            to_string::<_, 10>(
                 &MixedEnum::SingleSimpleStruct { x: 35 },
-                String::from("CMD"),
+                "CMD",
                 SerializeOptions::default()
             )
             .unwrap(),
@@ -214,14 +209,14 @@ mod tests {
         );
 
         assert_eq!(
-            to_string::<_, 50, 3>(
+            to_string::<_, 50>(
                 &MixedEnum::AdvancedStruct {
                     a: 77,
                     b: String::from("whaat"),
                     c: 88,
                     d: SimpleEnum::B
                 },
-                String::from("CMD"),
+                "CMD",
                 SerializeOptions::default()
             )
             .unwrap(),

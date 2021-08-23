@@ -7,14 +7,14 @@ pub trait SliceExt {
 
 impl<const L: usize> SliceExt for Vec<u8, L> {
     fn trim(&mut self, whitespaces: &[u8]) {
-        if let Some(first) = self.iter().position( |c| !whitespaces.contains(c)) {
+        if let Some(first) = self.iter().position(|c| !whitespaces.contains(c)) {
             self.rotate_left(first);
             self.truncate(self.len() - first);
         } else {
             return;
         }
 
-        if let Some(last) = self.iter().rposition( |c| !whitespaces.contains(c)) {
+        if let Some(last) = self.iter().rposition(|c| !whitespaces.contains(c)) {
             self.truncate(last + 1);
         }
     }

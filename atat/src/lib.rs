@@ -220,7 +220,7 @@
 //! - **`defmt-error`** *(disabled by default)* - Enable log statements at ERROR
 //!   level and up, to aid debugging. Powered by `defmt`.
 
-#![deny(warnings)]
+// #![deny(warnings)]
 #![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::unused_unit)]
@@ -239,6 +239,9 @@ mod ingress_manager;
 mod queues;
 mod traits;
 mod urc_matcher;
+
+#[cfg(feature = "bytes")]
+pub use serde_bytes;
 
 #[cfg(feature = "derive")]
 pub use atat_derive;
