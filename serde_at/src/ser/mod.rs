@@ -38,7 +38,7 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 /// };
 /// let s: String<32> = to_string(
 ///     &b,
-///     String::<32>::from("+CMD"),
+///     "+CMD",
 ///     SerializeOptions::default(),
 /// )
 /// .unwrap();

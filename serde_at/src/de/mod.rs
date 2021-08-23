@@ -10,7 +10,7 @@ use serde::{
 
 use self::enum_::VariantAccess;
 use self::map::MapAccess;
-use self::seq::{SeqAccess, SeqByteAccess};
+use self::seq::SeqAccess;
 
 mod enum_;
 mod map;
@@ -34,11 +34,11 @@ pub type Result<T> = core::result::Result<T, Error>;
 ///     value: i32,
 /// }
 ///
-/// let incoming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12").unwrap();
+/// let incoming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12").expect("Failed to parse CCID");
 ///
 /// let expected = CommandStruct {
 ///     id: 4,
-///     vec: CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
+///     vec: CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).expect("CharVec overflow")),
 ///     value: -12,
 /// };
 ///
@@ -115,6 +115,7 @@ impl<'de, const N: usize> Deserialize<'de> for CharVec<N> {
                 Ok(CharVec(values))
             }
         }
+
         deserializer.deserialize_bytes(ValueVisitor(core::marker::PhantomData))
     }
 }
@@ -162,7 +163,7 @@ pub enum Error {
 
     /// Error with a custom message that was preserved.
     #[cfg(feature = "custom-error-messages")]
-    CustomErrorWithMessage(heapless::String<256>),
+    CustomErrorWithMessage(heapless::String<128>),
 }
 
 pub(crate) struct Deserializer<'b> {
@@ -568,11 +569,17 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         self.parse_at()?;
-        let r = visitor.visit_bytes(&self.slice[self.index..]);
-        if r.is_ok() {
-            self.index = self.slice.len();
-        }
-        r
+        let idx = self.slice[self.index..]
+            .iter()
+            .position(|b| *b == b',')
+            .unwrap_or(self.slice.len() - self.index);
+
+        visitor
+            .visit_bytes(&self.slice[self.index..self.index + idx])
+            .and_then(|r| {
+                self.index += idx;
+                Ok(r)
+            })
     }
 
     /// Unsupported
