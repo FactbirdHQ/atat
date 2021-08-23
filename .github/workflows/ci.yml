@@ -1,0 +1,224 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+env:
+  CLIPPY_PARAMS: -W clippy::all -W clippy::pedantic -W clippy::nursery -W clippy::cargo
+
+jobs:
+  cancel_previous_runs:
+    name: Cancel previous runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: styfle/cancel-workflow-action@0.4.1
+        with:
+          access_token: ${{ secrets.GITHUB_TOKEN }}
+
+  rustfmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rustfmt
+
+      - name: Run rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check --verbose
+
+  # tomlfmt:
+  #   name: tomlfmt
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout source code
+  #       uses: actions/checkout@v2
+
+  #     - name: Install Rust
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         profile: minimal
+  #         toolchain: nightly
+  #         override: true
+
+  #     - name: Install tomlfmt
+  #       uses: actions-rs/install@v0.1
+  #       with:
+  #         crate: cargo-tomlfmt
+  #         version: latest
+  #         use-tool-cache: true
+
+  #     - name: Run Tomlfmt
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: tomlfmt
+  #         args: --dryrun
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: clippy
+
+      - name: Run clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: -- ${{ env.CLIPPY_PARAMS }}
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: ["x86_64-unknown-linux-gnu", "thumbv7m-none-eabi"]
+        features:
+          [
+            "",
+            "derive",
+            "derive, log",
+            "derive, defmt-default",
+          ]
+        include:
+          - target: "x86_64-unknown-linux-gnu"
+            features: "derive"
+            std: ", std"
+          - target: "x86_64-unknown-linux-gnu"
+            features: "derive, log"
+            std: ", std"
+          - target: "x86_64-unknown-linux-gnu"
+            features: "derive, defmt-default"
+            std: ", std"
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: thumbv7m-none-eabi
+          override: true
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all --target '${{ matrix.target }}' --features '${{ matrix.features }}${{ matrix.std }}'
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: thumbv7m-none-eabi
+          override: true
+      - name: Library tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --lib
+      # TODO: Change this to a single --all test, when the examples work
+      - name: Doctests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --doc
+
+  grcov:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          target: thumbv7m-none-eabi
+          override: true
+
+      - name: Install grcov
+        uses: actions-rs/cargo@v1
+        # uses: actions-rs/install@v0.1
+        with:
+          # crate: grcov
+          # version: latest
+          # use-tool-cache: true
+          command: install
+          args: grcov --git https://github.com/mozilla/grcov
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --lib --no-fail-fast
+        env:
+          CARGO_INCREMENTAL: "0"
+          RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=unwind -Zpanic_abort_tests"
+          RUSTDOCFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=unwind -Zpanic_abort_tests"
+
+      - name: Generate coverage data
+        id: grcov
+        # uses: actions-rs/grcov@v0.1
+        run: |
+          grcov target/debug/ \
+              --branch \
+              --llvm \
+              --source-dir . \
+              --output-file lcov.info \
+              --ignore='/**' \
+              --ignore='C:/**' \
+              --ignore='../**' \
+              --ignore-not-existing \
+              --excl-line "#\\[derive\\(" \
+              --excl-br-line "(#\\[derive\\()|(debug_assert)" \
+              --excl-start "#\\[cfg\\(test\\)\\]" \
+              --excl-br-start "#\\[cfg\\(test\\)\\]" \
+              --commit-sha ${{ github.sha }} \
+              --service-job-id ${{ github.job }} \
+              --service-name "GitHub Actions" \
+              --service-number ${{ github.run_id }}
+      - name: Upload coverage as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: lcov.info
+          # path: ${{ steps.grcov.outputs.report }}
+          path: lcov.info
+
+      - name: Upload coverage to codecov.io
+        uses: codecov/codecov-action@v1
+        with:
+          # file: ${{ steps.grcov.outputs.report }}
+          file: lcov.info
+          fail_ci_if_error: false

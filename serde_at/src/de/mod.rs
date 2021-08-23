@@ -10,7 +10,7 @@ use serde::{
 
 use self::enum_::VariantAccess;
 use self::map::MapAccess;
-use self::seq::{SeqAccess, SeqByteAccess};
+use self::seq::SeqAccess;
 
 mod enum_;
 mod map;
@@ -34,11 +34,11 @@ pub type Result<T> = core::result::Result<T, Error>;
 ///     value: i32,
 /// }
 ///
-/// let incoming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12").unwrap();
+/// let incoming: CommandStruct = from_str("+CCID: 4,IMP_MSG,-12").expect("Failed to parse CCID");
 ///
 /// let expected = CommandStruct {
 ///     id: 4,
-///     vec: CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
+///     vec: CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).expect("CharVec overflow")),
 ///     value: -12,
 /// };
 ///
@@ -82,6 +82,21 @@ impl<'de, const N: usize> Deserialize<'de> for CharVec<N> {
                 formatter.write_str("a sequence")
             }
 
+            fn visit_bytes<E>(self, v: &[u8]) -> core::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let mut values = heapless::Vec::new();
+
+                for c in v {
+                    values
+                        .push(*c as char)
+                        .map_err(|_| E::invalid_length(values.capacity() + 1, &self))?;
+                }
+
+                Ok(CharVec(values))
+            }
+
             fn visit_seq<A>(self, mut seq: A) -> core::result::Result<Self::Value, A::Error>
             where
                 A: serde::de::SeqAccess<'de>,
@@ -100,6 +115,7 @@ impl<'de, const N: usize> Deserialize<'de> for CharVec<N> {
                 Ok(CharVec(values))
             }
         }
+
         deserializer.deserialize_bytes(ValueVisitor(core::marker::PhantomData))
     }
 }
@@ -171,19 +187,17 @@ impl<'a> Deserializer<'a> {
         }
     }
 
-    fn next_char(&mut self) -> Option<u8> {
-        let ch = self.slice.get(self.index);
-
-        if ch.is_some() {
+    fn next_char(&mut self) -> Option<&u8> {
+        if let Some(ch) = self.slice.get(self.index) {
             self.index += 1;
+            return Some(ch);
         }
-
-        ch.copied()
+        None
     }
 
     fn parse_ident(&mut self, ident: &[u8]) -> Result<()> {
         for c in ident {
-            if Some(*c) != self.next_char() {
+            if Some(c) != self.next_char() {
                 return Err(Error::ExpectedSomeIdent);
             }
         }
@@ -196,10 +210,37 @@ impl<'a> Deserializer<'a> {
         loop {
             match self.peek() {
                 Some(b'"') => {
-                    let end = self.index;
-                    self.eat_char();
-                    return str::from_utf8(&self.slice[start..end])
-                        .map_err(|_e| Error::InvalidUnicodeCodePoint);
+                    // Counts the number of backslashes in front of the current index.
+                    //
+                    // "some string with \\\" included."
+                    //                  ^^^^^
+                    //                  |||||
+                    //       loop run:  4321|
+                    //                      |
+                    //                   `index`
+                    //
+                    // Since we only get in this code branch if we found a " starting the string and `index` is greater
+                    // than the start position, we know the loop will end no later than this point.
+                    let leading_backslashes = |index: usize| -> usize {
+                        let mut count = 0;
+                        loop {
+                            if self.slice[index - count - 1] == b'\\' {
+                                count += 1;
+                            } else {
+                                return count;
+                            }
+                        }
+                    };
+
+                    let is_escaped = leading_backslashes(self.index) % 2 == 1;
+                    if is_escaped {
+                        self.eat_char(); // just continue
+                    } else {
+                        let end = self.index;
+                        self.eat_char();
+                        return str::from_utf8(&self.slice[start..end])
+                            .map_err(|_| Error::InvalidUnicodeCodePoint);
+                    }
                 }
                 Some(_) => self.eat_char(),
                 None => return Err(Error::EofWhileParsingString),
@@ -217,8 +258,7 @@ impl<'a> Deserializer<'a> {
                     return Err(Error::EofWhileParsingString);
                 }
             } else {
-                let end = self.index;
-                return Ok(&self.slice[start..end]);
+                return Ok(&self.slice[start..self.index]);
             }
         }
     }
@@ -529,7 +569,17 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         self.parse_at()?;
-        visitor.visit_seq(SeqByteAccess::new(self))
+        let idx = self.slice[self.index..]
+            .iter()
+            .position(|b| *b == b',')
+            .unwrap_or(self.slice.len() - self.index);
+
+        visitor
+            .visit_bytes(&self.slice[self.index..self.index + idx])
+            .and_then(|r| {
+                self.index += idx;
+                Ok(r)
+            })
     }
 
     /// Unsupported
