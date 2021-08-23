@@ -889,6 +889,7 @@ mod test {
     }
 
     #[test]
+    #[ignore = ""]
     fn multi_cmd_multi_line_response_with_ok() {
         let mut digester = DefaultDigester::default();
         let mut urc_matcher = DefaultUrcMatcher::default();
