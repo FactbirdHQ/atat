@@ -13,16 +13,15 @@ use hal::{
     timer::{Event, Timer},
 };
 
-use atat::{
-    digest::DefaultDigester, urc_matcher::DefaultUrcMatcher, ClientBuilder, ComQueue, Queues,
-    ResQueue, UrcQueue,
-};
+use atat::{AtatClient, ClientBuilder, ComQueue, Queues, ResQueue, UrcQueue};
 
-use heapless::{consts, spsc::Queue};
+use heapless::spsc::Queue;
 
-use crate::rt::entry;
+use cortex_m_rt::entry;
 
-static mut INGRESS: Option<atat::IngressManager<256>> = None;
+static mut INGRESS: Option<
+    atat::IngressManager<atat::DefaultDigester, atat::DefaultUrcMatcher, 256, 10>,
+> = None;
 static mut RX: Option<Rx<USART2>> = None;
 
 #[entry]
@@ -65,9 +64,9 @@ fn main() -> ! {
 
     serial.listen(Rxne);
 
-    static mut RES_QUEUE: ResQueue<256> = Queue(heapless::i::Queue::u8());
-    static mut URC_QUEUE: UrcQueue<256, 10> = Queue(heapless::i::Queue::u8());
-    static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
+    static mut RES_QUEUE: ResQueue<256> = Queue::new();
+    static mut URC_QUEUE: UrcQueue<256, 10> = Queue::new();
+    static mut COM_QUEUE: ComQueue = Queue::new();
 
     let queues = Queues {
         res_queue: unsafe { RES_QUEUE.split() },
@@ -93,10 +92,10 @@ fn main() -> ! {
         asm::wfi();
 
         match client.send(&common::AT) {
-            Ok(response) => {
+            Ok(_response) => {
                 // Do something with response here
             }
-            Err(e) => {}
+            Err(_e) => {}
         }
     }
 }
@@ -111,7 +110,12 @@ fn TIM7() {
 fn USART2() {
     let ingress = unsafe { INGRESS.as_mut().unwrap() };
     let rx = unsafe { RX.as_mut().unwrap() };
-    if let Ok(d) = nb::block!(rx.read()) {
+    if let Ok(d) = nb::block!(rx.try_read()) {
         ingress.write(&[d]);
     }
+}
+
+#[panic_handler] // panicking behavior
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    cortex_m::peripheral::SCB::sys_reset();
 }

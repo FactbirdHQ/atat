@@ -1,26 +1,21 @@
 #![no_main]
 #![no_std]
 
-use stm32l4xx_hal as hal;
-
 mod common;
 
-use hal::{
+use stm32l4xx_hal::{
     pac::{Peripherals, USART2},
     prelude::*,
     serial::{Config, Event::Rxne, Rx, Serial},
     timer::Timer,
 };
 
-use atat::{
-    digest::DefaultDigester, urc_matcher::DefaultUrcMatcher, ClientBuilder, ComQueue, Queues,
-    ResQueue, UrcQueue,
-};
+use atat::{AtatClient, ClientBuilder, ComQueue, Queues, ResQueue, UrcQueue};
 use rtic::{app, export::wfi};
 
 use heapless::spsc::Queue;
 
-#[app(device = hal::pac, peripherals = true)]
+#[app(device = stm32l4xx_hal::pac, peripherals = true)]
 const APP: () = {
     struct Resources {
         ingress: atat::IngressManager<atat::DefaultDigester, atat::DefaultUrcMatcher, 256, 10>,
@@ -29,9 +24,9 @@ const APP: () = {
 
     #[init(spawn = [at_loop])]
     fn init(ctx: init::Context) -> init::LateResources {
-        static mut RES_QUEUE: ResQueue<256> = Queue(heapless::i::Queue::u8());
-        static mut URC_QUEUE: UrcQueue<256, 10> = Queue(heapless::i::Queue::u8());
-        static mut COM_QUEUE: ComQueue = Queue(heapless::i::Queue::u8());
+        static mut RES_QUEUE: ResQueue<256> = Queue::new();
+        static mut URC_QUEUE: UrcQueue<256, 10> = Queue::new();
+        static mut COM_QUEUE: ComQueue = Queue::new();
 
         let p = Peripherals::take().unwrap();
 
@@ -58,7 +53,7 @@ const APP: () = {
         let tx = gpioa.pa2.into_af7(&mut gpioa.moder, &mut gpioa.afrl);
         let rx = gpioa.pa3.into_af7(&mut gpioa.moder, &mut gpioa.afrl);
 
-        let mut timer = Timer::tim7(p.TIM7, 1.hz(), clocks, &mut rcc.apb1r1);
+        let timer = Timer::tim7(p.TIM7, 1.hz(), clocks, &mut rcc.apb1r1);
 
         let mut serial = Serial::usart2(
             p.USART2,
@@ -71,9 +66,9 @@ const APP: () = {
         serial.listen(Rxne);
 
         let queues = Queues {
-            res_queue: unsafe { RES_QUEUE.split() },
-            urc_queue: unsafe { URC_QUEUE.split() },
-            com_queue: unsafe { COM_QUEUE.split() },
+            res_queue: RES_QUEUE.split(),
+            urc_queue: URC_QUEUE.split(),
+            com_queue: COM_QUEUE.split(),
         };
 
         let (tx, rx) = serial.split();
@@ -82,7 +77,7 @@ const APP: () = {
 
         ctx.spawn.at_loop().unwrap();
 
-        let response = client.send(&common::AT).unwrap();
+        client.send(&common::AT).unwrap();
 
         init::LateResources { ingress, rx }
     }
@@ -106,9 +101,9 @@ const APP: () = {
     }
 
     #[task(binds = USART2, priority = 4, resources = [ingress, rx])]
-    fn serial_irq(mut ctx: serial_irq::Context) {
+    fn serial_irq(ctx: serial_irq::Context) {
         let rx = ctx.resources.rx;
-        if let Ok(d) = nb::block!(rx.read()) {
+        if let Ok(d) = nb::block!(rx.try_read()) {
             ctx.resources.ingress.write(&[d]);
         }
     }
@@ -119,3 +114,8 @@ const APP: () = {
         fn LCD();
     }
 };
+
+#[panic_handler] // panicking behavior
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    cortex_m::peripheral::SCB::sys_reset();
+}
