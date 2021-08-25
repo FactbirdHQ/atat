@@ -32,7 +32,10 @@ cortex-m = "0.7.1"
 cortex-m-rt = "0.6.13"
 cortex-m-rtic = "0.5.5"
 panic-halt = "0.2.0"
-stm32l4xx-hal = { version = "0.6", features = ["stm32l4x5", "rt"] }
+stm32l4xx-hal = { git = "https://github.com/MathiasKoch/stm32l4xx-hal", branch = "enhancement/prepare-embedded-hal-1.0", features = [
+    "stm32l4x5",
+    "rt",
+] }
 
 [features]
 default = ["derive"]
