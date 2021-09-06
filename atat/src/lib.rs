@@ -239,6 +239,7 @@ mod ingress_manager;
 mod queues;
 mod traits;
 mod urc_matcher;
+mod nom_digest;
 
 #[cfg(feature = "bytes")]
 pub use serde_bytes;
