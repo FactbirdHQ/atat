@@ -240,6 +240,8 @@ mod queues;
 mod traits;
 mod urc_matcher;
 
+pub use bbqueue;
+
 #[cfg(feature = "bytes")]
 pub use serde_bytes;
 
