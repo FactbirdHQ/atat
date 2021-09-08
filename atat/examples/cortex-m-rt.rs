@@ -1,6 +1,7 @@
 #![no_main]
 #![no_std]
 
+use bbqueue::{BBBuffer, ConstBBBuffer};
 use stm32l4xx_hal as hal;
 
 mod common;
@@ -13,14 +14,14 @@ use hal::{
     timer::{Event, Timer},
 };
 
-use atat::{AtatClient, ClientBuilder, ComQueue, Queues, ResQueue, UrcQueue};
+use atat::{AtatClient, ClientBuilder, ComQueue, Queues};
 
 use heapless::spsc::Queue;
 
 use cortex_m_rt::entry;
 
 static mut INGRESS: Option<
-    atat::IngressManager<atat::DefaultDigester, atat::DefaultUrcMatcher, 256, 10>,
+    atat::IngressManager<atat::DefaultDigester, atat::DefaultUrcMatcher, 256, 1024, 512>,
 > = None;
 static mut RX: Option<Rx<USART2>> = None;
 
@@ -64,13 +65,13 @@ fn main() -> ! {
 
     serial.listen(Rxne);
 
-    static mut RES_QUEUE: ResQueue<256> = Queue::new();
-    static mut URC_QUEUE: UrcQueue<256, 10> = Queue::new();
+    static mut RES_QUEUE: BBBuffer<1024> = BBBuffer(ConstBBBuffer::new());
+    static mut URC_QUEUE: BBBuffer<512> = BBBuffer(ConstBBBuffer::new());
     static mut COM_QUEUE: ComQueue = Queue::new();
 
     let queues = Queues {
-        res_queue: unsafe { RES_QUEUE.split() },
-        urc_queue: unsafe { URC_QUEUE.split() },
+        res_queue: unsafe { RES_QUEUE.try_split_framed().unwrap() },
+        urc_queue: unsafe { URC_QUEUE.try_split_framed().unwrap() },
         com_queue: unsafe { COM_QUEUE.split() },
     };
 
