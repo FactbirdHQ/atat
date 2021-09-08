@@ -78,13 +78,7 @@ impl Digester for DefaultDigester {
     ) -> DigestResult<L> {
         // Trim leading whitespace
         if buf.starts_with(&[Self::LINE_TERM_CHAR]) || buf.starts_with(&[Self::FORMAT_CHAR]) {
-            *buf = Vec::from_slice(buf.trim_start(&[
-                b'\t',
-                b' ',
-                Self::FORMAT_CHAR,
-                Self::LINE_TERM_CHAR,
-            ]))
-            .unwrap();
+            buf.trim_start(&[b'\t', b' ', Self::FORMAT_CHAR, Self::LINE_TERM_CHAR]);
         }
 
         if !buf.is_empty() {
@@ -259,7 +253,7 @@ impl Digester for DefaultDigester {
 mod test {
     use super::*;
     use crate::helpers::SliceExt;
-    use crate::queues::{ComQueue, ResQueue, UrcQueue};
+    use crate::queues::ComQueue;
     use crate::urc_matcher::{DefaultUrcMatcher, UrcMatcherResult};
     use crate::{digest::State, urc_matcher};
     use heapless::spsc::Queue;

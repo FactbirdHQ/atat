@@ -3,6 +3,7 @@
 
 mod common;
 
+use bbqueue::{BBBuffer, ConstBBBuffer};
 use stm32l4xx_hal::{
     pac::{Peripherals, USART2},
     prelude::*,
@@ -10,7 +11,7 @@ use stm32l4xx_hal::{
     timer::Timer,
 };
 
-use atat::{AtatClient, ClientBuilder, ComQueue, Queues, ResQueue, UrcQueue};
+use atat::{AtatClient, ClientBuilder, ComQueue, Queues};
 use rtic::{app, export::wfi};
 
 use heapless::spsc::Queue;
@@ -18,14 +19,15 @@ use heapless::spsc::Queue;
 #[app(device = stm32l4xx_hal::pac, peripherals = true)]
 const APP: () = {
     struct Resources {
-        ingress: atat::IngressManager<atat::DefaultDigester, atat::DefaultUrcMatcher, 256, 10>,
+        ingress:
+            atat::IngressManager<atat::DefaultDigester, atat::DefaultUrcMatcher, 256, 1024, 512>,
         rx: Rx<USART2>,
     }
 
     #[init(spawn = [at_loop])]
     fn init(ctx: init::Context) -> init::LateResources {
-        static mut RES_QUEUE: ResQueue<256> = Queue::new();
-        static mut URC_QUEUE: UrcQueue<256, 10> = Queue::new();
+        static mut RES_QUEUE: BBBuffer<1024> = BBBuffer(ConstBBBuffer::new());
+        static mut URC_QUEUE: BBBuffer<512> = BBBuffer(ConstBBBuffer::new());
         static mut COM_QUEUE: ComQueue = Queue::new();
 
         let p = Peripherals::take().unwrap();
@@ -66,8 +68,8 @@ const APP: () = {
         serial.listen(Rxne);
 
         let queues = Queues {
-            res_queue: RES_QUEUE.split(),
-            urc_queue: URC_QUEUE.split(),
+            res_queue: RES_QUEUE.try_split_framed().unwrap(),
+            urc_queue: URC_QUEUE.try_split_framed().unwrap(),
             com_queue: COM_QUEUE.split(),
         };
 

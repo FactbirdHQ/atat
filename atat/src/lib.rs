@@ -45,7 +45,7 @@
 //!         buf
 //!     }
 //!
-//!     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
+//!     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 //!         Ok(NoResponse)
 //!     }
 //! }
@@ -58,7 +58,7 @@
 //!         Vec::from_slice(b"AT+CSGT?").unwrap()
 //!     }
 //!
-//!     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
+//!     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 //!         // Parse resp into `GreetingText`
 //!         Ok(GreetingText {
 //!             text: String::from(core::str::from_utf8(resp.unwrap()).unwrap()),
@@ -262,7 +262,7 @@ pub use client::{Client, Mode};
 pub use digest::{DefaultDigester, DigestResult, Digester};
 pub use error::{Error, GenericError, InternalError};
 pub use ingress_manager::IngressManager;
-pub use queues::{ComQueue, Queues, ResQueue, UrcQueue};
+pub use queues::{ComQueue, Queues};
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 pub use urc_matcher::{DefaultUrcMatcher, UrcMatcher, UrcMatcherResult};
 
@@ -311,6 +311,28 @@ impl Config {
     pub const fn cmd_cooldown(mut self, ms: u32) -> Self {
         self.cmd_cooldown = ms;
         self
+    }
+}
+
+pub struct ResponseHeader;
+
+impl ResponseHeader {
+    pub fn as_bytes<'a, const BUF_LEN: usize>(
+        res: &'a Result<heapless::Vec<u8, BUF_LEN>, InternalError>,
+    ) -> ([u8; 2], &'a [u8]) {
+        match res {
+            Ok(ref r) => ([0xFF, 0xFF], r.as_ref()),
+            Err(InternalError::Error(ref b)) => ([0x00, 0x07], b.as_ref()),
+            Err(ref e) => ([0x00, e.as_byte()], &[]),
+        }
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<&[u8], InternalError> {
+        match bytes[0] {
+            0xFF => Ok(&bytes[2..]),
+            0x00 => Err(InternalError::from_bytes(&bytes[1..])),
+            _ => Err(InternalError::Parse),
+        }
     }
 }
 
