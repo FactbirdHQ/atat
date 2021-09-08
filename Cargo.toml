@@ -4,6 +4,3 @@ members = [
     "atat_derive",
     "atat",
 ]
-
-[patch.crates-io]
-bbqueue = { git = "https://github.com/mriise/bbqueue" }

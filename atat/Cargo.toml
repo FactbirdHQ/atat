@@ -1,6 +1,6 @@
 [package]
 name = "atat"
-version = "0.11.1"
+version = "0.12.1-alpha.0"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 description = "AT Parser for serial based device crates"
 readme = "../README.md"
@@ -21,9 +21,10 @@ maintenance = { status = "actively-developed" }
 embedded-hal = { version = "1.0.0-alpha.4" }
 nb = "^1"
 heapless = { version = "^0.7.0", features = ["serde"] }
-serde_at = { path = "../serde_at", version = "^0.11.1-alpha.0", optional = true }
-atat_derive = { path = "../atat_derive", version = "^0.11.1-alpha.0", optional = true }
-bbqueue = "0.4.12"
+serde_at = { path = "../serde_at", version = "^0.12.1-alpha.0", optional = true }
+atat_derive = { path = "../atat_derive", version = "^0.12.1-alpha.0", optional = true }
+bbqueue = { git = "https://github.com/mriise/bbqueue" }
+# bbqueue = "0.4.12"
 
 log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.2", optional = true }
@@ -33,7 +34,10 @@ cortex-m = "0.7.1"
 cortex-m-rt = "0.6.13"
 cortex-m-rtic = "0.5.5"
 panic-halt = "0.2.0"
-stm32l4xx-hal = { version = "0.6", features = ["stm32l4x5", "rt"] }
+stm32l4xx-hal = { git = "https://github.com/MathiasKoch/stm32l4xx-hal", branch = "enhancement/prepare-embedded-hal-1.0", features = [
+    "stm32l4x5",
+    "rt",
+] }
 
 [features]
 default = ["derive"]

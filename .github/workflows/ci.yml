@@ -110,6 +110,8 @@ jobs:
           - target: "x86_64-unknown-linux-gnu"
             features: "derive, defmt-default"
             std: ", std"
+          - target: "thumbv7m-none-eabi"
+            examples: "--examples"
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
@@ -126,7 +128,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --all --target '${{ matrix.target }}' --features '${{ matrix.features }}${{ matrix.std }}'
+          args: --all --target '${{ matrix.target }}' --features '${{ matrix.features }}${{ matrix.std }}' ${{ matrix.examples }}
 
   test:
     name: Test
