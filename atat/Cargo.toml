@@ -23,8 +23,7 @@ nb = "^1"
 heapless = { version = "^0.7.0", features = ["serde"] }
 serde_at = { path = "../serde_at", version = "^0.12.1-alpha.0", optional = true }
 atat_derive = { path = "../atat_derive", version = "^0.12.1-alpha.0", optional = true }
-bbqueue = { git = "https://github.com/mriise/bbqueue" }
-# bbqueue = "0.4.12"
+bbqueue = "0.5"
 
 log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.2", optional = true }

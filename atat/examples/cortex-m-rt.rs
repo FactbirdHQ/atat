@@ -1,7 +1,7 @@
 #![no_main]
 #![no_std]
 
-use bbqueue::{BBBuffer, ConstBBBuffer};
+use bbqueue::BBBuffer;
 use stm32l4xx_hal as hal;
 
 mod common;
@@ -65,8 +65,8 @@ fn main() -> ! {
 
     serial.listen(Rxne);
 
-    static mut RES_QUEUE: BBBuffer<1024> = BBBuffer(ConstBBBuffer::new());
-    static mut URC_QUEUE: BBBuffer<512> = BBBuffer(ConstBBBuffer::new());
+    static mut RES_QUEUE: BBBuffer<1024> = BBBuffer::new();
+    static mut URC_QUEUE: BBBuffer<512> = BBBuffer::new();
     static mut COM_QUEUE: ComQueue = Queue::new();
 
     let queues = Queues {

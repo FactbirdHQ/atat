@@ -3,7 +3,7 @@
 
 mod common;
 
-use bbqueue::{BBBuffer, ConstBBBuffer};
+use bbqueue::BBBuffer;
 use stm32l4xx_hal::{
     pac::{Peripherals, USART2},
     prelude::*,
@@ -26,8 +26,8 @@ const APP: () = {
 
     #[init(spawn = [at_loop])]
     fn init(ctx: init::Context) -> init::LateResources {
-        static mut RES_QUEUE: BBBuffer<1024> = BBBuffer(ConstBBBuffer::new());
-        static mut URC_QUEUE: BBBuffer<512> = BBBuffer(ConstBBBuffer::new());
+        static mut RES_QUEUE: BBBuffer<1024> = BBBuffer::new();
+        static mut URC_QUEUE: BBBuffer<512> = BBBuffer::new();
         static mut COM_QUEUE: ComQueue = Queue::new();
 
         let p = Peripherals::take().unwrap();

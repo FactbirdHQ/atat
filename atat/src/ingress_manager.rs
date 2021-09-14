@@ -195,7 +195,7 @@ where
 mod test {
     use super::*;
     use crate::queues;
-    use bbqueue::{BBBuffer, ConstBBBuffer};
+    use bbqueue::BBBuffer;
     use heapless::spsc::Queue;
 
     const TEST_RX_BUF_LEN: usize = 256;
@@ -204,10 +204,10 @@ mod test {
 
     #[test]
     fn overflow() {
-        static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer(ConstBBBuffer::new());
+        static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer::new();
         let (res_p, mut res_c) = unsafe { RES_Q.try_split_framed().unwrap() };
 
-        static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer(ConstBBBuffer::new());
+        static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer::new();
         let (urc_p, _urc_c) = unsafe { URC_Q.try_split_framed().unwrap() };
 
         static mut COM_Q: queues::ComQueue = Queue::new();

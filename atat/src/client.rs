@@ -223,7 +223,7 @@ mod test {
         GenericError,
     };
     use bbqueue::framed::FrameProducer;
-    use bbqueue::{BBBuffer, ConstBBBuffer};
+    use bbqueue::BBBuffer;
     use heapless::{spsc::Queue, String, Vec};
     use nb;
 
@@ -388,10 +388,10 @@ mod test {
 
     macro_rules! setup {
         ($config:expr) => {{
-            static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer(ConstBBBuffer::new());
+            static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer::new();
             let (res_p, res_c) = unsafe { RES_Q.try_split_framed().unwrap() };
 
-            static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer(ConstBBBuffer::new());
+            static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer::new();
             let (urc_p, urc_c) = unsafe { URC_Q.try_split_framed().unwrap() };
 
             static mut COM_Q: queues::ComQueue = Queue::new();
