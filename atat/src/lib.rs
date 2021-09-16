@@ -245,6 +245,9 @@ pub use bbqueue;
 #[cfg(feature = "bytes")]
 pub use serde_bytes;
 
+#[cfg(feature = "bytes")]
+pub use heapless_bytes;
+
 #[cfg(feature = "derive")]
 pub use atat_derive;
 #[cfg(feature = "derive")]

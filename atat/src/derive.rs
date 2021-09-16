@@ -8,6 +8,11 @@ pub trait AtatLen {
     const LEN: usize;
 }
 
+#[cfg(feature = "bytes")]
+impl<const N: usize> AtatLen for heapless_bytes::Bytes<N> {
+    const LEN: usize = N;
+}
+
 macro_rules! impl_length {
     ($type:ty, $len:expr) => {
         #[allow(clippy::use_self)]
