@@ -1,12 +1,12 @@
 use bbqueue::framed::FrameProducer;
 use heapless::Vec;
 
+use crate::Response;
 use crate::atat_log;
 use crate::error::InternalError;
 use crate::helpers::LossyStr;
 use crate::queues::ComConsumer;
 use crate::Command;
-use crate::ResponseHeader;
 use crate::{
     digest::{DefaultDigester, DigestResult, Digester},
     urc_matcher::{DefaultUrcMatcher, UrcMatcher},
@@ -92,7 +92,7 @@ where
 
         if self.buf.extend_from_slice(data).is_err() {
             atat_log!(error, "OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
-            self.notify_response(Err(InternalError::Overflow));
+            self.notify_response(Response::Error(InternalError::Overflow)).ok();
         }
     }
 
@@ -119,43 +119,45 @@ where
 
     /// Notify the client that an appropriate response code, or error has been
     /// received
-    fn notify_response(&mut self, resp: Result<Vec<u8, BUF_LEN>, InternalError>) {
-        #[cfg(any(feature = "defmt", feature = "log"))]
-        match &resp {
-            Ok(r) => {
-                if r.is_empty() {
-                    atat_log!(debug, "Received OK")
-                } else {
-                    atat_log!(debug, "Received response: \"{:?}\"", LossyStr(r.as_ref()));
-                }
-            }
-            Err(e) => {
-                atat_log!(error, "Received error response {:?}", e);
-            }
-        };
+    fn notify_response(&mut self, resp: Response<BUF_LEN>) -> Result<(), ()> {
+        // #[cfg(any(feature = "defmt", feature = "log"))]
+        // match &resp {
+        //     Ok(r) => {
+        //         if r.is_empty() {
+        //             atat_log!(debug, "Received OK")
+        //         } else {
+        //             atat_log!(debug, "Received response: \"{:?}\"", LossyStr(r.as_ref()));
+        //         }
+        //     }
+        //     Err(e) => {
+        //         atat_log!(error, "Received error response {:?}", e);
+        //     }
+        // };
 
-        let (header, bytes) = ResponseHeader::as_bytes(&resp);
+        let (header, bytes) = resp.as_bytes();
         if let Ok(mut grant) = self.res_p.grant(bytes.len() + header.len()) {
             grant[0..header.len()].copy_from_slice(&header);
             grant[header.len()..header.len() + bytes.len()].copy_from_slice(bytes);
             grant.commit(bytes.len() + header.len());
+            Ok(())
         } else {
-            // FIXME: Handle queue being full
             atat_log!(error, "Response queue full!");
+            Err(())
         }
     }
 
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
-    fn notify_urc(&mut self, resp: Vec<u8, BUF_LEN>) {
+    fn notify_urc(&mut self, resp: Vec<u8, BUF_LEN>) -> Result<(), ()> {
         atat_log!(debug, "Received response: \"{:?}\"", LossyStr(&resp));
 
         if let Ok(mut grant) = self.urc_p.grant(resp.len()) {
             grant.copy_from_slice(resp.as_ref());
             grant.commit(resp.len());
+            Ok(())
         } else {
-            // FIXME: Handle queue being full
             atat_log!(error, "URC queue full!");
+            Err(())
         }
     }
 
@@ -183,10 +185,10 @@ where
             self.handle_com();
 
             match self.digester.digest(&mut self.buf, &mut self.urc_matcher) {
-                DigestResult::None => {}
+                DigestResult::None => Ok(()),
                 DigestResult::Urc(urc_line) => self.notify_urc(urc_line),
                 DigestResult::Response(resp) => self.notify_response(resp),
-            };
+            }.ok();
         }
     }
 }
@@ -236,8 +238,8 @@ mod test {
         let mut grant = res_c.read().unwrap();
         grant.auto_release(true);
         assert_eq!(
-            ResponseHeader::from_bytes(grant.as_ref()),
-            Err(InternalError::Overflow)
+            Response::from_bytes(grant.as_ref()),
+            Response::<1>::Error(InternalError::Overflow)
         );
     }
 }

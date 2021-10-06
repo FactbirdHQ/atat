@@ -2,7 +2,7 @@ use crate::{
     atat_log,
     helpers::{get_line, LossyStr, SliceExt},
     urc_matcher::{UrcMatcher, UrcMatcherResult},
-    InternalError,
+    InternalError, Response,
 };
 use heapless::Vec;
 
@@ -27,7 +27,7 @@ pub trait Digester {
 #[derive(Debug, PartialEq)]
 pub enum DigestResult<const L: usize> {
     Urc(Vec<u8, L>),
-    Response(Result<Vec<u8, L>, InternalError>),
+    Response(Response<L>),
     None,
 }
 
@@ -182,16 +182,18 @@ impl Digester for DefaultDigester {
                     true,
                     false,
                 ) {
-                    Ok(get_line(
-                        &mut line,
-                        &[Self::LINE_TERM_CHAR],
-                        Self::LINE_TERM_CHAR,
-                        Self::FORMAT_CHAR,
-                        true,
-                        true,
-                        false,
+                    Response::Complete(
+                        get_line(
+                            &mut line,
+                            &[Self::LINE_TERM_CHAR],
+                            Self::LINE_TERM_CHAR,
+                            Self::FORMAT_CHAR,
+                            true,
+                            true,
+                            false,
+                        )
+                        .unwrap_or_else(Vec::new),
                     )
-                    .unwrap_or_else(Vec::new))
                 } else if let Some(mut line) = get_line::<L, L>(
                     buf,
                     b"ERROR",
@@ -201,7 +203,7 @@ impl Digester for DefaultDigester {
                     false,
                     false,
                 ) {
-                    Err(InternalError::Error(
+                    Response::Error(InternalError::Error(
                         get_line(
                             &mut line,
                             &[Self::LINE_TERM_CHAR],
@@ -213,6 +215,16 @@ impl Digester for DefaultDigester {
                         )
                         .unwrap_or_else(|| Vec::from_slice(&line).unwrap_or_default()),
                     ))
+                } else if let Some(line) = get_line::<L, L>(
+                    buf,
+                    b"+UWSC",
+                    Self::LINE_TERM_CHAR,
+                    Self::FORMAT_CHAR,
+                    true,
+                    false,
+                    false,
+                ) {
+                    Response::List(true, line)
                 } else if get_line::<L, L>(
                     buf,
                     b">",
@@ -234,7 +246,7 @@ impl Digester for DefaultDigester {
                     )
                     .is_some()
                 {
-                    Ok(Vec::new())
+                    Response::Prompt
                 } else {
                     return DigestResult::None;
                 };
@@ -278,7 +290,7 @@ mod test {
         buf.extend_from_slice(b"OK\r\n").unwrap();
         assert_eq!(
             digester.digest(&mut buf, &mut urc_matcher),
-            DigestResult::Response(Ok(Vec::new()))
+            DigestResult::Response(Response::Complete(Vec::new()))
         );
         assert_eq!(digester.state, State::Idle);
     }
@@ -326,7 +338,10 @@ mod test {
             let expectation =
                 Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"+USORD: 3,16,\"16 bytes of data\"")
                     .unwrap();
-            assert_eq!(result, DigestResult::Response(Ok(expectation)));
+            assert_eq!(
+                result,
+                DigestResult::Response(Response::Complete(expectation))
+            );
         }
     }
 
@@ -351,7 +366,10 @@ mod test {
         assert_eq!(digester.state, State::Idle);
         {
             let expectation = Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19").unwrap();
-            assert_eq!(result, DigestResult::Response(Ok(expectation)));
+            assert_eq!(
+                result,
+                DigestResult::Response(Response::Complete(expectation))
+            );
         }
     }
 
@@ -423,7 +441,7 @@ mod test {
         assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
         assert_eq!(
             result,
-            DigestResult::Response(Err(InternalError::Error(
+            DigestResult::Response(Response::Error(InternalError::Error(
                 Vec::from_slice(b"ERROR").unwrap()
             )))
         );
@@ -690,7 +708,7 @@ mod test {
         assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
         assert_eq!(
             result,
-            DigestResult::Response(Err(InternalError::Error(
+            DigestResult::Response(Response::Error(InternalError::Error(
                 Vec::from_slice(b"+CME ERROR: 123").unwrap()
             )))
         );
@@ -726,7 +744,7 @@ mod test {
         assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
         assert_eq!(
             result,
-            DigestResult::Response(Err(InternalError::Error(
+            DigestResult::Response(Response::Error(InternalError::Error(
                 Vec::from_slice(b"+CME ERROR: Operation not allowed").unwrap()
             )))
         );
@@ -761,7 +779,7 @@ mod test {
         assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
         assert_eq!(
             result,
-            DigestResult::Response(Err(InternalError::Error(
+            DigestResult::Response(Response::Error(InternalError::Error(
                 Vec::from_slice(
                     b"+CME ERROR: Operation not allowed.. This is a very long error message, that will neve"
                 )
@@ -789,7 +807,7 @@ mod test {
 
         assert_eq!(digester.state, State::Idle);
         assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
-        assert_eq!(result, DigestResult::Response(Ok(heapless::Vec::new())));
+        assert_eq!(result, DigestResult::Response(Response::Prompt));
     }
 
     // Regression test for #87
@@ -819,7 +837,9 @@ mod test {
         assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
         assert_eq!(
             result,
-            DigestResult::Response(Ok(Vec::from_slice(b"+CPIN: READY").unwrap()))
+            DigestResult::Response(Response::Complete(
+                Vec::from_slice(b"+CPIN: READY").unwrap()
+            ))
         );
     }
 
@@ -850,7 +870,7 @@ mod test {
         assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
         assert_eq!(
             result,
-            DigestResult::Response(Err(InternalError::Error(
+            DigestResult::Response(Response::Error(InternalError::Error(
                 Vec::from_slice(b"+CME ERROR: 10").unwrap()
             )))
         );
@@ -878,7 +898,10 @@ mod test {
         assert_eq!(digester.state, State::Idle);
         {
             let expectation = Vec::<_, 1024>::from_slice(b"+URDBLOCK: \"response.txt\",512,\"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2553\r\nConnection: close\r\nVary: Accept-Encoding\r\nDate: Mon, 19 Jul 2021 07:47:39 GMT\r\nx-amzn-RequestId: 436ba5b8-2aad-4089-a4fd-1b1c38773c87\r\nx-amz-apigw-id: CtQkMFE_DoEFUzg=\r\nX-Amzn-Trace-Id: Root=1-60f52e1a-0a05343260f3ba3331eea9d6;Sampled=1\r\nVia: 1.1 f99b5b46e77cfe9c3413f99dc8a4088c.cloudfront.net (CloudFront), 1.1 2f194b62c8c43859cbf5af8e53a8d2a7.cloudfront.net (CloudFront)\r\nX-Amz-Cf-Pop: FRA2-C2\r\nX-Cache: Miss from cloudfront\r\nX-Amz-Cf-Pop\"").unwrap();
-            assert_eq!(result, DigestResult::Response(Ok(expectation)));
+            assert_eq!(
+                result,
+                DigestResult::Response(Response::Complete(expectation))
+            );
         }
     }
 
@@ -907,7 +930,9 @@ mod test {
         assert_eq!(digester.state, State::Idle);
         assert_eq!(
             result,
-            DigestResult::Response(Ok(Vec::<_, 2048>::from_slice(b"+CPIN: READY").unwrap()))
+            DigestResult::Response(Response::Complete(
+                Vec::<_, 2048>::from_slice(b"+CPIN: READY").unwrap()
+            ))
         );
 
         assert_eq!(
@@ -922,7 +947,41 @@ mod test {
 
         {
             let expectation = Vec::<_, 2048>::from_slice(b"+URDBLOCK: \"response.txt\",512,\"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2553\r\nConnection: close\r\nVary: Accept-Encoding\r\nDate: Mon, 19 Jul 2021 07:47:39 GMT\r\nx-amzn-RequestId: 436ba5b8-2aad-4089-a4fd-1b1c38773c87\r\nx-amz-apigw-id: CtQkMFE_DoEFUzg=\r\nX-Amzn-Trace-Id: Root=1-60f52e1a-0a05343260f3ba3331eea9d6;Sampled=1\r\nVia: 1.1 f99b5b46e77cfe9c3413f99dc8a4088c.cloudfront.net (CloudFront), 1.1 2f194b62c8c43859cbf5af8e53a8d2a7.cloudfront.net (CloudFront)\r\nX-Amz-Cf-Pop: FRA2-C2\r\nX-Cache: Miss from cloudfront\r\nX-Amz-Cf-Pop\"").unwrap();
-            assert_eq!(result, DigestResult::Response(Ok(expectation)));
+            assert_eq!(
+                result,
+                DigestResult::Response(Response::Complete(expectation))
+            );
         }
+    }
+
+    #[test]
+    fn long_list_cmd() {
+        let mut digester = DefaultDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, 2048>::new();
+
+        assert_eq!(digester.state, State::Idle);
+        buf.extend_from_slice(b"AT+UWSCAN\r\r\n").unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::None
+        );
+        assert_eq!(digester.state, State::ReceivingResponse);
+
+        let full_response = b"+UWSCAN:EA63DA77C485,1,\"emendo-Blackbird\",1,-54,18,8,8\r\n+UWSCAN:E063DA74C38A,1,\"Blackbird-device\",1,-62,18,8,8\r\n+UWSCAN:6009C32A1811,1,\"Factbird-Duo-768e8aa\",1,-40,0,0,0\r\n+UWSCAN:E063DA74A587,1,\"Blackbird-device\",1,-59,18,8,8\r\n+UWSCAN:E063DA77C485,1,\"Blackbird-device\",1,-54,18,8,8\r\n+UWSCAN:E663DA74A587,1,\"emendo-guest\",1,-60,18,8,8\r\n+UWSCAN:E063DA74C38A,1,\"Blackbird-device\",1,-62,18,8,8\r\n+UWSCAN:EA63DA74A587,1,\"emendo-Blackbird\",1,-59,18,8,8\r\n+UWSCAN:E663DA77C485,1,\"emendo-guest\",1,-54,18,8,8\r\n+UWSCAN:E263DA74C38A,1,\"emendo-guest\",1,-62,18,8,8\r\n+UWSCAN:EA63DA77C485,1,\"emendo-Blackbird\",1,-54,18,8,8\r\n+UWSCAN:F263DA74C38A,1,\"emendo-Blackbird\",1,-62,18,8,8\r\n+UWSCAN:6009C32A1811,1,\"Factbird-Duo-768e8aa\",1,-39,0,0,0\r\n+UWSCAN:E063DA74C38A,1,\"Blackbird-device\",1,-62,18,8,8\r\n+UWSCAN:E063DA77C485,1,\"Blackbird-device\",1,-53,18,8,8\r\n+UWSCAN:B4FBE4C732FD,1,\"Blackbird-device\",1,-76,18,8,8\r\n+UWSCAN:E663DA77C485,1,\"emendo-guest\",1,-54,18,8,8\r\n+UWSCAN:EA63DA77C485,1,\"emendo-Blackbird\",1,-53,18,8,8\r\n+UWSCAN:E063DA74C38A,1,\"Blackbird-device\",1,-62,18,8,8\r\n+UWSCAN:E263DA74C38A,1,\"emendo-guest\",1,-62,18,8,8\r\n+UWSCAN:F263DA74C38A,1,\"emendo-Blackbird\",1,-62,18,8,8\r\n+UWSCAN:E063DA74A587,1,\"Blackbird-device\",1,-60,18,8,8\r\n+UWSCAN:B4FBE4C7325C,1,\"Blackbird-device\",1,-74,18,8,8\r\n+UWSCAN:EA63DA77C485,1,\"emendo-Blackbird\",1,-53,18,8,8\r\n+UWSCAN:BAFBE4C7325C,1,\"emendo-guest\",1,-75,18,8,8\r\n+UWSCAN:E663DA74A587,1,\"emendo-guest\",1,-60,18,8,8\r\n+UWSCAN:BAFBE4C732FD,1,\"emendo-guest\",1,-76,18,8,8\r\n+UWSCAN:EA63DA74A587,1,\"emendo-Blackbird\",1,-60,18,8,8\r\n+UWSCAN:EA63DA74A587,1,\"emendo-Blackbird\",1,-59,18,8,8\r\n+UWSCAN:EA63DA74A587,1,\"emendo-Blackbird\",1,-60,18,8,8\r\n+UWSCAN:BEFBE4C732FD,1,\"emendo-Blackbird\",1,-77,18,8,8\r\n+UWSCAN:BEFBE4C7325C,1,\"emendo-Blackbird\",1,-75,18,8,8\r\n+UWSCAN:E663DA74A587,1,\"emendo-guest\",1,-59,18,8,8\r\n+UWSCAN:B4FBE4C7325C,1,\"Blackbird-device\",1,-75,18,8,8\r\n+UWSCAN:E263DA74C38A,1,\"emendo-guest\",1,-62,18,8,8\r\n+UWSCAN:EA63DA74A664,1,\"emendo-Blackbird\",6,-56,18,8,8\r\n+UWSCAN:E063DA74A664,1,\"Blackbird-device\",6,-56,18,8,8\r\n+UWSCAN:B4FBE4C7331A,1,\"Blackbird-device\",6,-65,18,8,8\r\n+UWSCAN:E663DA74A664,1,\"emendo-guest\",6,-56,18,8,8\r\n+UWSCAN:BAFBE4C7331A,1,\"emendo-guest\",6,-65,18,8,8\r\n+UWSCAN:EA63DA74A664,1,\"emendo-Blackbird\",6,-56,18,8,8\r\n+UWSCAN:BAFBE4C7331A,1,\"emendo-guest\",6,-65,18,8,8\r\n+UWSCAN:BEFBE4C7331A,1,\"emendo-Blackbird\",6,-64,18,8,8\r\n+UWSCAN:EA63DA74C515,1,\"emendo-Blackbird\",6,-69,18,8,8\r\n+UWSCAN:E063DA74A664,1,\"Blackbird-device\",6,-56,18,8,8\r\n+UWSCAN:B4FBE4C731AA,1,\"Blackbird-device\",6,-70,18,8,8\r\n+UWSCAN:E663DA74A664,1,\"emendo-guest\",6,-55,18,8,8\r\n+UWSCAN:E063DA74C515,1,\"Blackbird-device\",6,-69,18,8,8\r\n+UWSCAN:EA63DA74A664,1,\"emendo-Blackbird\",6,-57,18,8,8\r\n+UWSCAN:B4FBE4C7331A,1,\"Blackbird-device\",6,-65,18,8,8\r\n+UWSCAN:E663DA74C515,1,\"emendo-guest\",6,-69,18,8,8\r\n+UWSCAN:BAFBE4C7331A,1,\"emendo-guest\",6,-64,18,8,8\r\n+UWSCAN:B4FBE4C731AA,1,\"Blackbird-device\",6,-71,18,8,8\r\n+UWSCAN:BEFBE4C731AA,1,\"emendo-Blackbird\",6,-71,18,8,8\r\n+UWSCAN:BEFBE4C7331A,1,\"emendo-Blackbird\",6,-65,18,8,8\r\n+UWSCAN:BEFBE4C7331A,1,\"emendo-Blackbird\",6,-65,18,8,8\r\n+UWSCAN:E663DA74C62C,1,\"emendo-guest\",11,-60,18,8,8\r\n+UWSCAN:001E42258D9C,1,\"RUT_8D9C_2G\",11,-62,18,12,4\r\n+UWSCAN:E063DA74A530,1,\"Blackbird-device\",11,-64,18,8,8\r\n+UWSCAN:B4FBE4C731B2,1,\"Blackbird-device\",11,-71,18,8,8\r\n+UWSCAN:B4FBE4C731B2,1,\"Blackbird-device\",11,-71,18,8,8\r\n+UWSCAN:E663DA74A530,1,\"emendo-guest\",11,-64,18,8,8\r\n+UWSCAN:E063DA74C62C,1,\"Blackbird-device\",11,-60,18,8,8\r\n+UWSCAN:BAFBE4C731B2,1,\"emendo-guest\",11,-72,18,8,8\r\n+UWSCAN:BEFBE4C731B2,1,\"emendo-Blackbird\",11,-72,18,8,8\r\n+UWSCAN:E663DA74C62C,1,\"emendo-guest\",11,-60,18,8,8\r\n+UWSCAN:EA63DA74A530,1,\"emendo-Blackbird\",11,-64,18,8,8\r\n+UWSCAN:EA63DA74C62C,1,\"emendo-Blackbird\",11,-59,18,8,8\r\n+UWSCAN:EA63DA74C62C,1,\"emendo-Blackbird\",11,-59,18,8,8\r\n+UWSCAN:E063DA74C62C,1,\"Blackbird-device\",11,-59,18,8,8\r\n+UWSCAN:E663DA74C62C,1,\"emendo-guest\",11,-60,18,8,8\r\n+UWSCAN:001E42258D9C,1,\"RUT_8D9C_2G\",11,-60,18,12,4\r\n+UWSCAN:E063DA74A530,1,\"Blackbird-device\",11,-64,18,8,8\r\n+UWSCAN:E663DA74A530,1,\"emendo-guest\",11,-64,18,8,8\r\n+UWSCAN:E663DA74A530,1,\"emendo-guest\",11,-64,18,8,8\r\n+UWSCAN:EA63DA74A530,1,\"emendo-Blackbird\",11,-64,18,8,8\r\n+UWSCAN:EA63DA74C62C,1,\"emendo-Blackbird\",11,-59,18,8,8\r\n+UWSCAN:B4FBE4C731B2,1,\"Blackbird-device\",11,-71,18,8,8\r\n+UWSCAN:60634C263349,1,\"DWR-921-3348\",11,-89,26,12,4\r\n+UWSCAN:EA63DA74A530,1,\"emendo-Blackbird\",11,-64,18,8,8\r\n+UWSCAN:9CB6D03EB4A3,1,\"TEST\",36,-41,0,0,0\r\n+UWSCAN:9CB6D03EB4A3,1,\"TEST\",36,-41,0,0,0\r\n+UWSCAN:EA63DA75C62C,1,\"emendo-Blackbird\",36,-57,18,8,8\r\n+UWSCAN:E063DA75C62C,1,\"Blackbird-device\",36,-58,18,8,8\r\n+UWSCAN:E663DA75C62C,1,\"emendo-guest\",36,-58,18,8,8\r\n+UWSCAN:E063DA75C62C,1,\"Blackbird-device\",36,-58,18,8,8\r\n+UWSCAN:E663DA75C62C,1,\"emendo-guest\",36,-58,18,8,8\r\n+UWSCAN:EA63DA75C62C,1,\"emendo-Blackbird\",36,-58,18,8,8\r\n+UWSCAN:EA63DA75C62C,1,\"emendo-Blackbird\",36,-58,18,8,8\r\n+UWSCAN:E063DA75C62C,1,\"Blackbird-device\",36,-58,18,8,8\r\n+UWSCAN:D8616240D55F,1,\"ClickShare-ThinkingStudio\",40,-88,18,8,8\r\n+UWSCAN:D8616240D55F,1,\"ClickShare-ThinkingStudio\",40,-88,18,8,8\r\n+UWSCAN:D8616240D55F,1,\"ClickShare-ThinkingStudio\",40,-88,18,8,8\r\n+UWSCAN:B4FBE4C832FD,1,\"Blackbird-device\",44,-86,18,8,8\r\n+UWSCAN:B4FBE4C832FD,1,\"Blackbird-device\",44,-87,18,8,8\r\n+UWSCAN:BAFBE4C832FD,1,\"emendo-guest\",44,-87,18,8,8\r\n+UWSCAN:BAFBE4C832FD,1,\"emendo-guest\",44,-87,18,8,8\r\n+UWSCAN:BEFBE4C832FD,1,\"emendo-Blackbird\",44,-87,18,8,8\r\n+UWSCAN:BEFBE4C832FD,1,\"emendo-Blackbird\",44,-87,18,8,8\r\nOK\r\n";
+
+        buf.extend_from_slice(&full_response[..512]).unwrap();
+        assert_eq!(
+            digester.digest(&mut buf, &mut urc_matcher),
+            DigestResult::Response(Response::List(
+                true,
+                Vec::from_slice(b"+UWSCAN:EA63DA77C485,1,\"emendo-Blackbird\",1,-54,18,8,8\r\n")
+                    .unwrap()
+            ))
+        );
+
+        println!("{:?}", core::str::from_utf8(&buf));
+
+        panic!()
     }
 }

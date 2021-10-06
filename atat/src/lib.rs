@@ -108,9 +108,9 @@
 //!     timer::{Event, Timer},
 //! };
 //!
-//! use atat::{atat_derive::{AtatResp, AtatCmd}};
-//!
-//! use heapless::{spsc::Queue, String};
+//! use atat::{AtatClient, ClientBuilder, ComQueue, Queues};
+//! use bbqueue::BBBuffer;
+//! use heapless::spsc::Queue;
 //!
 //! use crate::rt::entry;
 //! static mut INGRESS: Option<atat::IngressManager> = None;
@@ -152,13 +152,13 @@
 //!
 //!     serial.listen(Rxne);
 //!
-//!     static mut RES_QUEUE: ResQueue<256> = Queue::new();
-//!     static mut URC_QUEUE: UrcQueue<256, 10> = Queue::new();
+//!     static mut RES_QUEUE: BBBuffer<1024> = BBBuffer::new();
+//!     static mut URC_QUEUE: BBBuffer<512> = BBBuffer::new();
 //!     static mut COM_QUEUE: ComQueue = Queue::new();
 //!
 //!     let queues = Queues {
-//!         res_queue: unsafe { RES_QUEUE.split() },
-//!         urc_queue: unsafe { URC_QUEUE.split() },
+//!         res_queue: unsafe { RES_QUEUE.try_split_framed().unwrap() },
+//!         urc_queue: unsafe { URC_QUEUE.try_split_framed().unwrap() },
 //!         com_queue: unsafe { COM_QUEUE.split() },
 //!     };
 //!
@@ -319,24 +319,35 @@ impl Config {
     }
 }
 
-pub struct ResponseHeader;
+#[derive(Debug, PartialEq)]
+pub enum Response<const L: usize> {
+    Complete(heapless::Vec<u8, L>),
+    Partial(bool, heapless::Vec<u8, L>),
+    List(bool, heapless::Vec<u8, L>),
+    Error(InternalError),
+    Prompt
+}
 
-impl ResponseHeader {
-    pub fn as_bytes<'a, const BUF_LEN: usize>(
-        res: &'a Result<heapless::Vec<u8, BUF_LEN>, InternalError>,
-    ) -> ([u8; 2], &'a [u8]) {
-        match res {
-            Ok(ref r) => ([0xFF, 0xFF], r.as_ref()),
-            Err(InternalError::Error(ref b)) => ([0x00, 0x07], b.as_ref()),
-            Err(ref e) => ([0x00, e.as_byte()], &[]),
+impl<const L: usize> Response<L> {
+    pub fn as_bytes(&self) -> ([u8; 2], &[u8]) {
+        match self {
+            Self::Prompt => ([0xAA, 0xFF], &[]),
+            Self::Complete(r) => ([0xFF, 0x01], r),
+            Self::Partial(first, ref r) => ([0xFE, *first as u8], r),
+            Self::List(first, ref r) => ([0xFC, *first as u8], r),
+            Self::Error(InternalError::Error(ref b)) => ([0x00, 0x07], b.as_ref()),
+            Self::Error(ref e) => ([0x00, e.as_byte()], &[]),
         }
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<&[u8], InternalError> {
+    pub fn from_bytes(bytes: &[u8]) -> Self {
         match bytes[0] {
-            0xFF => Ok(&bytes[2..]),
-            0x00 => Err(InternalError::from_bytes(&bytes[1..])),
-            _ => Err(InternalError::Parse),
+            0xAA => Self::Prompt,
+            0xFF => Self::Complete(heapless::Vec::from_slice(&bytes[2..]).unwrap()),
+            0xFE => Self::Partial(bytes[1] == 0x01, heapless::Vec::from_slice(&bytes[2..]).unwrap()),
+            0xFC => Self::List(bytes[1] == 0x01, heapless::Vec::from_slice(&bytes[2..]).unwrap()),
+            0x00 => Self::Error(InternalError::from_bytes(&bytes[1..])),
+            _ => Self::Error(InternalError::Parse),
         }
     }
 }

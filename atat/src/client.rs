@@ -6,7 +6,7 @@ use crate::error::Error;
 use crate::helpers::LossyStr;
 use crate::queues::ComProducer;
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
-use crate::ResponseHeader;
+use crate::Response;
 use crate::{Command, Config};
 
 #[derive(Debug, PartialEq)]
@@ -161,8 +161,18 @@ where
         if let Some(mut res_grant) = self.res_c.read() {
             res_grant.auto_release(true);
 
+            // FIXME: Length here!
+            let resp = Response::<512>::from_bytes(res_grant.as_ref());
+            let resp = match resp {
+                Response::Complete(ref r) => Ok(r.as_ref()),
+                Response::Prompt => Ok(&[][..]),
+                Response::Partial(_, _) => todo!(),
+                Response::List(_, _) => todo!(),
+                Response::Error(e) => Err(e),
+            };
+
             return cmd
-                .parse(ResponseHeader::from_bytes(res_grant.as_ref()))
+                .parse(resp)
                 .map_err(nb::Error::from)
                 .and_then(|r| {
                     if let ClientState::AwaitingResponse = self.state {
@@ -408,9 +418,9 @@ mod test {
 
     pub fn enqueue_res(
         producer: &mut FrameProducer<'static, TEST_RES_CAPACITY>,
-        res: Result<Vec<u8, TEST_RX_BUF_LEN>, InternalError>,
+        res: Response<TEST_RX_BUF_LEN>,
     ) {
-        let (header, bytes) = ResponseHeader::as_bytes(&res);
+        let (header, bytes) = res.as_bytes();
 
         if let Ok(mut grant) = producer.grant(bytes.len() + header.len()) {
             grant[0..header.len()].copy_from_slice(&header);
@@ -428,7 +438,7 @@ mod test {
 
         let cmd = ErrorTester { x: 7 };
 
-        enqueue_res(&mut p, Err(InternalError::Error(Vec::new())));
+        enqueue_res(&mut p, Response::Error(InternalError::Error(Vec::new())));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(
@@ -447,7 +457,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Err(InternalError::Error(Vec::new())));
+        enqueue_res(&mut p, Response::Error(InternalError::Error(Vec::new())));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(
@@ -466,7 +476,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Response::Complete(Vec::<u8, TEST_RX_BUF_LEN>::new()));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -478,7 +488,7 @@ mod test {
             "Wrong encoding of string"
         );
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Response::Complete(Vec::<u8, TEST_RX_BUF_LEN>::new()));
 
         let cmd = Test2Cmd {
             fun: Functionality::DM,
@@ -522,7 +532,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Response::Complete(Vec::<u8, TEST_RX_BUF_LEN>::new()));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -545,7 +555,7 @@ mod test {
 
         assert_eq!(client.check_response(&cmd), Err(nb::Error::WouldBlock));
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Response::Complete(Vec::<u8, TEST_RX_BUF_LEN>::new()));
 
         assert_eq!(client.state, ClientState::AwaitingResponse);
 
@@ -566,7 +576,7 @@ mod test {
 
         let response =
             Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
-        enqueue_res(&mut p, Ok(response));
+        enqueue_res(&mut p, Response::Complete(response));
 
         assert_eq!(client.state, ClientState::Idle);
 
@@ -588,7 +598,7 @@ mod test {
 
         let response =
             Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: \"0123456789012345\",22,16").unwrap();
-        enqueue_res(&mut p, Ok(response));
+        enqueue_res(&mut p, Response::Complete(response));
 
         assert_eq!(
             client.send(&cmd),
@@ -627,7 +637,7 @@ mod test {
         };
 
         let response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: 22,16,22").unwrap();
-        enqueue_res(&mut p, Ok(response));
+        enqueue_res(&mut p, Response::Complete(response));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Parse)));
