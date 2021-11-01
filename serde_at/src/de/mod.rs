@@ -48,11 +48,13 @@ pub type Result<T> = core::result::Result<T, Error>;
 pub struct CharVec<const N: usize>(pub heapless::Vec<char, N>);
 
 impl<const N: usize> CharVec<N> {
+    /// Instantiate a new `CharVec` of capacity `N`
     #[must_use]
     pub fn new() -> Self {
         Self(heapless::Vec::<char, N>::new())
     }
 
+    /// Convert from `CharVec` to `String`
     #[must_use]
     pub fn to_string(&self) -> heapless::String<N> {
         let mut str = heapless::String::new();
@@ -121,7 +123,6 @@ impl<'de, const N: usize> Deserialize<'de> for CharVec<N> {
 }
 
 /// This type represents all possible errors that can occur when deserializing AT Command strings
-#[allow(clippy::pub_enum_variant_names)]
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Error {
@@ -253,7 +254,7 @@ impl<'a> Deserializer<'a> {
         loop {
             if let Some(c) = self.peek() {
                 if (c as char).is_alphanumeric() || (c as char).is_whitespace() {
-                    self.eat_char()
+                    self.eat_char();
                 } else {
                     return Err(Error::EofWhileParsingString);
                 }
@@ -576,9 +577,9 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
         visitor
             .visit_bytes(&self.slice[self.index..self.index + idx])
-            .and_then(|r| {
+            .map(|r| {
                 self.index += idx;
-                Ok(r)
+                r
             })
     }
 
@@ -743,6 +744,8 @@ impl de::Error for Error {
     }
 }
 
+impl de::StdError for Error {}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -774,9 +777,6 @@ impl fmt::Display for Error {
         )
     }
 }
-
-#[cfg(any(test, feature = "std"))]
-impl std::error::Error for Error {}
 
 /// Deserializes an instance of type `T` from bytes of AT Response text
 pub fn from_slice<'a, T>(v: &'a [u8]) -> Result<T>

@@ -52,7 +52,7 @@ impl Deref for Bytes<'_> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        self.0
     }
 }
 
@@ -130,9 +130,6 @@ impl fmt::Display for Error {
         write!(f, "Buffer is full")
     }
 }
-
-#[cfg(any(test, feature = "std"))]
-impl std::error::Error for Error {}
 
 pub(crate) struct Serializer<'a, const B: usize> {
     buf: Vec<u8, B>,
@@ -319,7 +316,7 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
 
         // Temporary storage for encoded a single char.
         // A char is up to 4 bytes long wehn encoded to UTF-8.
-        let mut encoding_tmp = [0u8; 4];
+        let mut encoding_tmp = [0_u8; 4];
 
         for c in v.chars() {
             match c {
@@ -523,6 +520,8 @@ impl ser::Error for Error {
         unreachable!()
     }
 }
+
+impl ser::StdError for Error {}
 
 #[allow(clippy::empty_enum)]
 pub(crate) enum Unreachable {}

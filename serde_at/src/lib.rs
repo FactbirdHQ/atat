@@ -1,11 +1,13 @@
-// #![deny(missing_docs)]
+//! Serde serializer/deserializer for AT commands
+
+#![deny(missing_docs)]
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
-// #![deny(warnings)]
+#![deny(warnings)]
 #![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_const_for_fn)]
-#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+#![cfg_attr(not(any(test, feature = "std")), no_std)]
 
 pub mod de;
 pub mod ser;

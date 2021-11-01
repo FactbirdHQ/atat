@@ -13,10 +13,7 @@ version = "0.13.2-alpha.0"
 
 [dependencies]
 heapless = { version = "^0.7", features = ["serde"] }
-
-[dependencies.serde]
-default-features = false
-version = "^1"
+serde = { version = "^1", default-features = false }
 
 [dev-dependencies]
 serde_derive = "^1"
