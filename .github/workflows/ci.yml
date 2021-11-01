@@ -178,7 +178,7 @@ jobs:
           # version: latest
           # use-tool-cache: true
           command: install
-          args: grcov --git https://github.com/mozilla/grcov
+          args: --locked grcov --git https://github.com/mozilla/grcov
 
       - name: Test
         uses: actions-rs/cargo@v1
