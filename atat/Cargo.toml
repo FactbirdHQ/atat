@@ -30,7 +30,7 @@ bbqueue = "0.5"
 log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.2", optional = true }
 
-[dev-dependencies]
+[target.thumbv7em-none-eabihf.dev-dependencies]
 cortex-m = "0.7.1"
 cortex-m-rt = "0.6.13"
 cortex-m-rtic = "0.5.5"
