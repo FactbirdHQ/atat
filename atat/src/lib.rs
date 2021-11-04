@@ -271,6 +271,24 @@ pub use queues::{ComQueue, Queues};
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 pub use urc_matcher::{DefaultUrcMatcher, UrcMatcher, UrcMatcherResult};
 
+/// For timing `atat` uses [fugit](https://lib.rs/crates/fugit) crate which only provides`Duration` and `Instant` types.
+/// It does not provide any clock or timer traits.
+/// Therefore `atat` has its own `Clock` trait that provides all timing capabilities that are needed for the library.
+/// User must implement this trait for the timer by itself.
+pub trait Clock<const TIMER_HZ: u32> {
+    /// An error that might happen during waiting
+    type Error;
+
+    /// Return current time `Instant`
+    fn now(&mut self) -> fugit::TimerInstantU32<TIMER_HZ>;
+
+    /// Start countdown with a `duration`
+    fn start(&mut self, duration: fugit::TimerDurationU32<TIMER_HZ>) -> Result<(), Self::Error>;
+
+    /// Wait until countdown `duration` set with the `fn start` has expired
+    fn wait(&mut self) -> Result<(), Self::Error>;
+}
+
 /// Commands that can be sent from the client to the ingress manager, for
 /// configuration after initial setup. This is also used for stuff like clearing
 /// the receive buffer on command timeouts.
