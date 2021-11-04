@@ -233,9 +233,8 @@ mod test {
     use crate::queues;
     use crate::{self as atat, InternalError};
     use crate::{
-        Clock,
         atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc},
-        GenericError,
+        Clock, GenericError,
     };
     use bbqueue::framed::FrameProducer;
     use bbqueue::BBBuffer;
@@ -258,7 +257,10 @@ mod test {
         }
 
         /// Start countdown with a `duration`
-        fn start(&mut self, _duration: fugit::TimerDurationU32<TIMER_HZ>) -> Result<(), Self::Error> {
+        fn start(
+            &mut self,
+            _duration: fugit::TimerDurationU32<TIMER_HZ>,
+        ) -> Result<(), Self::Error> {
             Ok(())
         }
 
@@ -421,8 +423,13 @@ mod test {
             assert_eq!(com_p.capacity(), crate::queues::COM_CAPACITY);
 
             let tx_mock = TxMock::new(String::new());
-            let client: Client<TxMock, CdMock<TIMER_HZ>, TIMER_HZ, TEST_RES_CAPACITY, TEST_URC_CAPACITY> =
-                Client::new(tx_mock, res_c, urc_c, com_p, CdMock, $config);
+            let client: Client<
+                TxMock,
+                CdMock<TIMER_HZ>,
+                TIMER_HZ,
+                TEST_RES_CAPACITY,
+                TEST_URC_CAPACITY,
+            > = Client::new(tx_mock, res_c, urc_c, com_p, CdMock, $config);
             (client, res_p, urc_p)
         }};
     }
