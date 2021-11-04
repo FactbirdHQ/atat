@@ -6,14 +6,15 @@ use crate::{
 
 type ClientParser<
     Tx,
-    T,
+    CLK,
     U,
     D,
+    const TIMER_HZ: u32,
     const BUF_LEN: usize,
     const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
 > = (
-    Client<Tx, T, RES_CAPACITY, URC_CAPACITY>,
+    Client<Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>,
     IngressManager<D, U, BUF_LEN, RES_CAPACITY, URC_CAPACITY>,
 );
 
@@ -26,32 +27,47 @@ type ClientParser<
 /// [`new`]: #method.new
 pub struct ClientBuilder<
     Tx,
-    T,
+    CLK,
     U,
     D,
+    const TIMER_HZ: u32,
     const BUF_LEN: usize,
     const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
 > where
     Tx: embedded_hal::serial::Write<u8>,
-    T: embedded_hal::timer::CountDown,
-    T::Time: From<u32>,
+    CLK: super::Clock<TIMER_HZ>,
     U: UrcMatcher,
     D: Digester,
 {
     serial_tx: Tx,
-    timer: T,
+    timer: CLK,
     config: Config,
     custom_urc_matcher: U,
     custom_digester: D,
 }
 
-impl<Tx, T, const BUF_LEN: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    ClientBuilder<Tx, T, DefaultUrcMatcher, DefaultDigester, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
+impl<
+        Tx,
+        T,
+        const TIMER_HZ: u32,
+        const BUF_LEN: usize,
+        const RES_CAPACITY: usize,
+        const URC_CAPACITY: usize,
+    >
+    ClientBuilder<
+        Tx,
+        T,
+        DefaultUrcMatcher,
+        DefaultDigester,
+        TIMER_HZ,
+        BUF_LEN,
+        RES_CAPACITY,
+        URC_CAPACITY,
+    >
 where
     Tx: embedded_hal::serial::Write<u8>,
-    T: embedded_hal::timer::CountDown,
-    T::Time: From<u32>,
+    T: super::Clock<TIMER_HZ>,
 {
     /// Create a builder for new Atat client instance.
     ///
@@ -72,12 +88,19 @@ where
     }
 }
 
-impl<Tx, T, U, D, const BUF_LEN: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    ClientBuilder<Tx, T, U, D, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
+impl<
+        Tx,
+        CLK,
+        U,
+        D,
+        const TIMER_HZ: u32,
+        const BUF_LEN: usize,
+        const RES_CAPACITY: usize,
+        const URC_CAPACITY: usize,
+    > ClientBuilder<Tx, CLK, U, D, TIMER_HZ, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
 where
     Tx: embedded_hal::serial::Write<u8>,
-    T: embedded_hal::timer::CountDown,
-    T::Time: From<u32>,
+    CLK: super::Clock<TIMER_HZ>,
     U: UrcMatcher,
     D: Digester,
 {
@@ -87,7 +110,7 @@ where
     pub fn with_custom_urc_matcher<U2: UrcMatcher>(
         self,
         matcher: U2,
-    ) -> ClientBuilder<Tx, T, U2, D, BUF_LEN, RES_CAPACITY, URC_CAPACITY> {
+    ) -> ClientBuilder<Tx, CLK, U2, D, TIMER_HZ, BUF_LEN, RES_CAPACITY, URC_CAPACITY> {
         ClientBuilder {
             serial_tx: self.serial_tx,
             timer: self.timer,
@@ -103,7 +126,7 @@ where
     pub fn with_custom_digester<D2: Digester>(
         self,
         digester: D2,
-    ) -> ClientBuilder<Tx, T, U, D2, BUF_LEN, RES_CAPACITY, URC_CAPACITY> {
+    ) -> ClientBuilder<Tx, CLK, U, D2, TIMER_HZ, BUF_LEN, RES_CAPACITY, URC_CAPACITY> {
         ClientBuilder {
             custom_urc_matcher: self.custom_urc_matcher,
             serial_tx: self.serial_tx,
@@ -120,7 +143,7 @@ where
     pub fn build(
         self,
         queues: Queues<RES_CAPACITY, URC_CAPACITY>,
-    ) -> ClientParser<Tx, T, U, D, BUF_LEN, RES_CAPACITY, URC_CAPACITY> {
+    ) -> ClientParser<Tx, CLK, U, D, TIMER_HZ, BUF_LEN, RES_CAPACITY, URC_CAPACITY> {
         let parser = IngressManager::with_customs(
             queues.res_queue.0,
             queues.urc_queue.0,
