@@ -14,11 +14,39 @@ use hal::{
     timer::{Event, Timer},
 };
 
-use atat::{AtatClient, ClientBuilder, ComQueue, Queues};
+use atat::{Clock, AtatClient, ClientBuilder, ComQueue, Queues};
 
 use heapless::spsc::Queue;
 
 use cortex_m_rt::entry;
+
+struct AtClock<TIM, const TIMER_HZ: u32> {
+    _timer: Timer<TIM>,
+}
+
+impl<TIM, const TIMER_HZ: u32> AtClock<TIM, TIMER_HZ> {
+    fn new(timer: Timer<TIM>) -> Self {
+        Self {
+            _timer: timer,
+        }
+    }
+}
+
+impl<TIM, const TIMER_HZ: u32> Clock<TIMER_HZ> for AtClock<TIM, TIMER_HZ> {
+    type Error = core::convert::Infallible;
+
+    fn now(&mut self) -> fugit::TimerInstantU32<TIMER_HZ> {
+        fugit::TimerInstantU32::from_ticks(0)
+    }
+
+    fn start(&mut self, _duration: fugit::TimerDurationU32<TIMER_HZ>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn wait(&mut self) -> nb::Result<(), Self::Error> {
+        Ok(())
+    }
+}
 
 static mut INGRESS: Option<
     atat::IngressManager<atat::DefaultDigester, atat::DefaultUrcMatcher, 256, 1024, 512>,
@@ -54,6 +82,8 @@ fn main() -> ! {
 
     let mut timer = Timer::tim7(p.TIM7, 1.hz(), clocks, &mut rcc.apb1r1);
     let at_timer = Timer::tim6(p.TIM6, 100.hz(), clocks, &mut rcc.apb1r1);
+    let at_clock: AtClock<_, 100> = AtClock::new(at_timer);
+
 
     let mut serial = Serial::usart2(
         p.USART2,
@@ -77,7 +107,7 @@ fn main() -> ! {
 
     let (tx, rx) = serial.split();
     let (mut client, ingress) =
-        ClientBuilder::new(tx, at_timer, atat::Config::new(atat::Mode::Timeout)).build(queues);
+        ClientBuilder::new(tx, at_clock, atat::Config::new(atat::Mode::Timeout)).build(queues);
 
     unsafe { INGRESS = Some(ingress) };
     unsafe { RX = Some(rx) };

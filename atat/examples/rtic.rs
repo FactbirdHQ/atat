@@ -11,10 +11,38 @@ use stm32l4xx_hal::{
     timer::Timer,
 };
 
-use atat::{AtatClient, ClientBuilder, ComQueue, Queues};
+use atat::{Clock, AtatClient, ClientBuilder, ComQueue, Queues};
 use rtic::{app, export::wfi};
 
 use heapless::spsc::Queue;
+
+struct AtClock<TIM, const TIMER_HZ: u32> {
+    _timer: Timer<TIM>,
+}
+
+impl<TIM, const TIMER_HZ: u32> AtClock<TIM, TIMER_HZ> {
+    fn new(timer: Timer<TIM>) -> Self {
+        Self {
+            _timer: timer,
+        }
+    }
+}
+
+impl<TIM, const TIMER_HZ: u32> Clock<TIMER_HZ> for AtClock<TIM, TIMER_HZ> {
+    type Error = core::convert::Infallible;
+
+    fn now(&mut self) -> fugit::TimerInstantU32<TIMER_HZ> {
+        fugit::TimerInstantU32::from_ticks(0)
+    }
+
+    fn start(&mut self, _duration: fugit::TimerDurationU32<TIMER_HZ>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn wait(&mut self) -> nb::Result<(), Self::Error> {
+        Ok(())
+    }
+}
 
 #[app(device = stm32l4xx_hal::pac, peripherals = true)]
 const APP: () = {
@@ -56,6 +84,7 @@ const APP: () = {
         let rx = gpioa.pa3.into_af7(&mut gpioa.moder, &mut gpioa.afrl);
 
         let timer = Timer::tim7(p.TIM7, 1.hz(), clocks, &mut rcc.apb1r1);
+        let at_clock: AtClock<_, 1> = AtClock::new(timer);
 
         let mut serial = Serial::usart2(
             p.USART2,
@@ -75,7 +104,7 @@ const APP: () = {
 
         let (tx, rx) = serial.split();
         let (mut client, ingress) =
-            ClientBuilder::new(tx, timer, atat::Config::new(atat::Mode::Timeout)).build(queues);
+            ClientBuilder::new(tx, at_clock, atat::Config::new(atat::Mode::Timeout)).build(queues);
 
         ctx.spawn.at_loop().unwrap();
 
