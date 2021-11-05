@@ -1,5 +1,6 @@
 use bbqueue::framed::FrameConsumer;
-use embedded_hal::{serial, timer::CountDown};
+use embedded_hal::serial;
+use fugit::MillisDurationU32;
 
 use crate::atat_log;
 use crate::error::Error;
@@ -31,10 +32,15 @@ pub enum Mode {
 /// some spsc queue consumers, where any received responses can be dequeued. The
 /// Client also has an spsc producer, to allow signaling commands like
 /// `reset` to the ingress-manager.
-pub struct Client<Tx, T, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-where
+pub struct Client<
+    Tx,
+    CLK,
+    const TIMER_HZ: u32,
+    const RES_CAPACITY: usize,
+    const URC_CAPACITY: usize,
+> where
     Tx: serial::Write<u8>,
-    T: CountDown,
+    CLK: super::Clock<TIMER_HZ>,
 {
     /// Serial writer
     tx: Tx,
@@ -47,23 +53,22 @@ where
     com_p: ComProducer,
 
     state: ClientState,
-    timer: T,
+    timer: CLK,
     config: Config,
 }
 
-impl<Tx, T, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    Client<Tx, T, RES_CAPACITY, URC_CAPACITY>
+impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
+    Client<Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
 where
     Tx: serial::Write<u8>,
-    T: CountDown,
-    T::Time: From<u32>,
+    CLK: super::Clock<TIMER_HZ>,
 {
     pub fn new(
         tx: Tx,
         res_c: FrameConsumer<'static, RES_CAPACITY>,
         urc_c: FrameConsumer<'static, URC_CAPACITY>,
         com_p: ComProducer,
-        timer: T,
+        timer: CLK,
         config: Config,
     ) -> Self {
         Self {
@@ -78,12 +83,11 @@ where
     }
 }
 
-impl<Tx, T, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
-    for Client<Tx, T, RES_CAPACITY, URC_CAPACITY>
+impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
+    for Client<Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
 where
     Tx: serial::Write<u8>,
-    T: CountDown,
-    T::Time: From<u32>,
+    CLK: super::Clock<TIMER_HZ>,
 {
     fn send<A: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
@@ -101,7 +105,7 @@ where
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
-            nb::block!(self.timer.try_wait()).ok();
+            nb::block!(self.timer.wait()).ok();
             let cmd_buf = cmd.as_bytes();
 
             if cmd_buf.len() < 50 {
@@ -130,7 +134,9 @@ where
             Mode::Blocking => Ok(nb::block!(self.check_response(cmd))?),
             Mode::NonBlocking => self.check_response(cmd),
             Mode::Timeout => {
-                self.timer.try_start(A::MAX_TIMEOUT_MS).ok();
+                self.timer
+                    .start(MillisDurationU32::from_ticks(A::MAX_TIMEOUT_MS).convert())
+                    .ok();
                 Ok(nb::block!(self.check_response(cmd))?)
             }
         }
@@ -138,7 +144,9 @@ where
 
     fn peek_urc_with<URC: AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F) {
         if let Some(urc_grant) = self.urc_c.read() {
-            self.timer.try_start(self.config.cmd_cooldown).ok();
+            self.timer
+                .start(MillisDurationU32::from_ticks(self.config.cmd_cooldown).convert())
+                .ok();
             if let Some(urc) = URC::parse(urc_grant.as_ref()) {
                 if !f(urc) {
                     return;
@@ -166,7 +174,11 @@ where
                 .map_err(nb::Error::from)
                 .and_then(|r| {
                     if let ClientState::AwaitingResponse = self.state {
-                        self.timer.try_start(self.config.cmd_cooldown).ok();
+                        self.timer
+                            .start(
+                                MillisDurationU32::from_ticks(self.config.cmd_cooldown).convert(),
+                            )
+                            .ok();
                         self.state = ClientState::Idle;
                         Ok(r)
                     } else {
@@ -176,12 +188,14 @@ where
                     }
                 })
                 .map_err(|e| {
-                    self.timer.try_start(self.config.cmd_cooldown).ok();
+                    self.timer
+                        .start(MillisDurationU32::from_ticks(self.config.cmd_cooldown).convert())
+                        .ok();
                     self.state = ClientState::Idle;
                     e
                 });
         } else if let Mode::Timeout = self.config.mode {
-            if self.timer.try_wait().is_ok() {
+            if self.timer.wait().is_ok() {
                 self.state = ClientState::Idle;
                 // Tell the parser to reset to initial state due to timeout
                 if self.com_p.enqueue(Command::Reset).is_err() {
@@ -220,7 +234,7 @@ mod test {
     use crate::{self as atat, InternalError};
     use crate::{
         atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc},
-        GenericError,
+        Clock, GenericError,
     };
     use bbqueue::framed::FrameProducer;
     use bbqueue::BBBuffer;
@@ -230,19 +244,28 @@ mod test {
     const TEST_RX_BUF_LEN: usize = 256;
     const TEST_RES_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
     const TEST_URC_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
+    const TIMER_HZ: u32 = 1000;
 
-    struct CdMock;
+    struct CdMock<const TIMER_HZ: u32>;
 
-    impl CountDown for CdMock {
+    impl<const TIMER_HZ: u32> Clock<TIMER_HZ> for CdMock<TIMER_HZ> {
         type Error = core::convert::Infallible;
-        type Time = u32;
-        fn try_start<T>(&mut self, _count: T) -> Result<(), Self::Error>
-        where
-            T: Into<Self::Time>,
-        {
+
+        /// Return current time `Instant`
+        fn now(&mut self) -> fugit::TimerInstantU32<TIMER_HZ> {
+            fugit::TimerInstantU32::from_ticks(0)
+        }
+
+        /// Start countdown with a `duration`
+        fn start(
+            &mut self,
+            _duration: fugit::TimerDurationU32<TIMER_HZ>,
+        ) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn try_wait(&mut self) -> nb::Result<(), Self::Error> {
+
+        /// Wait until countdown `duration` set with the `fn start` has expired
+        fn wait(&mut self) -> nb::Result<(), Self::Error> {
             Ok(())
         }
     }
@@ -400,8 +423,13 @@ mod test {
             assert_eq!(com_p.capacity(), crate::queues::COM_CAPACITY);
 
             let tx_mock = TxMock::new(String::new());
-            let client: Client<TxMock, CdMock, TEST_RES_CAPACITY, TEST_URC_CAPACITY> =
-                Client::new(tx_mock, res_c, urc_c, com_p, CdMock, $config);
+            let client: Client<
+                TxMock,
+                CdMock<TIMER_HZ>,
+                TIMER_HZ,
+                TEST_RES_CAPACITY,
+                TEST_URC_CAPACITY,
+            > = Client::new(tx_mock, res_c, urc_c, com_p, CdMock, $config);
             (client, res_p, urc_p)
         }};
     }
