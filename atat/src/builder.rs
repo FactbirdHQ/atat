@@ -73,10 +73,10 @@ where
     ///
     /// The `serial_tx` type must implement the `embedded_hal`
     /// [`serial::Write<u8>`][serialwrite] trait while the timer must implement
-    /// the [`timer::CountDown`][timercountdown] trait.
+    /// the [`Clock`][clock] trait.
     ///
     /// [serialwrite]: ../embedded_hal/serial/trait.Write.html
-    /// [timercountdown]: ../embedded_hal/timer/trait.CountDown.html
+    /// [clock]: trait.Clock.html
     pub fn new(serial_tx: Tx, timer: T, config: Config) -> Self {
         Self {
             serial_tx,

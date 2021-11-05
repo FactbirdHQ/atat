@@ -271,7 +271,7 @@ pub use queues::{ComQueue, Queues};
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 pub use urc_matcher::{DefaultUrcMatcher, UrcMatcher, UrcMatcherResult};
 
-/// For timing `atat` uses [fugit](https://lib.rs/crates/fugit) crate which only provides`Duration` and `Instant` types.
+/// For timing `atat` uses [fugit](https://lib.rs/crates/fugit) crate which only provides `Duration` and `Instant` types.
 /// It does not provide any clock or timer traits.
 /// Therefore `atat` has its own `Clock` trait that provides all timing capabilities that are needed for the library.
 /// User must implement this trait for the timer by itself.
