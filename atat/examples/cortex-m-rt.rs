@@ -14,7 +14,7 @@ use hal::{
     timer::{Event, Timer},
 };
 
-use atat::{Clock, AtatClient, ClientBuilder, ComQueue, Queues};
+use atat::{AtatClient, ClientBuilder, Clock, ComQueue, Queues};
 
 use heapless::spsc::Queue;
 
@@ -26,9 +26,7 @@ struct AtClock<TIM, const TIMER_HZ: u32> {
 
 impl<TIM, const TIMER_HZ: u32> AtClock<TIM, TIMER_HZ> {
     fn new(timer: Timer<TIM>) -> Self {
-        Self {
-            _timer: timer,
-        }
+        Self { _timer: timer }
     }
 }
 
@@ -83,7 +81,6 @@ fn main() -> ! {
     let mut timer = Timer::tim7(p.TIM7, 1.hz(), clocks, &mut rcc.apb1r1);
     let at_timer = Timer::tim6(p.TIM6, 100.hz(), clocks, &mut rcc.apb1r1);
     let at_clock: AtClock<_, 100> = AtClock::new(at_timer);
-
 
     let mut serial = Serial::usart2(
         p.USART2,

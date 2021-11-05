@@ -11,7 +11,7 @@ use stm32l4xx_hal::{
     timer::Timer,
 };
 
-use atat::{Clock, AtatClient, ClientBuilder, ComQueue, Queues};
+use atat::{AtatClient, ClientBuilder, Clock, ComQueue, Queues};
 use rtic::{app, export::wfi};
 
 use heapless::spsc::Queue;
@@ -22,9 +22,7 @@ struct AtClock<TIM, const TIMER_HZ: u32> {
 
 impl<TIM, const TIMER_HZ: u32> AtClock<TIM, TIMER_HZ> {
     fn new(timer: Timer<TIM>) -> Self {
-        Self {
-            _timer: timer,
-        }
+        Self { _timer: timer }
     }
 }
 
