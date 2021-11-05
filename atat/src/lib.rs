@@ -285,8 +285,10 @@ pub trait Clock<const TIMER_HZ: u32> {
     /// Start countdown with a `duration`
     fn start(&mut self, duration: fugit::TimerDurationU32<TIMER_HZ>) -> Result<(), Self::Error>;
 
-    /// Wait until countdown `duration` set with the `fn start` has expired
-    fn wait(&mut self) -> Result<(), Self::Error>;
+    /// Wait until countdown `duration` has expired.
+    /// Must return `nb::Error::WouldBlock` if countdown `duration` is not yet over.
+    /// Must return `OK(())` as soon as countdown `duration` has expired.
+    fn wait(&mut self) -> nb::Result<(), Self::Error>;
 }
 
 /// Commands that can be sent from the client to the ingress manager, for
