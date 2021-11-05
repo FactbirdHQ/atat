@@ -105,7 +105,7 @@ where
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
-            self.timer.wait().ok();
+            nb::block!(self.timer.wait()).ok();
             let cmd_buf = cmd.as_bytes();
 
             if cmd_buf.len() < 50 {
@@ -265,7 +265,7 @@ mod test {
         }
 
         /// Wait until countdown `duration` set with the `fn start` has expired
-        fn wait(&mut self) -> Result<(), Self::Error> {
+        fn wait(&mut self) -> nb::Result<(), Self::Error> {
             Ok(())
         }
     }
