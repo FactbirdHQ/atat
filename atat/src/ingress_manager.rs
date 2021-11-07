@@ -1,7 +1,6 @@
 use bbqueue::framed::FrameProducer;
 use heapless::Vec;
 
-use crate::atat_log;
 use crate::error::InternalError;
 use crate::helpers::LossyStr;
 use crate::queues::ComConsumer;
@@ -88,10 +87,10 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        atat_log!(trace, "Write: \"{:?}\"", LossyStr(data));
+        trace!("Write: \"{:?}\"", LossyStr(data));
 
         if self.buf.extend_from_slice(data).is_err() {
-            atat_log!(error, "OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
+            error!("OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
             self.notify_response(Err(InternalError::Overflow));
         }
     }
@@ -124,13 +123,13 @@ where
         match &resp {
             Ok(r) => {
                 if r.is_empty() {
-                    atat_log!(debug, "Received OK")
+                    debug!("Received OK")
                 } else {
-                    atat_log!(debug, "Received response: \"{:?}\"", LossyStr(r.as_ref()));
+                    debug!("Received response: \"{:?}\"", LossyStr(r.as_ref()));
                 }
             }
             Err(e) => {
-                atat_log!(error, "Received error response {:?}", e);
+                error!("Received error response {:?}", e);
             }
         };
 
@@ -141,21 +140,21 @@ where
             grant.commit(bytes.len() + header.len());
         } else {
             // FIXME: Handle queue being full
-            atat_log!(error, "Response queue full!");
+            error!("Response queue full!");
         }
     }
 
     /// Notify the client that an unsolicited response code (URC) has been
     /// received
     fn notify_urc(&mut self, resp: Vec<u8, BUF_LEN>) {
-        atat_log!(debug, "Received response: \"{:?}\"", LossyStr(&resp));
+        debug!("Received response: \"{:?}\"", LossyStr(&resp));
 
         if let Ok(mut grant) = self.urc_p.grant(resp.len()) {
             grant.copy_from_slice(resp.as_ref());
             grant.commit(resp.len());
         } else {
             // FIXME: Handle queue being full
-            atat_log!(error, "URC queue full!");
+            error!("URC queue full!");
         }
     }
 
@@ -164,10 +163,9 @@ where
         if let Some(com) = self.com_c.dequeue() {
             match com {
                 Command::Reset => {
-                    atat_log!(
-                        debug,
+                    debug!(
                         "Cleared complete buffer as requested by client [{:?}]",
-                        LossyStr(&self.buf)
+                        LossyStr(&self.buf),
                     );
                     self.digester.reset();
                     self.buf.clear();
