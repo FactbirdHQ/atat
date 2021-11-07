@@ -230,6 +230,9 @@
 #![allow(clippy::used_underscore_binding)]
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 
+// This mod MUST go first, so that the others see its macros.
+pub(crate) mod fmt;
+
 mod builder;
 mod client;
 mod digest;
