@@ -1,6 +1,6 @@
 [package]
 name = "atat"
-version = "0.13.2-alpha.0"
+version = "0.13.1"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 description = "AT Parser for serial based device crates"
 readme = "../README.md"
@@ -13,6 +13,14 @@ documentation = "https://docs.rs/atat"
 
 [lib]
 name = "atat"
+
+[[bench]]
+name = "ingress"
+harness = false
+
+[[bench]]
+name = "client"
+harness = false
 
 [badges]
 maintenance = { status = "actively-developed" }
@@ -39,6 +47,7 @@ stm32l4xx-hal = { git = "https://github.com/MathiasKoch/stm32l4xx-hal", branch =
     "stm32l4x5",
     "rt",
 ] }
+criterion = { version = "0.3.5" }
 
 [features]
 default = ["derive", "bytes"]

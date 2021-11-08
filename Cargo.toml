@@ -1,6 +1,28 @@
 [workspace]
+resolver = "2"
 members = [
     "serde_at",
     "atat_derive",
     "atat",
 ]
+
+
+[profile.release]
+# Needed for the lambda runtime
+panic = 'unwind'
+# Optimization over all codebase (better optimization, slower build).
+#codegen-units = 1
+# Link time optimization using using whole-program analysis.
+#lto = true
+# Disabling debug info generation to speed up builds. Debug info is only useful when debugging, which we can't do on AWS lambda
+debug = 2 # Set this to 1 or 2 to get more useful backtraces in debugger.
+
+[profile.bench]
+# Needed for the lambda runtime
+panic = 'unwind'
+# Optimization over all codebase (better optimization, slower build).
+#codegen-units = 1
+# Link time optimization using using whole-program analysis.
+#lto = true
+# Disabling debug info generation to speed up builds. Debug info is only useful when debugging, which we can't do on AWS lambda
+debug = 2 # Set this to 1 or 2 to get more useful backtraces in debugger.

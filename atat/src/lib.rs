@@ -228,7 +228,7 @@
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::used_underscore_binding)]
-#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+#![cfg_attr(not(any(test, feature = "std")), no_std)]
 
 mod builder;
 mod client;
