@@ -2,7 +2,6 @@ use bbqueue::framed::FrameConsumer;
 use embedded_hal::serial;
 use fugit::MillisDurationU32;
 
-use crate::atat_log;
 use crate::error::Error;
 use crate::helpers::LossyStr;
 use crate::queues::ComProducer;
@@ -96,10 +95,7 @@ where
         if let ClientState::Idle = self.state {
             if A::FORCE_RECEIVE_STATE && self.com_p.enqueue(Command::ForceReceiveState).is_err() {
                 // TODO: Consider how to act in this situation.
-                atat_log!(
-                    error,
-                    "Failed to signal parser to force state transition to 'ReceivingResponse'!"
-                );
+                error!("Failed to signal parser to force state transition to 'ReceivingResponse'!",);
             }
 
             // compare the time of the last response or URC and ensure at least
@@ -109,12 +105,11 @@ where
             let cmd_buf = cmd.as_bytes();
 
             if cmd_buf.len() < 50 {
-                atat_log!(debug, "Sending command: \"{:?}\"", LossyStr(&cmd_buf));
+                debug!("Sending command: \"{:?}\"", LossyStr(&cmd_buf));
             } else {
-                atat_log!(
-                    debug,
+                debug!(
                     "Sending command with too long payload ({} bytes) to log!",
-                    cmd_buf.len()
+                    cmd_buf.len(),
                 );
             }
 
@@ -152,11 +147,7 @@ where
                     return;
                 }
             } else {
-                atat_log!(
-                    error,
-                    "Parsing URC FAILED: {:?}",
-                    LossyStr(urc_grant.as_ref())
-                );
+                error!("Parsing URC FAILED: {:?}", LossyStr(urc_grant.as_ref()));
             }
             urc_grant.release();
         }
@@ -183,7 +174,7 @@ where
                         Ok(r)
                     } else {
                         // FIXME: Is this correct?
-                        atat_log!(error, "Is this correct?! WouldBlock");
+                        error!("Is this correct?! WouldBlock");
                         Err(nb::Error::WouldBlock)
                     }
                 })
@@ -200,7 +191,7 @@ where
                 // Tell the parser to reset to initial state due to timeout
                 if self.com_p.enqueue(Command::Reset).is_err() {
                     // TODO: Consider how to act in this situation.
-                    atat_log!(error, "Failed to signal parser to clear buffer on timeout!");
+                    error!("Failed to signal parser to clear buffer on timeout!");
                 }
                 return Err(nb::Error::Other(Error::Timeout));
             }
@@ -215,7 +206,7 @@ where
     fn reset(&mut self) {
         if self.com_p.enqueue(Command::Reset).is_err() {
             // TODO: Consider how to act in this situation.
-            atat_log!(error, "Failed to signal ingress manager to reset!");
+            error!("Failed to signal ingress manager to reset!");
         }
         while let Some(grant) = self.res_c.read() {
             grant.release();
@@ -446,7 +437,7 @@ mod test {
             grant.commit(bytes.len() + header.len());
         } else {
             // FIXME: Handle queue being full
-            atat_log!(error, "Response queue full!");
+            error!("Response queue full!");
         }
     }
 
