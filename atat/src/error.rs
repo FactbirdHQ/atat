@@ -21,6 +21,25 @@ pub enum InternalError {
     Error(Vec<u8, 85>),
 }
 
+impl From<&[u8]> for InternalError {
+    fn from(v: &[u8]) -> Self {
+        let len = core::cmp::min(v.len(), 85);
+        Self::Error(Vec::from_slice(&v[..len]).unwrap())
+    }
+}
+
+impl From<(&[u8], &[u8])> for InternalError {
+    fn from(v: (&[u8], &[u8])) -> Self {
+        Self::Error(
+            v.0.into_iter()
+                .chain(v.1.into_iter())
+                .cloned()
+                .take(85)
+                .collect(),
+        )
+    }
+}
+
 #[cfg(feature = "defmt")]
 impl defmt::Format for InternalError {
     fn format(&self, f: defmt::Formatter) {

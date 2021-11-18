@@ -9,10 +9,11 @@ use nom::{
     branch::alt,
     bytes::streaming::{tag, take, take_till, take_until, take_while, take_while1},
     character::{
+        complete,
         streaming::{alpha0, crlf, multispace1, not_line_ending},
         streaming::{alpha1, alphanumeric0, alphanumeric1, line_ending, none_of, one_of, space1},
     },
-    combinator::{not, opt, recognize},
+    combinator::{self, eof, map, not, opt, peek, recognize},
     error::dbg_dmp,
     multi::many0_count,
     sequence::{delimited, separated_pair, tuple},
@@ -98,10 +99,26 @@ pub trait NewDigester {
 ///   Eg `<URC>:<PARAMETERS>\r\nA` would be parsed as a URC, while
 ///   `<URC>:<PARAMETERS>\r\n` is impossible to distingush from
 ///   `<CMD>:<PARAMETERS>\r\n` until we gain more data.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct NomDigester {
     /// Current processing state.
     state: State,
+    prompts: &'static [u8],
+}
+
+impl NomDigester {
+    pub fn new() -> Self {
+        Self {
+            state: Default::default(),
+            prompts: &[b'>'],
+        }
+    }
+}
+
+impl Default for NomDigester {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NewDigester for NomDigester {
@@ -120,7 +137,6 @@ impl NewDigester for NomDigester {
     ) -> (DigestResult<'a>, usize) {
         // Trim any leading whitespace
         let (buf, ws) = multispace0::<&[u8], nom::error::Error<&[u8]>>(buf).unwrap();
-        let preceeding_ws = ws.len();
 
         // First parse the optional echo and discard it
         let (buf, echo_bytes) = match opt(echo)(buf) {
@@ -129,31 +145,15 @@ impl NewDigester for NomDigester {
             Err(e) => panic!("NOM ERROR {:?}", e),
         };
 
+        // TODO: Change to prompt fn & extend with more prompts? Also add way for custom prompts
+        if let Ok((_, Some(p))) = opt::<_, _, nom::error::Error<&[u8]>, _>(tag(self.prompts))(buf) {
+            return (DigestResult::Prompt, echo_bytes + p.len());
+        }
+
         // At this point we are ready to look for an actual command response or a URC
-
-        // TODO: Change this to alt parsing
-        match opt(response)(buf) {
-            Ok((buf, Some((response, len)))) => {
-                return (
-                    DigestResult::Response(Ok(response)),
-                    len + echo_bytes + preceeding_ws,
-                )
-            }
-            Ok((buf, None)) => (DigestResult::None, echo_bytes + preceeding_ws),
-            Err(nom::Err::Incomplete(_)) => {
-                return (DigestResult::None, echo_bytes + preceeding_ws)
-            }
-            Err(e) => {
-                panic!("NOM ERROR {:?}", e)
-            }
-        };
-
-        match opt(urc)(buf) {
-            Ok((buf, Some((urc, len)))) => {
-                return (DigestResult::Urc(urc), len + echo_bytes + preceeding_ws)
-            }
-            Ok((buf, None)) => (DigestResult::None, echo_bytes + preceeding_ws),
-            Err(nom::Err::Incomplete(_)) => (DigestResult::None, echo_bytes + preceeding_ws),
+        match alt((response, urc))(buf) {
+            Ok((buf, (response, len))) => (response, len + echo_bytes + ws.len()),
+            Err(nom::Err::Incomplete(_)) => (DigestResult::None, echo_bytes + ws.len()),
             Err(e) => {
                 panic!("NOM ERROR {:?}", e)
             }
@@ -169,24 +169,22 @@ fn print_dbg(i: &[u8]) -> IResult<&[u8], &[u8]> {
 /// Matches a full AT echo. Eg `AT+USORD=3,16\r\n`
 fn echo(i: &[u8]) -> IResult<&[u8], &[u8]> {
     recognize(tuple((
-        terminated(tag_no_case("at"), not(space1)),
+        terminated(tag_no_case("AT"), not(space1)),
         opt(alt((
             tuple((command, alt((tag("?"), tag("=?"))))),
-            tuple((command, arguments)),
+            tuple((command, preceded(opt(tag("=")), take_until("\r")))),
         ))),
+        complete::multispace0,
     )))(i)
 }
 
-/// Matches all arguments until `\r\n`. Eg `=3,16\r\n`
-fn arguments(i: &[u8]) -> IResult<&[u8], &[u8]> {
-    preceded(opt(tag("=")), take_until("\r\n"))(i)
-}
-
 /// Matches all parameters until `\r\nOK\r\n`
+/// TODO: Should this be quote pair aware, to handle the eg. `OK` in a received string?
 fn parameters(i: &[u8]) -> IResult<&[u8], &[u8]> {
-    recognize(tuple((
-        multispace0,
-        alt((take_until("\r\nOK\r\n"), take_until("\r\nERROR\r\n"))),
+    recognize(alt((
+        nom::bytes::complete::take_until("\r\nOK\r\n"),
+        nom::bytes::complete::take_until("\r\nERROR\r\n"),
+        nom::bytes::complete::take_until("+CME ERROR"),
     )))(i)
 }
 
@@ -208,35 +206,60 @@ fn cmd_parameters(i: &[u8]) -> IResult<&[u8], &[u8]> {
 
 /// Matches a valid AT response code, including leading & trailing
 /// whitespace/newlines
-fn response_code(i: &[u8]) -> IResult<&[u8], &[u8]> {
-    recognize(tuple((
-        multispace0,
-        alt((tag_no_case("OK"), tag_no_case("ERROR"))),
-    )))(i)
-}
-
-// Matches a full AT URC.
-fn urc(i: &[u8]) -> IResult<&[u8], (&[u8], usize)> {
-    let (i, urc) = recognize(tuple((command, take_until("\r\n"))))(i)?;
-    if i.is_empty() {
-        return Err(nom::Err::Incomplete(nom::Needed::new(1)));
-    }
-    // Make sure this is not actually a response
-    let (i, _) = not(response_code)(i)?;
-
-    Ok((i, (urc, urc.len())))
-}
-
-/// Matches a full AT response.
-fn response(i: &[u8]) -> IResult<&[u8], (&[u8], usize)> {
+fn response_code(i: &[u8]) -> IResult<&[u8], (Result<&[u8], InternalError>, usize)> {
     let (i, ws) = multispace0(i)?;
-    let (i, maybe_response) = opt(cmd_parameters)(i)?;
-    let response = maybe_response.unwrap_or_default();
-    let (i, response_code) = response_code(i)?;
+    let (i, (code, len)) = alt((
+        map(tag_no_case("OK\r\n"), |s: &[u8]| (Ok(s), s.len())),
+        map(
+            tuple((tag_no_case("ERROR"), complete::multispace1)),
+            |(s, le): (&[u8], &[u8])| (Err(s.into()), s.len() + le.len()),
+        ),
+        // TODO: Generalize for CMS, CME, and other custom errors somehow?
+        map(
+            tuple((
+                tag_no_case("+CME ERROR"),
+                take_until("\r\n"),
+                complete::multispace0,
+            )),
+            |(tag, code, le): (_, &[u8], _)| {
+                (Err((tag, code).into()), tag.len() + code.len() + le.len())
+            },
+        ),
+    ))(i)?;
+
+    Ok((i, (code, len + ws.len())))
+}
+
+/// Matches a full AT URC.
+fn urc(i: &[u8]) -> IResult<&[u8], (DigestResult, usize)> {
+    let (i, ws_prec) = multispace0(i)?;
+    let (i, urc) = recognize(tuple((command, take_until("\r\n"))))(i)?;
+    let (i, ws) = multispace0(i)?;
+
+    let (i, _) = alt((eof, recognize(not(response_code))))(i)?;
 
     Ok((
         i,
-        (response, response.len() + response_code.len() + ws.len()),
+        (DigestResult::Urc(urc), ws_prec.len() + urc.len() + ws.len()),
+    ))
+}
+
+/// Matches a full AT response.
+fn response(i: &[u8]) -> IResult<&[u8], (DigestResult, usize)> {
+    let (i, ws) = multispace0(i)?;
+    let (i, maybe_response) = opt(cmd_parameters)(i)?;
+    let response = maybe_response.unwrap_or_default();
+    let (i, (response_code, response_code_len)) = response_code(i)?;
+
+    let response_len = response.len();
+    let response = response_code.map(|_| response);
+
+    Ok((
+        i,
+        (
+            DigestResult::Response(response),
+            response_len + response_code_len + ws.len(),
+        ),
     ))
 }
 
@@ -250,6 +273,54 @@ mod test {
     use nom::Needed;
 
     const TEST_RX_BUF_LEN: usize = 256;
+
+    #[test]
+    fn response_code_test() {
+        let (r, e) = response_code(b"OK\r\n").unwrap();
+        assert_eq!(r, b"");
+        assert!(e.0.is_ok());
+        assert_eq!(e.1, 4);
+
+        let (r, e) = response_code(b"ok\r\n").unwrap();
+        assert_eq!(r, b"");
+        assert!(e.0.is_ok());
+        assert_eq!(e.1, 4);
+
+        let (r, e) = response_code(b"ERROR\r\n").unwrap();
+        assert_eq!(r, b"");
+        assert!(e.0.is_err());
+        assert_eq!(e.1, 7);
+
+        let (r, e) = response_code(b"+CME ERROR: 10\r\n").unwrap();
+        assert_eq!(r, b"");
+        assert_eq!(e.0, Err((&b"+CME ERROR: 10"[..]).into()));
+        assert_eq!(e.1, 16);
+
+        let (r, e) = response_code(b"+CME ERROR: This is a verbose error\r\n").unwrap();
+        assert_eq!(r, b"");
+        assert_eq!(
+            e.0,
+            Err((&b"+CME ERROR: This is a verbose error"[..]).into())
+        );
+        assert_eq!(e.1, 37);
+
+        let (r, e) = response_code(b"+CME ERROR: This is a verbose error that is longer than the max allowed error length in InternalError\r\n").unwrap();
+        assert_eq!(r, b"");
+        assert_eq!(
+            e.0,
+            Err((&b"+CME ERROR: This is a verbose error that is longer than the max allowed error length "[..]).into())
+        );
+        assert_eq!(e.1, 103);
+
+        assert_eq!(
+            response_code(b"OK"),
+            Err(nom::Err::Incomplete(nom::Needed::new(2)))
+        );
+        assert_eq!(
+            response_code(b"ERR"),
+            Err(nom::Err::Incomplete(nom::Needed::new(2)))
+        );
+    }
 
     #[test]
     fn cmd_test() {
@@ -275,49 +346,74 @@ mod test {
     #[test]
     fn echo_test() {
         let (r, e) = echo(b"AT\r\n").unwrap();
-        assert_eq!(r, &b"\r\n"[..]);
-        assert_eq!(e.len(), 2);
+        assert_eq!(r, &b""[..]);
+        assert_eq!(e.len(), 4);
 
         let (r, e) = echo(b"AT+GMR\r\r\n").unwrap();
-        assert_eq!(r, &b"\r\n"[..]);
-        assert_eq!(e.len(), 7);
-
-        let (r, e) = echo(b"AT\r\r\n\r\n").unwrap();
-        assert_eq!(r, &b"\r\r\n\r\n"[..]);
-        assert_eq!(e.len(), 2);
-
-        let (r, e) = echo(b"AT+USORD=3,16\r\n").unwrap();
-        assert_eq!(r, &b"\r\n"[..]);
-        assert_eq!(e.len(), 13);
-
-        let (r, e) = echo(b"AT+CMUX=?\r\n").unwrap();
-        assert_eq!(r, &b"\r\n"[..]);
+        assert_eq!(r, &b""[..]);
         assert_eq!(e.len(), 9);
 
+        let (r, e) = echo(b"AT\r\r\n\r\n").unwrap();
+        assert_eq!(r, &b""[..]);
+        assert_eq!(e.len(), 7);
+
+        let (r, e) = echo(b"AT+USORD=3,16\r\n").unwrap();
+        assert_eq!(r, &b""[..]);
+        assert_eq!(e.len(), 15);
+
+        let (r, e) = echo(b"AT+CMUX=?\r\n").unwrap();
+        assert_eq!(r, &b""[..]);
+        assert_eq!(e.len(), 11);
+
         let (r, e) = echo(b"AT+CMUX?\r\n").unwrap();
-        assert_eq!(r, &b"\r\n"[..]);
-        assert_eq!(e.len(), 8);
+        assert_eq!(r, &b""[..]);
+        assert_eq!(e.len(), 10);
+
+        let (r, e) = echo(b"AT+CMUX?\r\nAT").unwrap();
+        assert_eq!(r, &b"AT"[..]);
+        assert_eq!(e.len(), 10);
     }
 
     #[test]
     fn urc_test() {
-        let (r, (e, l)) = urc(b"+UUSORD: 3,16,\"16 bytes of data\"\r\n").unwrap();
-        assert_eq!(r, &b"\r\n"[..]);
-        assert_eq!(e, &b"+UUSORD: 3,16,\"16 bytes of data\""[..]);
+        let (r, (e, l)) = urc(b"+UUSORD: 3,16,\"16 bytes of data\"\r\nA").unwrap();
+        assert_eq!(r, &b"A"[..]);
+        assert_eq!(e, DigestResult::Urc(b"+UUSORD: 3,16,\"16 bytes of data\""));
         assert_eq!(l, 34);
 
-        assert_eq!(
-            urc(b"+UUSORD: 3,16,\"16 bytes of data\"\r\nOK"),
-            Err(nom::Err::Incomplete(Needed::new(1)))
-        );
-        assert_eq!(
-            urc(b"+UUSORD: 3,16,\"16 bytes of data\"\r\nERR"),
-            Err(nom::Err::Incomplete(Needed::new(2)))
-        );
+        let (r, (e, l)) = urc(b"+UUNU: 0\r\nA").unwrap();
+        assert_eq!(r, &b"A"[..]);
+        assert_eq!(e, DigestResult::Urc(b"+UUNU: 0"));
+        assert_eq!(l, 10);
 
-        let (r, (e, l)) = urc(b"+UUSORD: 3,16,\"16 bytes of data\"\r\nOK").unwrap();
-        assert_eq!(r, &b"OK"[..]);
-        assert_eq!(e, &b"+UUSORD: 3,16,\"16 bytes of data\""[..]);
+        let err = urc(b"+UUSORD: 3,16,\"16 bytes of data\"\r\nOK").unwrap_err();
+        assert!(err.is_incomplete());
+
+        let err = urc(b"+UUSORD: 3,16,\"16 bytes of data\"\r\nERR").unwrap_err();
+        assert!(err.is_incomplete());
+
+        let (r, (e, l)) = urc(b"+UUSORD: 3,16,\"16 bytes of data\"\r\nERRA").unwrap();
+        assert_eq!(r, &b"ERRA"[..]);
+        assert_eq!(e, DigestResult::Urc(b"+UUSORD: 3,16,\"16 bytes of data\""));
+        assert_eq!(l, 34);
+
+        let err = urc(b"+UUNU: ").unwrap_err();
+        assert!(err.is_incomplete());
+
+        let err = urc(b"+UUNU: 0").unwrap_err();
+        assert!(err.is_incomplete());
+
+        let err = urc(b"+UUNU: 0\r").unwrap_err();
+        assert!(err.is_incomplete());
+
+        let (r, (e, l)) = urc(b"+UUSORD: 3,16,\"16 bytes of data\"\r\nOKA").unwrap();
+        assert_eq!(r, &b"OKA"[..]);
+        assert_eq!(e, DigestResult::Urc(b"+UUSORD: 3,16,\"16 bytes of data\""));
+        assert_eq!(l, 34);
+
+        let (r, (e, l)) = urc(b"+UUSORD: 3,16,\"16 bytes of data\"\r\nAT").unwrap();
+        assert_eq!(r, &b"AT"[..]);
+        assert_eq!(e, DigestResult::Urc(b"+UUSORD: 3,16,\"16 bytes of data\""));
         assert_eq!(l, 34);
     }
 
@@ -341,23 +437,23 @@ mod test {
     }
 
     #[test]
-    fn no_response() {
+    fn no_parameters_response() {
         let mut digester = NomDigester::default();
         let mut urc_matcher = DefaultUrcMatcher::default();
         let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
 
         buf.extend_from_slice(b"AT\r\r\n\r\n").unwrap();
         let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
-        assert_eq!((res, bytes), (DigestResult::None, 2));
+        assert_eq!((res, bytes), (DigestResult::None, 7));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
         buf.extend_from_slice(b"OK\r\n").unwrap();
         let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
-        assert_eq!((res, bytes), (DigestResult::Response(Ok(&[])), 7));
+        assert_eq!((res, bytes), (DigestResult::Response(Ok(&[])), 4));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
-        assert_eq!(&buf, b"\r\n");
+        assert_eq!(&buf, b"");
     }
 
     #[test]
@@ -368,7 +464,7 @@ mod test {
 
         buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
         let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
-        assert_eq!((res, bytes), (DigestResult::None, 13));
+        assert_eq!((res, bytes), (DigestResult::None, 15));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
@@ -376,7 +472,7 @@ mod test {
             .unwrap();
         let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
 
-        assert_eq!((res, bytes), (DigestResult::None, 2));
+        assert_eq!((res, bytes), (DigestResult::None, 0));
 
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
@@ -404,7 +500,7 @@ mod test {
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
-        assert_eq!(&buf, b"\r\n");
+        assert_eq!(&buf, b"");
     }
 
     #[test]
@@ -445,7 +541,7 @@ mod test {
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
-        assert_eq!(&buf, b"\r\n");
+        assert_eq!(&buf, b"");
     }
 
     #[test]
@@ -456,7 +552,7 @@ mod test {
 
         buf.extend_from_slice(b"AT+GMR\r\r\n").unwrap();
         let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
-        assert_eq!((res, bytes), (DigestResult::None, 7));
+        assert_eq!((res, bytes), (DigestResult::None, 9));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
@@ -469,26 +565,31 @@ mod test {
         }
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
-        assert_eq!(&buf, b"\r\n");
+        assert_eq!(&buf, b"");
     }
 
-    // #[test]
-    // fn urc() {
-    //     let mut digester = NomDigester::default();
-    //     let mut urc_matcher = DefaultUrcMatcher::default();
-    //     let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
+    #[test]
+    fn urc_digest() {
+        let mut digester = NomDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
 
-    //     buf.extend_from_slice(b"+UUSORD: 3,16,\"16 bytes of data\"\r\n")
-    //         .unwrap();
-    //     let result = digester.digest(&mut buf, &mut urc_matcher);
-    //     assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
-    //     {
-    //         let expectation =
-    //             Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"+UUSORD: 3,16,\"16 bytes of data\"")
-    //                 .unwrap();
-    //         assert_eq!(result, DigestResult::Urc(expectation));
-    //     }
-    // }
+        buf.extend_from_slice(b"+UUSORD: 3,16,\"16 bytes of data\"\r\n")
+            .unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
+        assert_eq!((res, bytes), (DigestResult::None, 0));
+
+        buf.extend_from_slice(b"A").unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
+
+        assert_eq!(
+            (res, bytes),
+            (DigestResult::Urc(b"+UUSORD: 3,16,\"16 bytes of data\""), 34)
+        );
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
+        assert_eq!(&buf, b"A");
+    }
 
     // TODO: What does this actually test?
     #[test]
@@ -502,14 +603,13 @@ mod test {
         buf.extend_from_slice(b"OK\r\n").unwrap();
 
         let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
-        assert_eq!((res, bytes), (DigestResult::Response(Ok(&[])), 2));
+        assert_eq!((res, bytes), (DigestResult::Response(Ok(&[])), 4));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
-        assert_eq!(&buf, b"\r\n");
+        assert_eq!(&buf, b"");
     }
 
     #[test]
-    #[ignore]
     fn error_response() {
         let mut digester = NomDigester::default();
         let mut urc_matcher = DefaultUrcMatcher::default();
@@ -536,13 +636,13 @@ mod test {
                 DigestResult::Response(Err(InternalError::Error(
                     Vec::from_slice(b"ERROR").unwrap()
                 ))),
-                0
+                40
             )
         );
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
-        assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
+        assert_eq!(buf, b"");
     }
 
     /// By breaking up non-AT-commands into chunks, it's possible that
@@ -567,6 +667,8 @@ mod test {
         assert_eq!((res, bytes), (DigestResult::None, 0));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
+
+        assert_eq!(buf, b"THIS FORMAT SUCKS\r\n");
     }
 
     /// By sending AT-commands byte-by-byte, it's possible that
@@ -593,141 +695,55 @@ mod test {
 
         buf.extend_from_slice(b"\r").unwrap();
         let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
-        assert_eq!((res, bytes), (DigestResult::None, 2));
+        assert_eq!((res, bytes), (DigestResult::None, 3));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
-        // buf.extend_from_slice(b"\n").unwrap();
-        // let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
-        // assert_eq!((res, bytes), (DigestResult::None, 2));
-        // buf.rotate_left(bytes);
-        // buf.truncate(buf.len() - bytes);
+        assert_eq!(buf, b"");
     }
 
-    // /// If an invalid response ends with a line terminator, the incomplete flag
-    // /// should be cleared.
-    // #[test]
-    // fn invalid_line_with_termination() {
-    //     let mut digester = NomDigester::default();
-    //     let mut urc_matcher = DefaultUrcMatcher::default();
-    //     let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
+    /// If an invalid response ends with a line terminator, it is considered an
+    /// URC, as URC's can be all kinds of unknown strings, e.g `RING\r\n`.
+    ///
+    /// These should be filtered at the client level!
+    #[test]
+    fn newline_terminated_garbage_becomes_urc() {
+        let mut digester = NomDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
 
-    //     buf.extend_from_slice(b"some status msg\r\n").unwrap();
-    //     let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
-    //     assert_eq!((res, bytes), (DigestResult::None, 0));
-    //     buf.rotate_left(bytes);
-    //     buf.truncate(buf.len() - bytes);
+        buf.extend_from_slice(b"some status msg\r\n").unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
+        assert_eq!((res, bytes), (DigestResult::None, 0));
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
 
-    //     buf.extend_from_slice(b"AT+GMR\r\r\n").unwrap();
-    //     let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
-    //     assert_eq!((res, bytes), (DigestResult::None, 9));
-    //     buf.rotate_left(bytes);
-    //     buf.truncate(buf.len() - bytes);
-    // }
+        buf.extend_from_slice(b"AT+GMR\r\r\n").unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
+        assert_eq!((res, bytes), (DigestResult::Urc(b"some status msg"), 17));
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
 
-    // /// If a valid response follows an invalid response, the buffer should not
-    // /// be cleared in between.
-    // #[test]
-    // fn mixed_response() {
-    //     let mut digester = NomDigester::default();
-    //     let mut urc_matcher = DefaultUrcMatcher::default();
-    //     let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
+        assert_eq!(buf, b"AT+GMR\r\r\n");
+    }
 
-    //     buf.extend_from_slice(b"some status msg\r\nAT+GMR\r\r\n")
-    //         .unwrap();
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
-    // }
+    /// If a valid response follows an invalid response, the buffer should not
+    /// be cleared in between.
+    #[test]
+    fn newline_terminated_garbage_becomes_urc_mixed_response() {
+        let mut digester = NomDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
 
-    // #[test]
-    // fn clear_buf_complete() {
-    //     let mut digester = NomDigester::default();
-    //     let mut urc_matcher = DefaultUrcMatcher::default();
-    //     let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
+        buf.extend_from_slice(b"some status msg\r\nAT+GMR\r\r\n")
+            .unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
+        assert_eq!((res, bytes), (DigestResult::Urc(b"some status msg"), 17));
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
 
-    //     buf.extend_from_slice(b"hello\r\ngoodbye\r\n").unwrap();
-    //     assert_eq!(
-    //         buf,
-    //         Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"hello\r\ngoodbye\r\n").unwrap()
-    //     );
-
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
-    //     assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"").unwrap());
-    // }
-
-    // #[test]
-    // fn clear_buf_partial() {
-    //     let mut digester = NomDigester::default();
-    //     let mut urc_matcher = DefaultUrcMatcher::default();
-    //     let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
-
-    //     buf.extend_from_slice(b"hello\r\nthere\r\ngoodbye\r\n")
-    //         .unwrap();
-    //     assert_eq!(
-    //         buf,
-    //         Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"hello\r\nthere\r\ngoodbye\r\n").unwrap()
-    //     );
-
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
-
-    //     assert_eq!(
-    //         buf,
-    //         Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"there\r\ngoodbye\r\n").unwrap()
-    //     );
-
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
-
-    //     assert_eq!(
-    //         buf,
-    //         Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"goodbye\r\n").unwrap()
-    //     );
-
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
-    //     assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"").unwrap());
-    // }
-
-    // #[test]
-    // fn clear_buf_partial_no_newlines() {
-    //     let mut digester = NomDigester::default();
-    //     let mut urc_matcher = DefaultUrcMatcher::default();
-    //     let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
-
-    //     buf.extend_from_slice(b"no newlines anywhere").unwrap();
-
-    //     assert_eq!(
-    //         buf,
-    //         Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"no newlines anywhere").unwrap()
-    //     );
-
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
-
-    //     assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"").unwrap());
-    // }
+        assert_eq!(buf, b"AT+GMR\r\r\n");
+    }
 
     // #[test]
     // fn custom_urc_matcher() {
@@ -777,121 +793,100 @@ mod test {
     //     );
     // }
 
-    // #[test]
-    // fn numeric_error_response() {
-    //     let mut digester = NomDigester::default();
-    //     let mut urc_matcher = DefaultUrcMatcher::default();
-    //     let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
+    #[test]
+    fn numeric_error_response() {
+        let mut digester = NomDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
 
-    //     buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
+        buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
 
-    //     buf.extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
-    //         .unwrap();
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
+        buf.extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
+            .unwrap();
 
-    //     buf.extend_from_slice(b"+CME ERROR: 123\r\n").unwrap();
-    //     let result = digester.digest(&mut buf, &mut urc_matcher);
+        buf.extend_from_slice(b"+CME ERROR: 123\r\n").unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
 
-    //     assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
-    //     assert_eq!(
-    //         result,
-    //         DigestResult::Response(Err(InternalError::Error(
-    //             Vec::from_slice(b"+CME ERROR: 123").unwrap()
-    //         )))
-    //     );
-    // }
+        assert_eq!(
+            res,
+            DigestResult::Response(Err(InternalError::Error(
+                Vec::from_slice(b"+CME ERROR: 123").unwrap()
+            )))
+        );
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
 
-    // #[test]
-    // fn verbose_error_response() {
-    //     let mut digester = NomDigester::default();
-    //     let mut urc_matcher = DefaultUrcMatcher::default();
-    //     let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
+        assert_eq!(&buf, b"");
+    }
 
-    //     buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
+    #[test]
+    fn verbose_error_response() {
+        let mut digester = NomDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
 
-    //     buf.extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
-    //         .unwrap();
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
+        buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
 
-    //     buf.extend_from_slice(b"+CME ERROR: Operation not allowed\r\n")
-    //         .unwrap();
-    //     let result = digester.digest(&mut buf, &mut urc_matcher);
+        buf.extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
+            .unwrap();
 
-    //     assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
-    //     assert_eq!(
-    //         result,
-    //         DigestResult::Response(Err(InternalError::Error(
-    //             Vec::from_slice(b"+CME ERROR: Operation not allowed").unwrap()
-    //         )))
-    //     );
-    // }
+        buf.extend_from_slice(b"+CME ERROR: Operation not allowed\r\n")
+            .unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
 
-    // #[test]
-    // fn truncate_verbose_error_response() {
-    //     let mut digester = NomDigester::default();
-    //     let mut urc_matcher = DefaultUrcMatcher::default();
-    //     let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
+        assert_eq!(
+            res,
+            DigestResult::Response(Err(InternalError::Error(
+                Vec::from_slice(b"+CME ERROR: Operation not allowed").unwrap()
+            )))
+        );
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
 
-    //     buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
+        assert_eq!(&buf, b"");
+    }
 
-    //     buf.extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
-    //         .unwrap();
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
+    #[test]
+    fn truncate_verbose_error_response() {
+        let mut digester = NomDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
 
-    //     buf.extend_from_slice(b"+CME ERROR: Operation not allowed.. This is a very long error message, that will never fit in my buffer!\r\n").unwrap();
-    //     let result = digester.digest(&mut buf, &mut urc_matcher);
+        buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
 
-    //     assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
-    //     assert_eq!(
-    //         result,
-    //         DigestResult::Response(Err(InternalError::Error(
-    //             Vec::from_slice(
-    //                 b"+CME ERROR: Operation not allowed.. This is a very long error message, that will neve"
-    //             )
-    //             .unwrap()
-    //         )))
-    //     );
-    // }
+        buf.extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
+            .unwrap();
+        buf.extend_from_slice(b"+CME ERROR: Operation not allowed.. This is a very long error message, that will never fit in my buffer!\r\n").unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
 
-    // #[test]
-    // fn data_ready_prompt() {
-    //     let mut digester = NomDigester::default();
-    //     let mut urc_matcher = DefaultUrcMatcher::default();
-    //     let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
+        assert_eq!(
+            res,
+            DigestResult::Response(Err(InternalError::Error(
+                Vec::from_slice(
+                    b"+CME ERROR: Operation not allowed.. This is a very long error message, that will neve"
+                )
+                .unwrap()
+            )))
+        );
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
 
-    //     buf.extend_from_slice(b"AT+USECMNG=0,0,\"Verisign\",1758\r>")
-    //         .unwrap();
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
+        assert_eq!(&buf, b"");
+    }
 
-    //     let result = digester.digest(&mut buf, &mut urc_matcher);
+    #[test]
+    fn data_ready_prompt() {
+        let mut digester = NomDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
 
-    //     assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
-    //     assert_eq!(result, DigestResult::Response(Ok(heapless::Vec::new())));
-    // }
+        buf.extend_from_slice(b"AT+USECMNG=0,0,\"Verisign\",1758\r>")
+            .unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
+        assert_eq!((res, bytes), (DigestResult::Prompt, 32));
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
+    }
 
     // Regression test for #87
     #[test]
@@ -906,41 +901,36 @@ mod test {
         let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
         assert_eq!(
             (res, bytes),
-            (DigestResult::Response(Ok(b"+CPIN: READY\r\n")), 29)
+            (DigestResult::Response(Ok(b"+CPIN: READY\r\n")), 31)
         );
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
+        assert_eq!(&buf, b"");
     }
 
-    // // Regression test for #87
-    // #[test]
-    // fn cpin_error() {
-    //     let mut digester = NomDigester::default();
-    //     let mut urc_matcher = DefaultUrcMatcher::default();
-    //     let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
+    // Regression test for #87
+    #[test]
+    fn cpin_error() {
+        let mut digester = NomDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
 
-    //     buf.extend_from_slice(b"AT+CPIN?\r\r\n+CME ERROR: 10\r\n")
-    //         .unwrap();
+        buf.extend_from_slice(b"AT+CPIN?\r\r\n+CME ERROR: 10\r\n")
+            .unwrap();
 
-    //     assert_eq!(
-    //         digester.digest(&mut buf, &mut urc_matcher),
-    //         DigestResult::None
-    //     );
-    //     assert_eq!(
-    //         buf,
-    //         Vec::<_, TEST_RX_BUF_LEN>::from_slice(b"+CME ERROR: 10\r\n").unwrap()
-    //     );
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
 
-    //     let result = digester.digest(&mut buf, &mut urc_matcher);
+        assert_eq!(
+            res,
+            DigestResult::Response(Err(InternalError::Error(
+                Vec::from_slice(b"+CME ERROR: 10").unwrap()
+            )))
+        );
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
 
-    //     assert_eq!(buf, Vec::<_, TEST_RX_BUF_LEN>::new());
-    //     assert_eq!(
-    //         result,
-    //         DigestResult::Response(Err(InternalError::Error(
-    //             Vec::from_slice(b"+CME ERROR: 10").unwrap()
-    //         )))
-    //     );
-    // }
+        assert_eq!(&buf, b"");
+    }
 
     #[test]
     fn multi_line_response_with_ok() {
@@ -951,7 +941,7 @@ mod test {
         buf.extend_from_slice(b"AT+URDBLOCK=\"response.txt\",0,512\r\r\n+")
             .unwrap();
         let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
-        assert_eq!((res, bytes), (DigestResult::None, 33));
+        assert_eq!((res, bytes), (DigestResult::None, 35));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
@@ -967,7 +957,7 @@ mod test {
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
-        assert_eq!(&buf, b"\r\n");
+        assert_eq!(&buf, b"");
     }
 
     #[test]
@@ -985,7 +975,7 @@ mod test {
         let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
         assert_eq!(
             (res, bytes),
-            (DigestResult::Response(Ok(b"+CPIN: READY\r\n")), 29)
+            (DigestResult::Response(Ok(b"+CPIN: READY\r\n")), 31)
         );
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
@@ -1008,6 +998,6 @@ mod test {
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
-        assert_eq!(&buf, b"\r\n");
+        assert_eq!(&buf, b"");
     }
 }
