@@ -16,6 +16,7 @@ struct Info {
     serialize_match_arms: Vec<proc_macro2::TokenStream>,
     anonymous_enum: AnonymousEnum,
     identifier_match_arms: Vec<proc_macro2::TokenStream>,
+    try_from_match_arms: Vec<proc_macro2::TokenStream>,
     deserialize_match_arms: Vec<proc_macro2::TokenStream>,
 }
 
@@ -49,6 +50,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
             fields: Vec::new(),
         },
         identifier_match_arms: Vec::new(),
+        try_from_match_arms: Vec::new(),
         deserialize_match_arms: Vec::new(),
     };
     let len = variants.len();
@@ -212,6 +214,10 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                 info.serialize_match_arms.push(quote! {
                     #ident::#variant_ident => atat::serde_at::serde::Serialize::serialize(&(#val as #repr), serializer)
                 });
+
+                info.try_from_match_arms.push(quote! {
+                    a if a == #val as #repr  => #ident::#variant_ident
+                });
             }
         }
         info.anonymous_enum.fields.push(anon_ident);
@@ -223,6 +229,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         serialize_match_arms,
         anonymous_enum,
         identifier_match_arms,
+        try_from_match_arms,
         deserialize_match_arms,
     } = info;
 
@@ -277,6 +284,29 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
             None
         }
     }).collect();
+
+    let try_from_impl = if variants.iter().all(|v| {
+        v.fields
+            .as_ref()
+            .map(|f| matches!(f, Fields::Unit))
+            .unwrap()
+    }) {
+        quote! {
+            #[automatically_derived]
+            impl #atat_len_impl_generics core::convert::TryFrom<#repr> for #ident #ty_generics #deserialize_where_clause {
+                type Error = ();
+
+                fn try_from(value: #repr) -> Result<Self, Self::Error> {
+                    Ok(match value {
+                        #(#try_from_match_arms,)*
+                        _ => return Err(()),
+                    })
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
 
     if default_impls.len() > 1 {
         panic!("Cannot have more than one default!")
@@ -393,5 +423,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
                 )
             }
         }
+
+        #try_from_impl
     })
 }

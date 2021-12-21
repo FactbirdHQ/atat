@@ -64,11 +64,27 @@ impl<const N: usize> AtatLen for CharVec<N> {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
+
     use crate as atat;
     use atat::{derive::AtatLen, AtatCmd};
     use atat_derive::{AtatCmd, AtatEnum, AtatResp};
     use heapless::{String, Vec};
     use serde_at::{from_str, to_string, SerializeOptions};
+
+    macro_rules! assert_not_impl {
+        ($x:ty, $($t:path),+ $(,)*) => {
+            const _: fn() -> () = || {
+                struct Check<T: ?Sized>(T);
+                trait AmbiguousIfImpl<A> { fn some_item() { } }
+
+                impl<T: ?Sized> AmbiguousIfImpl<()> for Check<T> { }
+                impl<T: ?Sized $(+ $t)*> AmbiguousIfImpl<u8> for Check<T> { }
+
+                <Check::<$x> as AmbiguousIfImpl<_>>::some_item()
+            };
+        };
+    }
 
     #[derive(Debug, PartialEq, AtatResp)]
     struct NoResponse {}
@@ -181,6 +197,12 @@ mod tests {
 
     #[test]
     fn test_mixed_enum() {
+        assert_not_impl!(MixedEnum, TryFrom<u8>);
+        assert_not_impl!(MixedEnum, TryFrom<u16>);
+        assert_not_impl!(MixedEnum, TryFrom<u32>);
+
+        assert_eq!(SimpleEnum::try_from(3), Ok(SimpleEnum::D));
+        assert_eq!(SimpleEnumU32::try_from(1), Ok(SimpleEnumU32::B));
         assert_eq!(
             to_string::<_, 1>(&MixedEnum::UnitVariant, "CMD", SerializeOptions::default()).unwrap(),
             String::<1>::from("0")
