@@ -35,7 +35,7 @@ pub struct ClientBuilder<
     const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
 > where
-    Tx: embedded_hal::serial::Write<u8>,
+    Tx: embedded_hal::serial::nb::Write<u8>,
     CLK: super::Clock<TIMER_HZ>,
     U: UrcMatcher,
     D: Digester,
@@ -66,7 +66,7 @@ impl<
         URC_CAPACITY,
     >
 where
-    Tx: embedded_hal::serial::Write<u8>,
+    Tx: embedded_hal::serial::nb::Write<u8>,
     T: super::Clock<TIMER_HZ>,
 {
     /// Create a builder for new Atat client instance.
@@ -99,7 +99,7 @@ impl<
         const URC_CAPACITY: usize,
     > ClientBuilder<Tx, CLK, U, D, TIMER_HZ, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
 where
-    Tx: embedded_hal::serial::Write<u8>,
+    Tx: embedded_hal::serial::nb::Write<u8>,
     CLK: super::Clock<TIMER_HZ>,
     U: UrcMatcher,
     D: Digester,

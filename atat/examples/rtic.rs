@@ -132,7 +132,7 @@ const APP: () = {
     #[task(binds = USART2, priority = 4, resources = [ingress, rx])]
     fn serial_irq(ctx: serial_irq::Context) {
         let rx = ctx.resources.rx;
-        if let Ok(d) = nb::block!(rx.try_read()) {
+        if let Ok(d) = nb::block!(rx.read()) {
             ctx.resources.ingress.write(&[d]);
         }
     }

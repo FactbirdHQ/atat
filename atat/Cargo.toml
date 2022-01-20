@@ -18,7 +18,7 @@ name = "atat"
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-embedded-hal = { version = "=1.0.0-alpha.4" }
+embedded-hal = { version = "=1.0.0-alpha.6" }
 fugit = "0.3"
 nb = "^1"
 heapless = { version = "^0.7.0", features = ["serde"] }
@@ -36,7 +36,7 @@ cortex-m = "0.7.1"
 cortex-m-rt = "0.6.13"
 cortex-m-rtic = "0.5.5"
 panic-halt = "0.2.0"
-stm32l4xx-hal = { git = "https://github.com/MathiasKoch/stm32l4xx-hal", branch = "enhancement/prepare-embedded-hal-1.0", features = [
+stm32l4xx-hal = { git = "https://github.com/andresv/stm32l4xx-hal", branch = "enhancement/prepare-embedded-hal-1.0", features = [
     "stm32l4x5",
     "rt",
 ] }
