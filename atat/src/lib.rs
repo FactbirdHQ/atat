@@ -207,18 +207,6 @@
 //!
 //! - **`derive`** *(enabled by default)* - Re-exports [`atat_derive`] to allow
 //!   deriving `Atat__` traits.
-//! - **`defmt-default`** *(disabled by default)* - Enable log statements at
-//!   INFO, or TRACE, level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-trace`** *(disabled by default)* - Enable log statements at TRACE
-//!   level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-debug`** *(disabled by default)* - Enable log statements at DEBUG
-//!   level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-info`** *(disabled by default)* - Enable log statements at INFO
-//!   level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-warn`** *(disabled by default)* - Enable log statements at WARN
-//!   level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-error`** *(disabled by default)* - Enable log statements at ERROR
-//!   level and up, to aid debugging. Powered by `defmt`.
 
 // #![deny(warnings)]
 #![allow(clippy::multiple_crate_versions)]
@@ -274,25 +262,7 @@ pub use queues::{ComQueue, Queues};
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 pub use urc_matcher::{DefaultUrcMatcher, UrcMatcher, UrcMatcherResult};
 
-/// For timing `atat` uses [fugit](https://lib.rs/crates/fugit) crate which only provides `Duration` and `Instant` types.
-/// It does not provide any clock or timer traits.
-/// Therefore `atat` has its own `Clock` trait that provides all timing capabilities that are needed for the library.
-/// User must implement this trait for the timer by itself.
-pub trait Clock<const TIMER_HZ: u32> {
-    /// An error that might happen during waiting
-    type Error;
-
-    /// Return current time `Instant`
-    fn now(&mut self) -> fugit::TimerInstantU32<TIMER_HZ>;
-
-    /// Start countdown with a `duration`
-    fn start(&mut self, duration: fugit::TimerDurationU32<TIMER_HZ>) -> Result<(), Self::Error>;
-
-    /// Wait until countdown `duration` has expired.
-    /// Must return `nb::Error::WouldBlock` if countdown `duration` is not yet over.
-    /// Must return `OK(())` as soon as countdown `duration` has expired.
-    fn wait(&mut self) -> nb::Result<(), Self::Error>;
-}
+pub use fugit_timer::Timer as Clock;
 
 /// Commands that can be sent from the client to the ingress manager, for
 /// configuration after initial setup. This is also used for stuff like clearing

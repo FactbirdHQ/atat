@@ -41,6 +41,10 @@ impl<TIM, const TIMER_HZ: u32> Clock<TIMER_HZ> for AtClock<TIM, TIMER_HZ> {
         Ok(())
     }
 
+    fn cancel(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
     fn wait(&mut self) -> nb::Result<(), Self::Error> {
         Ok(())
     }
@@ -138,7 +142,7 @@ fn TIM7() {
 fn USART2() {
     let ingress = unsafe { INGRESS.as_mut().unwrap() };
     let rx = unsafe { RX.as_mut().unwrap() };
-    if let Ok(d) = nb::block!(rx.try_read()) {
+    if let Ok(d) = nb::block!(rx.read()) {
         ingress.write(&[d]);
     }
 }

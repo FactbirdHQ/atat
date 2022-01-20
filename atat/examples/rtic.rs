@@ -37,6 +37,10 @@ impl<TIM, const TIMER_HZ: u32> Clock<TIMER_HZ> for AtClock<TIM, TIMER_HZ> {
         Ok(())
     }
 
+    fn cancel(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
     fn wait(&mut self) -> nb::Result<(), Self::Error> {
         Ok(())
     }
@@ -132,7 +136,7 @@ const APP: () = {
     #[task(binds = USART2, priority = 4, resources = [ingress, rx])]
     fn serial_irq(ctx: serial_irq::Context) {
         let rx = ctx.resources.rx;
-        if let Ok(d) = nb::block!(rx.try_read()) {
+        if let Ok(d) = nb::block!(rx.read()) {
             ctx.resources.ingress.write(&[d]);
         }
     }

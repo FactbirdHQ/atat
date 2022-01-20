@@ -38,8 +38,8 @@ pub struct Client<
     const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
 > where
-    Tx: serial::Write<u8>,
-    CLK: super::Clock<TIMER_HZ>,
+    Tx: serial::nb::Write<u8>,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
 {
     /// Serial writer
     tx: Tx,
@@ -59,8 +59,8 @@ pub struct Client<
 impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
     Client<Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
 where
-    Tx: serial::Write<u8>,
-    CLK: super::Clock<TIMER_HZ>,
+    Tx: serial::nb::Write<u8>,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
 {
     pub fn new(
         tx: Tx,
@@ -85,8 +85,8 @@ where
 impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
     for Client<Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
 where
-    Tx: serial::Write<u8>,
-    CLK: super::Clock<TIMER_HZ>,
+    Tx: serial::nb::Write<u8>,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
 {
     fn send<A: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
@@ -114,9 +114,9 @@ where
             }
 
             for c in cmd_buf {
-                nb::block!(self.tx.try_write(c)).map_err(|_e| Error::Write)?;
+                nb::block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
             }
-            nb::block!(self.tx.try_flush()).map_err(|_e| Error::Write)?;
+            nb::block!(self.tx.flush()).map_err(|_e| Error::Write)?;
             self.state = ClientState::AwaitingResponse;
         }
 
@@ -255,6 +255,11 @@ mod test {
             Ok(())
         }
 
+        /// Stop timer
+        fn cancel(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
         /// Wait until countdown `duration` set with the `fn start` has expired
         fn wait(&mut self) -> nb::Result<(), Self::Error> {
             Ok(())
@@ -271,14 +276,16 @@ mod test {
         }
     }
 
-    impl serial::Write<u8> for TxMock {
-        type Error = ();
+    impl serial::nb::Write<u8> for TxMock {
+        type Error = serial::ErrorKind;
 
-        fn try_write(&mut self, c: u8) -> nb::Result<(), Self::Error> {
-            self.s.push(c as char).map_err(nb::Error::Other)
+        fn write(&mut self, c: u8) -> nb::Result<(), Self::Error> {
+            self.s
+                .push(c as char)
+                .map_err(|_| nb::Error::Other(serial::ErrorKind::Other))
         }
 
-        fn try_flush(&mut self) -> nb::Result<(), Self::Error> {
+        fn flush(&mut self) -> nb::Result<(), Self::Error> {
             Ok(())
         }
     }
