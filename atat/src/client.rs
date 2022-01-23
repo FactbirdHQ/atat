@@ -1,4 +1,4 @@
-use bbqueue::framed::FrameConsumer;
+use bbqueue::framed::{FrameConsumer, FrameGrantR};
 use embedded_hal::serial;
 use fugit::MillisDurationU32;
 
@@ -9,7 +9,7 @@ use crate::traits::{AtatClient, AtatCmd, AtatUrc};
 use crate::ResponseHeader;
 use crate::{Command, Config};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum ClientState {
     Idle,
     AwaitingResponse,
@@ -80,6 +80,49 @@ where
             timer,
         }
     }
+
+    fn tx(&mut self, bytes: &[u8]) -> Result<(), ()> {
+        // compare the time of the last response or URC and ensure at least
+        // `self.config.cmd_cooldown` ms have passed before sending a new
+        // command
+        nb::block!(self.timer.wait()).ok();
+
+        if bytes.len() < 50 {
+            debug!("Sending command: \"{:?}\"", LossyStr(&bytes));
+        } else {
+            debug!(
+                "Sending command with too long payload ({} bytes) to log!",
+                bytes.len(),
+            );
+        }
+
+        for c in bytes {
+            nb::block!(self.tx.write(*c)).map_err(drop)?;
+        }
+        nb::block!(self.tx.flush()).map_err(drop)?;
+        self.state = ClientState::AwaitingResponse;
+        Ok(())
+    }
+
+    fn response_ready<'a>(
+        &'a mut self,
+    ) -> nb::Result<(FrameGrantR<'a, RES_CAPACITY>, ClientState), ()> {
+        if let Some(mut res_grant) = self.res_c.read() {
+            res_grant.auto_release(true);
+            return Ok((res_grant, self.state));
+        } else if let Mode::Timeout = self.config.mode {
+            if self.timer.wait().is_ok() {
+                self.state = ClientState::Idle;
+                // Tell the parser to reset to initial state due to timeout
+                if self.com_p.enqueue(Command::Reset).is_err() {
+                    // TODO: Consider how to act in this situation.
+                    error!("Failed to signal parser to clear buffer on timeout!");
+                }
+                return Err(nb::Error::Other(()));
+            }
+        }
+        Err(nb::Error::WouldBlock)
+    }
 }
 
 impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
@@ -97,27 +140,8 @@ where
                 // TODO: Consider how to act in this situation.
                 error!("Failed to signal parser to force state transition to 'ReceivingResponse'!",);
             }
-
-            // compare the time of the last response or URC and ensure at least
-            // `self.config.cmd_cooldown` ms have passed before sending a new
-            // command
-            nb::block!(self.timer.wait()).ok();
             let cmd_buf = cmd.as_bytes();
-
-            if cmd_buf.len() < 50 {
-                debug!("Sending command: \"{:?}\"", LossyStr(&cmd_buf));
-            } else {
-                debug!(
-                    "Sending command with too long payload ({} bytes) to log!",
-                    cmd_buf.len(),
-                );
-            }
-
-            for c in cmd_buf {
-                nb::block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
-            }
-            nb::block!(self.tx.flush()).map_err(|_e| Error::Write)?;
-            self.state = ClientState::AwaitingResponse;
+            self.tx(&cmd_buf).map_err(|_e| Error::Write)?;
         }
 
         if !A::EXPECTS_RESPONSE_CODE {
@@ -157,46 +181,27 @@ where
         &mut self,
         cmd: &A,
     ) -> nb::Result<A::Response, Error<A::Error>> {
-        if let Some(mut res_grant) = self.res_c.read() {
-            res_grant.auto_release(true);
+        let (res_grant, current_state) = self
+            .response_ready()
+            .map_err(|e| e.map(|_| Error::Timeout))?;
 
-            return cmd
-                .parse(ResponseHeader::from_bytes(res_grant.as_ref()))
-                .map_err(nb::Error::from)
-                .and_then(|r| {
-                    if let ClientState::AwaitingResponse = self.state {
-                        self.timer
-                            .start(
-                                MillisDurationU32::from_ticks(self.config.cmd_cooldown).convert(),
-                            )
-                            .ok();
-                        self.state = ClientState::Idle;
-                        Ok(r)
-                    } else {
-                        // FIXME: Is this correct?
-                        error!("Is this correct?! WouldBlock");
-                        Err(nb::Error::WouldBlock)
-                    }
-                })
-                .map_err(|e| {
-                    self.timer
-                        .start(MillisDurationU32::from_ticks(self.config.cmd_cooldown).convert())
-                        .ok();
-                    self.state = ClientState::Idle;
-                    e
-                });
-        } else if let Mode::Timeout = self.config.mode {
-            if self.timer.wait().is_ok() {
-                self.state = ClientState::Idle;
-                // Tell the parser to reset to initial state due to timeout
-                if self.com_p.enqueue(Command::Reset).is_err() {
-                    // TODO: Consider how to act in this situation.
-                    error!("Failed to signal parser to clear buffer on timeout!");
-                }
-                return Err(nb::Error::Other(Error::Timeout));
+        let res = match cmd.parse(ResponseHeader::from_bytes(res_grant.as_ref())) {
+            Ok(r) if matches!(current_state, ClientState::AwaitingResponse) => Ok(r),
+            Ok(_) => {
+                // FIXME: Is this correct?
+                error!("Is this correct?! WouldBlock");
+                return Err(nb::Error::WouldBlock);
             }
-        }
-        Err(nb::Error::WouldBlock)
+            Err(e) => Err(nb::Error::Other(e)),
+        };
+        drop(res_grant);
+
+        self.state = ClientState::Idle;
+        self.timer
+            .start(MillisDurationU32::from_ticks(self.config.cmd_cooldown).convert())
+            .ok();
+
+        res
     }
 
     fn get_mode(&self) -> Mode {
