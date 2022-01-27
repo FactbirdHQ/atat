@@ -1,11 +1,9 @@
 //! ### 4 - General Commands
 pub mod responses;
-pub mod types;
 pub mod urc;
 
 use atat::atat_derive::AtatCmd;
 use responses::*;
-use types::*;
 
 /// 4.1 Manufacturer identification +CGMI
 ///
@@ -14,19 +12,23 @@ use types::*;
 #[at_cmd("+CGMI", ManufacturerId)]
 pub struct GetManufacturerId;
 
-/// 4.7 IMEI identification +CGSN
+/// Model identification +CGMM
 ///
-/// Returns the product serial number, the International Mobile Equipment Identity (IMEI) of the MT.
+/// Read a text string that identifies the device model.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+CGSN", IMEI)]
-pub struct GetIMEI {
-    #[at_arg(position = 0)]
-    pub snt: Option<Snt>,
-}
+#[at_cmd("+CGMM", ModelId)]
+pub struct GetModelId;
 
-/// 4.12 Card identification +CCID
+/// Software version identification +CGMR
 ///
-/// Returns the ICCID (Integrated Circuit Card ID) of the SIM-card. ICCID is a serial number identifying the SIM.
+/// Read a text string that identifies the software version of the module
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+CCID", CCID)]
-pub struct GetCCID;
+#[at_cmd("+CGMR", SoftwareVersion)]
+pub struct GetSoftwareVersion;
+
+/// 7.12 Wi-Fi MAC address +UWAPMACADDR
+///
+/// Lists the currently used MAC address.
+#[derive(Clone, AtatCmd)]
+#[at_cmd("+UWAPMACADDR", WifiMac)]
+pub struct GetWifiMac;

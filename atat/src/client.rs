@@ -67,9 +67,13 @@ where
         res_c: FrameConsumer<'static, RES_CAPACITY>,
         urc_c: FrameConsumer<'static, URC_CAPACITY>,
         com_p: ComProducer,
-        timer: CLK,
+        mut timer: CLK,
         config: Config,
     ) -> Self {
+        timer
+            .start(MillisDurationU32::from_ticks(config.cmd_cooldown).convert())
+            .ok();
+
         Self {
             tx,
             res_c,

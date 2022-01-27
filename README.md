@@ -9,7 +9,7 @@
 
 
 <div>
-  <img style="vertical-align:middle; padding-bottom: 20px; padding-right: 40px;"  src="https://w7.pngwing.com/pngs/154/828/png-transparent-star-wars-patent-all-terrain-armored-transport-printmaking-atat-uuml-rk-monochrome-film-mecha.png" alt="ATAT" width="250" />
+  <img style="vertical-align:middle; padding-bottom: 20px; padding-right: 40px;"  src="https://cdn.pixabay.com/photo/2012/04/12/12/24/star-wars-29792_960_720.png" alt="ATAT" width="250" />
 </div>
 
 `#![no_std]` crate for parsing AT commands ([Hayes command set](https://en.wikipedia.org/wiki/Hayes_command_set))

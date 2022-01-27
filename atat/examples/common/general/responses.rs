@@ -6,22 +6,25 @@ use heapless::String;
 /// Text string identifying the manufacturer.
 #[derive(Clone, Debug, AtatResp)]
 pub struct ManufacturerId {
-    #[at_arg(position = 0)]
     pub id: String<64>,
 }
 
-/// 4.7 IMEI identification +CGSN
-/// Returns the product serial number, the International Mobile Equipment Identity (IMEI) of the MT.
+/// Model identification
+/// Text string identifying the manufacturer.
 #[derive(Clone, Debug, AtatResp)]
-pub struct IMEI {
-    #[at_arg(position = 0)]
-    pub imei: u64,
+pub struct ModelId {
+    pub id: String<64>,
 }
 
-/// 4.12 Card identification +CCID
-/// Returns the ICCID (Integrated Circuit Card ID) of the SIM-card. ICCID is a serial number identifying the SIM.
+/// Software version identification
+/// Read a text string that identifies the software version of the module.
 #[derive(Clone, Debug, AtatResp)]
-pub struct CCID {
-    #[at_arg(position = 0)]
-    pub ccid: u128,
+pub struct SoftwareVersion {
+    pub id: String<64>,
+}
+
+/// 7.11 Wi-Fi Access point station list +UWAPSTALIST
+#[derive(Clone, AtatResp)]
+pub struct WifiMac {
+    pub mac_addr: heapless_bytes::Bytes<12>,
 }
