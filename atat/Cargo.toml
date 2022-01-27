@@ -32,13 +32,14 @@ bbqueue = "0.5"
 log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.3", optional = true }
 
-[target.thumbv7em-none-eabihf.dev-dependencies]
+[dev-dependencies]
 cortex-m = "0.7.1"
-cortex-m-rt = "0.6.13"
-cortex-m-rtic = "0.5.5"
+cortex-m-rt = "0.7.1"
+cortex-m-rtic = "1.0.0"
+systick-monotonic = "1.0.0"
 panic-halt = "0.2.0"
-stm32l4xx-hal = { git = "https://github.com/MathiasKoch/stm32l4xx-hal", branch = "enhancement/prepare-embedded-hal-1.0", features = [
-    "stm32l4x5",
+stm32l4xx-hal = { git = "https://github.com/BlackbirdHQ/stm32l4xx-hal", branch = "enhancement/prepare-embedded-hal-1.0", features = [
+    "stm32l475",
     "rt",
 ] }
 
