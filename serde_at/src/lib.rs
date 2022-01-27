@@ -4,6 +4,7 @@
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
 #![deny(warnings)]
+#![allow(deprecated)]
 #![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_const_for_fn)]

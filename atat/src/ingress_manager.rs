@@ -87,7 +87,7 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
-        trace!("Write: \"{:?}\"", LossyStr(data));
+        // trace!("Write: \"{:?}\"", LossyStr(data));
 
         if self.buf.extend_from_slice(data).is_err() {
             error!("OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));

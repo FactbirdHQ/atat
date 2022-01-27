@@ -45,6 +45,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// assert_eq!(incoming, expected);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
+#[deprecated = "Please use a combination of `heapless_bytes::Bytes` & `serde_bytes::Bytes` as a replacement"]
 pub struct CharVec<const N: usize>(pub heapless::Vec<char, N>);
 
 impl<const N: usize> CharVec<N> {

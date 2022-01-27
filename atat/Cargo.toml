@@ -11,11 +11,20 @@ repository = "https://github.com/BlackbirdHQ/atat"
 edition = "2018"
 documentation = "https://docs.rs/atat"
 
+[badges]
+maintenance = { status = "actively-developed" }
+
 [lib]
 name = "atat"
 
-[badges]
-maintenance = { status = "actively-developed" }
+[[example]]
+name = "rtic"
+required-features = ["defmt"]
+
+
+[[example]]
+name = "cortex-m-rt"
+required-features = ["defmt"]
 
 [dependencies]
 embedded-hal = { version = "=1.0.0-alpha.6" }
@@ -23,22 +32,25 @@ fugit = "0.3.3"
 fugit-timer = "0.1.2"
 nb = "^1"
 heapless = { version = "^0.7.0", features = ["serde"] }
+bbqueue = "0.5"
 serde_at = { path = "../serde_at", version = "^0.15.0", optional = true }
 atat_derive = { path = "../atat_derive", version = "^0.15.0", optional = true }
 serde_bytes = { version = "0.11.5", default-features = false, optional = true }
 heapless-bytes = { version = "0.3.0", optional = true }
-bbqueue = "0.5"
 
 log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.3", optional = true }
 
-[target.thumbv7em-none-eabihf.dev-dependencies]
+[dev-dependencies]
 cortex-m = "0.7.1"
-cortex-m-rt = "0.6.13"
-cortex-m-rtic = "0.5.5"
+cortex-m-rt = "0.7.1"
+cortex-m-rtic = "1.0.0"
+defmt-rtt = "0.3.1"
+panic-probe = { version = "0.3.0", features = ["print-defmt"] }
+dwt-systick-monotonic = "1.0.0"
 panic-halt = "0.2.0"
-stm32l4xx-hal = { git = "https://github.com/MathiasKoch/stm32l4xx-hal", branch = "enhancement/prepare-embedded-hal-1.0", features = [
-    "stm32l4x5",
+stm32l4xx-hal = { git = "https://github.com/BlackbirdHQ/stm32l4xx-hal", branch = "enhancement/prepare-embedded-hal-1.0", features = [
+    "stm32l475",
     "rt",
 ] }
 
@@ -49,4 +61,3 @@ derive = ["atat_derive", "serde_at"]
 bytes = ["heapless-bytes", "serde_bytes"]
 
 std = ["serde_at/std"]
-
