@@ -1,6 +1,6 @@
 use bbqueue::framed::FrameConsumer;
 use embedded_hal::serial;
-use fugit::MillisDurationU32;
+use fugit::ExtU32;
 
 use crate::error::Error;
 use crate::helpers::LossyStr;
@@ -70,9 +70,7 @@ where
         mut timer: CLK,
         config: Config,
     ) -> Self {
-        timer
-            .start(MillisDurationU32::from_ticks(config.cmd_cooldown).convert())
-            .ok();
+        timer.start(config.cmd_cooldown.millis()).ok();
 
         Self {
             tx,
@@ -133,9 +131,7 @@ where
             Mode::Blocking => Ok(nb::block!(self.check_response(cmd))?),
             Mode::NonBlocking => self.check_response(cmd),
             Mode::Timeout => {
-                self.timer
-                    .start(MillisDurationU32::from_ticks(A::MAX_TIMEOUT_MS).convert())
-                    .ok();
+                self.timer.start(A::MAX_TIMEOUT_MS.millis()).ok();
                 Ok(nb::block!(self.check_response(cmd))?)
             }
         }
@@ -143,9 +139,7 @@ where
 
     fn peek_urc_with<URC: AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F) {
         if let Some(urc_grant) = self.urc_c.read() {
-            self.timer
-                .start(MillisDurationU32::from_ticks(self.config.cmd_cooldown).convert())
-                .ok();
+            self.timer.start(self.config.cmd_cooldown.millis()).ok();
             if let Some(urc) = URC::parse(urc_grant.as_ref()) {
                 if !f(urc) {
                     return;
@@ -169,11 +163,7 @@ where
                 .map_err(nb::Error::from)
                 .and_then(|r| {
                     if let ClientState::AwaitingResponse = self.state {
-                        self.timer
-                            .start(
-                                MillisDurationU32::from_ticks(self.config.cmd_cooldown).convert(),
-                            )
-                            .ok();
+                        self.timer.start(self.config.cmd_cooldown.millis()).ok();
                         self.state = ClientState::Idle;
                         Ok(r)
                     } else {
@@ -183,9 +173,7 @@ where
                     }
                 })
                 .map_err(|e| {
-                    self.timer
-                        .start(MillisDurationU32::from_ticks(self.config.cmd_cooldown).convert())
-                        .ok();
+                    self.timer.start(self.config.cmd_cooldown.millis()).ok();
                     self.state = ClientState::Idle;
                     e
                 });
