@@ -110,7 +110,7 @@ fn TIM7() {
 fn USART2() {
     let ingress = unsafe { INGRESS.as_mut().unwrap() };
     let rx = unsafe { RX.as_mut().unwrap() };
-    if let Ok(d) = nb::block!(rx.try_read()) {
+    if let Ok(d) = nb::block!(rx.read()) {
         ingress.write(&[d]);
     }
 }

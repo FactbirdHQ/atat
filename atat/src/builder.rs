@@ -18,8 +18,8 @@ type ClientParser<Tx, T, U, D, const BUF_LEN: usize, const URC_CAPACITY: usize> 
 /// [`new`]: #method.new
 pub struct ClientBuilder<Tx, T, U, D, const BUF_LEN: usize, const URC_CAPACITY: usize>
 where
-    Tx: embedded_hal::serial::Write<u8>,
-    T: embedded_hal::timer::CountDown,
+    Tx: embedded_hal::serial::nb::Write<u8>,
+    T: embedded_hal::timer::nb::CountDown,
     T::Time: From<u32>,
     U: UrcMatcher,
     D: Digester,
@@ -34,14 +34,14 @@ where
 impl<Tx, T, const BUF_LEN: usize, const URC_CAPACITY: usize>
     ClientBuilder<Tx, T, DefaultUrcMatcher, DefaultDigester, BUF_LEN, URC_CAPACITY>
 where
-    Tx: embedded_hal::serial::Write<u8>,
-    T: embedded_hal::timer::CountDown,
+    Tx: embedded_hal::serial::nb::Write<u8>,
+    T: embedded_hal::timer::nb::CountDown,
     T::Time: From<u32>,
 {
     /// Create a builder for new Atat client instance.
     ///
     /// The `serial_tx` type must implement the `embedded_hal`
-    /// [`serial::Write<u8>`][serialwrite] trait while the timer must implement
+    /// [`serial::nb::Write<u8>`][serialwrite] trait while the timer must implement
     /// the [`timer::CountDown`][timercountdown] trait.
     ///
     /// [serialwrite]: ../embedded_hal/serial/trait.Write.html
@@ -60,8 +60,8 @@ where
 impl<Tx, T, U, D, const BUF_LEN: usize, const URC_CAPACITY: usize>
     ClientBuilder<Tx, T, U, D, BUF_LEN, URC_CAPACITY>
 where
-    Tx: embedded_hal::serial::Write<u8>,
-    T: embedded_hal::timer::CountDown,
+    Tx: embedded_hal::serial::nb::Write<u8>,
+    T: embedded_hal::timer::nb::CountDown,
     T::Time: From<u32>,
     U: UrcMatcher,
     D: Digester,

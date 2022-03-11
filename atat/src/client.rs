@@ -1,4 +1,4 @@
-use embedded_hal::{serial, timer::CountDown};
+use embedded_hal::{serial, timer::nb::CountDown};
 
 use crate::atat_log;
 use crate::error::Error;
@@ -31,7 +31,7 @@ pub enum Mode {
 /// `reset` to the ingress-manager.
 pub struct Client<Tx, T, const BUF_LEN: usize, const URC_CAPACITY: usize>
 where
-    Tx: serial::Write<u8>,
+    Tx: serial::nb::Write<u8>,
     T: CountDown,
 {
     /// Serial writer
@@ -51,7 +51,7 @@ where
 
 impl<Tx, T, const BUF_LEN: usize, const URC_CAPACITY: usize> Client<Tx, T, BUF_LEN, URC_CAPACITY>
 where
-    Tx: serial::Write<u8>,
+    Tx: serial::nb::Write<u8>,
     T: CountDown,
     T::Time: From<u32>,
 {
@@ -78,7 +78,7 @@ where
 impl<Tx, T, const BUF_LEN: usize, const URC_CAPACITY: usize> AtatClient
     for Client<Tx, T, BUF_LEN, URC_CAPACITY>
 where
-    Tx: serial::Write<u8>,
+    Tx: serial::nb::Write<u8>,
     T: CountDown,
     T::Time: From<u32>,
 {
@@ -98,7 +98,7 @@ where
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
-            nb::block!(self.timer.try_wait()).ok();
+            nb::block!(self.timer.wait()).ok();
             let cmd_buf = cmd.as_bytes();
 
             if cmd_buf.len() < 50 {
@@ -112,9 +112,9 @@ where
             }
 
             for c in cmd_buf {
-                nb::block!(self.tx.try_write(c)).map_err(|_e| Error::Write)?;
+                nb::block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
             }
-            nb::block!(self.tx.try_flush()).map_err(|_e| Error::Write)?;
+            nb::block!(self.tx.flush()).map_err(|_e| Error::Write)?;
             self.state = ClientState::AwaitingResponse;
         }
 
@@ -127,7 +127,7 @@ where
             Mode::Blocking => Ok(nb::block!(self.check_response(cmd))?),
             Mode::NonBlocking => self.check_response(cmd),
             Mode::Timeout => {
-                self.timer.try_start(A::MAX_TIMEOUT_MS).ok();
+                self.timer.start(A::MAX_TIMEOUT_MS).ok();
                 Ok(nb::block!(self.check_response(cmd))?)
             }
         }
@@ -135,7 +135,7 @@ where
 
     fn peek_urc_with<URC: AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F) {
         if let Some(urc) = self.urc_c.peek() {
-            self.timer.try_start(self.config.cmd_cooldown).ok();
+            self.timer.start(self.config.cmd_cooldown).ok();
             if let Some(urc) = URC::parse(urc) {
                 if !f(urc) {
                     return;
@@ -157,7 +157,7 @@ where
                 .map_err(nb::Error::from)
                 .and_then(|r| {
                     if let ClientState::AwaitingResponse = self.state {
-                        self.timer.try_start(self.config.cmd_cooldown).ok();
+                        self.timer.start(self.config.cmd_cooldown).ok();
                         self.state = ClientState::Idle;
                         Ok(r)
                     } else {
@@ -167,12 +167,12 @@ where
                     }
                 })
                 .map_err(|e| {
-                    self.timer.try_start(self.config.cmd_cooldown).ok();
+                    self.timer.start(self.config.cmd_cooldown).ok();
                     self.state = ClientState::Idle;
                     e
                 });
         } else if let Mode::Timeout = self.config.mode {
-            if self.timer.try_wait().is_ok() {
+            if self.timer.wait().is_ok() {
                 self.state = ClientState::Idle;
                 // Tell the parser to reset to initial state due to timeout
                 if self.com_p.enqueue(Command::Reset).is_err() {
@@ -228,14 +228,25 @@ mod test {
     impl CountDown for CdMock {
         type Error = core::convert::Infallible;
         type Time = u32;
-        fn try_start<T>(&mut self, _count: T) -> Result<(), Self::Error>
+        fn start<T>(&mut self, _count: T) -> Result<(), Self::Error>
         where
             T: Into<Self::Time>,
         {
             Ok(())
         }
-        fn try_wait(&mut self) -> nb::Result<(), Self::Error> {
+        fn wait(&mut self) -> nb::Result<(), Self::Error> {
             Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    pub enum SerialError {
+        Error,
+    }
+
+    impl embedded_hal::serial::Error for SerialError {
+        fn kind(&self) -> serial::ErrorKind {
+            serial::ErrorKind::Other
         }
     }
 
@@ -249,14 +260,16 @@ mod test {
         }
     }
 
-    impl serial::Write<u8> for TxMock {
-        type Error = ();
+    impl serial::nb::Write<u8> for TxMock {
+        type Error = SerialError;
 
-        fn try_write(&mut self, c: u8) -> nb::Result<(), Self::Error> {
-            self.s.push(c as char).map_err(nb::Error::Other)
+        fn write(&mut self, c: u8) -> nb::Result<(), Self::Error> {
+            self.s
+                .push(c as char)
+                .map_err(|_| nb::Error::Other(SerialError::Error))
         }
 
-        fn try_flush(&mut self) -> nb::Result<(), Self::Error> {
+        fn flush(&mut self) -> nb::Result<(), Self::Error> {
             Ok(())
         }
     }

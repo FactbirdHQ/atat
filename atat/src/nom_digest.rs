@@ -45,7 +45,7 @@ impl Default for State {
 pub enum DigestResult<'a> {
     Urc(&'a [u8]),
     Response(Result<&'a [u8], InternalError>),
-    Prompt,
+    Prompt(u8),
     None,
 }
 
@@ -80,12 +80,12 @@ pub trait NewDigester {
 /// - '...<RESPONSE>\r\n<RESPONSE CODE>\r\n...'                          (Echo disabled)
 /// - '...<URC>\r\n...'                                                  (Unsolicited response code)
 /// - '...<URC>:<PARAMETERS>\r\n...'                                     (Unsolicited response code)
-/// - '...<PROMPT>\r\n'                                                  (Prompt for data)
+/// - '...<PROMPT>'                                                      (Prompt for data)
 ///
 /// Goal of the digester is to extract these into:
 /// - DigestResult::Response(Result<RESPONSE>)
 /// - DigestResult::Urc(<URC>)
-/// - DigestResult::Prompt
+/// - DigestResult::Prompt(<CHAR>)
 /// - DigestResult::None
 ///
 /// Usually <RESPONSE CODE> is one of ['OK', 'ERROR', 'CME ERROR: <NUMBER/STRING>', 'CMS ERROR: <NUMBER/STRING>'],
@@ -110,7 +110,7 @@ impl NomDigester {
     pub fn new() -> Self {
         Self {
             state: Default::default(),
-            prompts: &[b'>'],
+            prompts: &[b'>', b'@'],
         }
     }
 }
@@ -145,9 +145,11 @@ impl NewDigester for NomDigester {
             Err(e) => panic!("NOM ERROR {:?}", e),
         };
 
-        // TODO: Change to prompt fn & extend with more prompts? Also add way for custom prompts
-        if let Ok((_, Some(p))) = opt::<_, _, nom::error::Error<&[u8]>, _>(tag(self.prompts))(buf) {
-            return (DigestResult::Prompt, echo_bytes + p.len());
+        for prompt in self.prompts {
+            if let Ok((_, Some(p))) = opt::<_, _, nom::error::Error<&[u8]>, _>(tag(&[*prompt]))(buf)
+            {
+                return (DigestResult::Prompt(*prompt), echo_bytes + p.len());
+            }
         }
 
         // At this point we are ready to look for an actual command response or a URC
@@ -415,6 +417,11 @@ mod test {
         assert_eq!(r, &b"AT"[..]);
         assert_eq!(e, DigestResult::Urc(b"+UUSORD: 3,16,\"16 bytes of data\""));
         assert_eq!(l, 34);
+
+        let (r, (e, l)) = urc(b"RING\r\nOKA").unwrap();
+        assert_eq!(r, &b"OKA"[..]);
+        assert_eq!(e, DigestResult::Urc(b"RING"));
+        assert_eq!(l, 6);
     }
 
     #[test]
@@ -883,7 +890,20 @@ mod test {
         buf.extend_from_slice(b"AT+USECMNG=0,0,\"Verisign\",1758\r>")
             .unwrap();
         let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
-        assert_eq!((res, bytes), (DigestResult::Prompt, 32));
+        assert_eq!((res, bytes), (DigestResult::Prompt(b'>'), 32));
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
+    }
+
+    #[test]
+    fn ready_for_data_prompt() {
+        let mut digester = NomDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
+
+        buf.extend_from_slice(b"AT+USOWR=3,16\r@").unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
+        assert_eq!((res, bytes), (DigestResult::Prompt(b'@'), 15));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
     }
