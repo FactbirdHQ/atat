@@ -45,7 +45,7 @@
 //!         buf
 //!     }
 //!
-//!     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
+//!     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 //!         Ok(NoResponse)
 //!     }
 //! }
@@ -58,7 +58,7 @@
 //!         Vec::from_slice(b"AT+CSGT?").unwrap()
 //!     }
 //!
-//!     fn parse(&self, resp: Result<&[u8], &InternalError>) -> Result<Self::Response, Error<Self::Error>> {
+//!     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error<Self::Error>> {
 //!         // Parse resp into `GreetingText`
 //!         Ok(GreetingText {
 //!             text: String::from(core::str::from_utf8(resp.unwrap()).unwrap()),
@@ -207,18 +207,6 @@
 //!
 //! - **`derive`** *(enabled by default)* - Re-exports [`atat_derive`] to allow
 //!   deriving `Atat__` traits.
-//! - **`defmt-default`** *(disabled by default)* - Enable log statements at
-//!   INFO, or TRACE, level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-trace`** *(disabled by default)* - Enable log statements at TRACE
-//!   level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-debug`** *(disabled by default)* - Enable log statements at DEBUG
-//!   level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-info`** *(disabled by default)* - Enable log statements at INFO
-//!   level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-warn`** *(disabled by default)* - Enable log statements at WARN
-//!   level and up, to aid debugging. Powered by `defmt`.
-//! - **`defmt-error`** *(disabled by default)* - Enable log statements at ERROR
-//!   level and up, to aid debugging. Powered by `defmt`.
 
 // #![deny(warnings)]
 #![allow(clippy::multiple_crate_versions)]
@@ -229,6 +217,9 @@
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::used_underscore_binding)]
 // #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+
+// This mod MUST go first, so that the others see its macros.
+pub(crate) mod fmt;
 
 mod builder;
 mod client;
@@ -241,8 +232,13 @@ mod traits;
 mod urc_matcher;
 mod nom_digest;
 
+pub use bbqueue;
+
 #[cfg(feature = "bytes")]
 pub use serde_bytes;
+
+#[cfg(feature = "bytes")]
+pub use heapless_bytes;
 
 #[cfg(feature = "derive")]
 pub use atat_derive;
@@ -263,9 +259,11 @@ pub use client::{Client, Mode};
 pub use digest::{DefaultDigester, DigestResult, Digester};
 pub use error::{Error, GenericError, InternalError};
 pub use ingress_manager::IngressManager;
-pub use queues::{ComQueue, Queues, ResQueue, UrcQueue};
+pub use queues::{ComQueue, Queues};
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 pub use urc_matcher::{DefaultUrcMatcher, UrcMatcher, UrcMatcherResult};
+
+pub use fugit_timer::Timer as Clock;
 
 /// Commands that can be sent from the client to the ingress manager, for
 /// configuration after initial setup. This is also used for stuff like clearing
@@ -312,6 +310,28 @@ impl Config {
     pub const fn cmd_cooldown(mut self, ms: u32) -> Self {
         self.cmd_cooldown = ms;
         self
+    }
+}
+
+pub struct ResponseHeader;
+
+impl ResponseHeader {
+    pub fn as_bytes<'a, const BUF_LEN: usize>(
+        res: &'a Result<heapless::Vec<u8, BUF_LEN>, InternalError>,
+    ) -> ([u8; 2], &'a [u8]) {
+        match res {
+            Ok(ref r) => ([0xFF, 0xFF], r.as_ref()),
+            Err(InternalError::Error(ref b)) => ([0x00, 0x07], b.as_ref()),
+            Err(ref e) => ([0x00, e.as_byte()], &[]),
+        }
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<&[u8], InternalError> {
+        match bytes[0] {
+            0xFF => Ok(&bytes[2..]),
+            0x00 => Err(InternalError::from_bytes(&bytes[1..])),
+            _ => Err(InternalError::Parse),
+        }
     }
 }
 

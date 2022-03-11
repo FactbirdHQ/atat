@@ -1,10 +1,12 @@
-use embedded_hal::{serial, timer::nb::CountDown};
+use bbqueue::framed::FrameConsumer;
+use embedded_hal::serial;
+use fugit::ExtU32;
 
-use crate::atat_log;
 use crate::error::Error;
 use crate::helpers::LossyStr;
-use crate::queues::{ComProducer, ResConsumer, UrcConsumer, RES_CAPACITY};
+use crate::queues::ComProducer;
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
+use crate::ResponseHeader;
 use crate::{Command, Config};
 
 #[derive(Debug, PartialEq)]
@@ -29,40 +31,47 @@ pub enum Mode {
 /// some spsc queue consumers, where any received responses can be dequeued. The
 /// Client also has an spsc producer, to allow signaling commands like
 /// `reset` to the ingress-manager.
-pub struct Client<Tx, T, const BUF_LEN: usize, const URC_CAPACITY: usize>
-where
+pub struct Client<
+    Tx,
+    CLK,
+    const TIMER_HZ: u32,
+    const RES_CAPACITY: usize,
+    const URC_CAPACITY: usize,
+> where
     Tx: serial::nb::Write<u8>,
-    T: CountDown,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
 {
     /// Serial writer
     tx: Tx,
 
     /// The response consumer receives responses from the ingress manager
-    res_c: ResConsumer<BUF_LEN>,
+    res_c: FrameConsumer<'static, RES_CAPACITY>,
     /// The URC consumer receives URCs from the ingress manager
-    urc_c: UrcConsumer<BUF_LEN, URC_CAPACITY>,
+    urc_c: FrameConsumer<'static, URC_CAPACITY>,
     /// The command producer can send commands to the ingress manager
     com_p: ComProducer,
 
     state: ClientState,
-    timer: T,
+    timer: CLK,
     config: Config,
 }
 
-impl<Tx, T, const BUF_LEN: usize, const URC_CAPACITY: usize> Client<Tx, T, BUF_LEN, URC_CAPACITY>
+impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
+    Client<Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
 where
     Tx: serial::nb::Write<u8>,
-    T: CountDown,
-    T::Time: From<u32>,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
 {
     pub fn new(
         tx: Tx,
-        res_c: ResConsumer<BUF_LEN>,
-        urc_c: UrcConsumer<BUF_LEN, URC_CAPACITY>,
+        res_c: FrameConsumer<'static, RES_CAPACITY>,
+        urc_c: FrameConsumer<'static, URC_CAPACITY>,
         com_p: ComProducer,
-        timer: T,
+        mut timer: CLK,
         config: Config,
     ) -> Self {
+        timer.start(config.cmd_cooldown.millis()).ok();
+
         Self {
             tx,
             res_c,
@@ -75,12 +84,11 @@ where
     }
 }
 
-impl<Tx, T, const BUF_LEN: usize, const URC_CAPACITY: usize> AtatClient
-    for Client<Tx, T, BUF_LEN, URC_CAPACITY>
+impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
+    for Client<Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
 where
     Tx: serial::nb::Write<u8>,
-    T: CountDown,
-    T::Time: From<u32>,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
 {
     fn send<A: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
@@ -89,10 +97,7 @@ where
         if let ClientState::Idle = self.state {
             if A::FORCE_RECEIVE_STATE && self.com_p.enqueue(Command::ForceReceiveState).is_err() {
                 // TODO: Consider how to act in this situation.
-                atat_log!(
-                    error,
-                    "Failed to signal parser to force state transition to 'ReceivingResponse'!"
-                );
+                error!("Failed to signal parser to force state transition to 'ReceivingResponse'!",);
             }
 
             // compare the time of the last response or URC and ensure at least
@@ -102,12 +107,11 @@ where
             let cmd_buf = cmd.as_bytes();
 
             if cmd_buf.len() < 50 {
-                atat_log!(debug, "Sending command: \"{:?}\"", LossyStr(&cmd_buf));
+                debug!("Sending command: \"{:?}\"", LossyStr(&cmd_buf));
             } else {
-                atat_log!(
-                    debug,
+                debug!(
                     "Sending command with too long payload ({} bytes) to log!",
-                    cmd_buf.len()
+                    cmd_buf.len(),
                 );
             }
 
@@ -127,23 +131,23 @@ where
             Mode::Blocking => Ok(nb::block!(self.check_response(cmd))?),
             Mode::NonBlocking => self.check_response(cmd),
             Mode::Timeout => {
-                self.timer.start(A::MAX_TIMEOUT_MS).ok();
+                self.timer.start(A::MAX_TIMEOUT_MS.millis()).ok();
                 Ok(nb::block!(self.check_response(cmd))?)
             }
         }
     }
 
     fn peek_urc_with<URC: AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F) {
-        if let Some(urc) = self.urc_c.peek() {
-            self.timer.start(self.config.cmd_cooldown).ok();
-            if let Some(urc) = URC::parse(urc) {
+        if let Some(urc_grant) = self.urc_c.read() {
+            self.timer.start(self.config.cmd_cooldown.millis()).ok();
+            if let Some(urc) = URC::parse(urc_grant.as_ref()) {
                 if !f(urc) {
                     return;
                 }
             } else {
-                atat_log!(error, "Parsing URC FAILED: {:?}", LossyStr(urc));
+                error!("Parsing URC FAILED: {:?}", LossyStr(urc_grant.as_ref()));
             }
-            unsafe { self.urc_c.dequeue_unchecked() };
+            urc_grant.release();
         }
     }
 
@@ -151,23 +155,25 @@ where
         &mut self,
         cmd: &A,
     ) -> nb::Result<A::Response, Error<A::Error>> {
-        if let Some(result) = self.res_c.dequeue() {
+        if let Some(mut res_grant) = self.res_c.read() {
+            res_grant.auto_release(true);
+
             return cmd
-                .parse(result.as_deref())
+                .parse(ResponseHeader::from_bytes(res_grant.as_ref()))
                 .map_err(nb::Error::from)
                 .and_then(|r| {
                     if let ClientState::AwaitingResponse = self.state {
-                        self.timer.start(self.config.cmd_cooldown).ok();
+                        self.timer.start(self.config.cmd_cooldown.millis()).ok();
                         self.state = ClientState::Idle;
                         Ok(r)
                     } else {
                         // FIXME: Is this correct?
-                        atat_log!(error, "Is this correct?! WouldBlock");
+                        error!("Is this correct?! WouldBlock");
                         Err(nb::Error::WouldBlock)
                     }
                 })
                 .map_err(|e| {
-                    self.timer.start(self.config.cmd_cooldown).ok();
+                    self.timer.start(self.config.cmd_cooldown.millis()).ok();
                     self.state = ClientState::Idle;
                     e
                 });
@@ -177,7 +183,7 @@ where
                 // Tell the parser to reset to initial state due to timeout
                 if self.com_p.enqueue(Command::Reset).is_err() {
                     // TODO: Consider how to act in this situation.
-                    atat_log!(error, "Failed to signal parser to clear buffer on timeout!");
+                    error!("Failed to signal parser to clear buffer on timeout!");
                 }
                 return Err(nb::Error::Other(Error::Timeout));
             }
@@ -192,18 +198,14 @@ where
     fn reset(&mut self) {
         if self.com_p.enqueue(Command::Reset).is_err() {
             // TODO: Consider how to act in this situation.
-            atat_log!(error, "Failed to signal ingress manager to reset!");
+            error!("Failed to signal ingress manager to reset!");
+        }
+        while let Some(grant) = self.res_c.read() {
+            grant.release();
         }
 
-        for _ in 0..RES_CAPACITY {
-            if self.res_c.dequeue().is_none() {
-                break;
-            }
-        }
-        for _ in 0..URC_CAPACITY {
-            if self.urc_c.dequeue().is_none() {
-                break;
-            }
+        while let Some(grant) = self.urc_c.read() {
+            grant.release();
         }
     }
 }
@@ -215,25 +217,42 @@ mod test {
     use crate::{self as atat, InternalError};
     use crate::{
         atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc},
-        GenericError,
+        Clock, GenericError,
     };
+    use bbqueue::framed::FrameProducer;
+    use bbqueue::BBBuffer;
     use heapless::{spsc::Queue, String, Vec};
     use nb;
 
     const TEST_RX_BUF_LEN: usize = 256;
-    const TEST_URC_CAPACITY: usize = 10;
+    const TEST_RES_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
+    const TEST_URC_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
+    const TIMER_HZ: u32 = 1000;
 
-    struct CdMock;
+    struct CdMock<const TIMER_HZ: u32>;
 
-    impl CountDown for CdMock {
+    impl<const TIMER_HZ: u32> Clock<TIMER_HZ> for CdMock<TIMER_HZ> {
         type Error = core::convert::Infallible;
-        type Time = u32;
-        fn start<T>(&mut self, _count: T) -> Result<(), Self::Error>
-        where
-            T: Into<Self::Time>,
-        {
+
+        /// Return current time `Instant`
+        fn now(&mut self) -> fugit::TimerInstantU32<TIMER_HZ> {
+            fugit::TimerInstantU32::from_ticks(0)
+        }
+
+        /// Start countdown with a `duration`
+        fn start(
+            &mut self,
+            _duration: fugit::TimerDurationU32<TIMER_HZ>,
+        ) -> Result<(), Self::Error> {
             Ok(())
         }
+
+        /// Stop timer
+        fn cancel(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
+        /// Wait until countdown `duration` set with the `fn start` has expired
         fn wait(&mut self) -> nb::Result<(), Self::Error> {
             Ok(())
         }
@@ -261,12 +280,12 @@ mod test {
     }
 
     impl serial::nb::Write<u8> for TxMock {
-        type Error = SerialError;
+        type Error = serial::ErrorKind;
 
         fn write(&mut self, c: u8) -> nb::Result<(), Self::Error> {
             self.s
                 .push(c as char)
-                .map_err(|_| nb::Error::Other(SerialError::Error))
+                .map_err(|_| nb::Error::Other(serial::ErrorKind::Other))
         }
 
         fn flush(&mut self) -> nb::Result<(), Self::Error> {
@@ -311,14 +330,7 @@ mod test {
         #[at_arg(position = 0)]
         pub rst: Option<ResetMode>,
     }
-    #[derive(Clone, AtatCmd)]
-    #[at_cmd("+CUN", TestResponseVec, timeout_ms = 180000)]
-    pub struct TestRespVecCmd {
-        #[at_arg(position = 0)]
-        pub fun: Functionality,
-        #[at_arg(position = 1)]
-        pub rst: Option<ResetMode>,
-    }
+
     #[derive(Clone, AtatCmd)]
     #[at_cmd("+CUN", TestResponseString, timeout_ms = 180000)]
     pub struct TestRespStringCmd {
@@ -363,15 +375,6 @@ mod test {
     }
     #[derive(Clone, AtatResp, PartialEq, Debug)]
     pub struct NoResponse;
-    #[derive(Clone, AtatResp, PartialEq, Debug)]
-    pub struct TestResponseVec {
-        #[at_arg(position = 0)]
-        pub socket: u8,
-        #[at_arg(position = 1)]
-        pub length: usize,
-        #[at_arg(position = 2)]
-        pub data: Vec<u8, TEST_RX_BUF_LEN>,
-    }
 
     #[derive(Clone, AtatResp, PartialEq, Debug)]
     pub struct TestResponseString {
@@ -409,22 +412,43 @@ mod test {
 
     macro_rules! setup {
         ($config:expr) => {{
-            static mut RES_Q: queues::ResQueue<TEST_RX_BUF_LEN> = Queue::new();
-            let (res_p, res_c) = unsafe { RES_Q.split() };
-            static mut URC_Q: queues::UrcQueue<TEST_RX_BUF_LEN, TEST_URC_CAPACITY> = Queue::new();
-            let (urc_p, urc_c) = unsafe { URC_Q.split() };
+            static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer::new();
+            let (res_p, res_c) = unsafe { RES_Q.try_split_framed().unwrap() };
+
+            static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer::new();
+            let (urc_p, urc_c) = unsafe { URC_Q.try_split_framed().unwrap() };
+
             static mut COM_Q: queues::ComQueue = Queue::new();
             let (com_p, _com_c) = unsafe { COM_Q.split() };
 
-            assert_eq!(res_p.capacity(), crate::queues::RES_CAPACITY);
-            assert_eq!(urc_p.capacity(), TEST_URC_CAPACITY - 1);
             assert_eq!(com_p.capacity(), crate::queues::COM_CAPACITY);
 
             let tx_mock = TxMock::new(String::new());
-            let client: Client<TxMock, CdMock, TEST_RX_BUF_LEN, TEST_URC_CAPACITY> =
-                Client::new(tx_mock, res_c, urc_c, com_p, CdMock, $config);
+            let client: Client<
+                TxMock,
+                CdMock<TIMER_HZ>,
+                TIMER_HZ,
+                TEST_RES_CAPACITY,
+                TEST_URC_CAPACITY,
+            > = Client::new(tx_mock, res_c, urc_c, com_p, CdMock, $config);
             (client, res_p, urc_p)
         }};
+    }
+
+    pub fn enqueue_res(
+        producer: &mut FrameProducer<'static, TEST_RES_CAPACITY>,
+        res: Result<Vec<u8, TEST_RX_BUF_LEN>, InternalError>,
+    ) {
+        let (header, bytes) = ResponseHeader::as_bytes(&res);
+
+        if let Ok(mut grant) = producer.grant(bytes.len() + header.len()) {
+            grant[0..header.len()].copy_from_slice(&header);
+            grant[header.len()..header.len() + bytes.len()].copy_from_slice(bytes);
+            grant.commit(bytes.len() + header.len());
+        } else {
+            // FIXME: Handle queue being full
+            error!("Response queue full!");
+        }
     }
 
     #[test]
@@ -433,7 +457,7 @@ mod test {
 
         let cmd = ErrorTester { x: 7 };
 
-        p.enqueue(Err(InternalError::Error(Vec::new()))).unwrap();
+        enqueue_res(&mut p, Err(InternalError::Error(Vec::new())));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(
@@ -452,7 +476,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Err(InternalError::Error(Vec::new()))).unwrap();
+        enqueue_res(&mut p, Err(InternalError::Error(Vec::new())));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(
@@ -471,7 +495,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Ok(Vec::<u8, TEST_RX_BUF_LEN>::new())).unwrap();
+        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -483,7 +507,7 @@ mod test {
             "Wrong encoding of string"
         );
 
-        p.enqueue(Ok(Vec::<u8, TEST_RX_BUF_LEN>::new())).unwrap();
+        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
 
         let cmd = Test2Cmd {
             fun: Functionality::DM,
@@ -527,7 +551,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Ok(Vec::<u8, TEST_RX_BUF_LEN>::new())).unwrap();
+        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -550,7 +574,7 @@ mod test {
 
         assert_eq!(client.check_response(&cmd), Err(nb::Error::WouldBlock));
 
-        p.enqueue(Ok(Vec::<u8, TEST_RX_BUF_LEN>::new())).unwrap();
+        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
 
         assert_eq!(client.state, ClientState::AwaitingResponse);
 
@@ -558,34 +582,6 @@ mod test {
         assert_eq!(client.state, ClientState::Idle);
     }
 
-    // Testing unsupported feature in form of vec deserialization
-    #[test]
-    #[ignore]
-    fn response_vec() {
-        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
-
-        let cmd = TestRespVecCmd {
-            fun: Functionality::APM,
-            rst: Some(ResetMode::DontReset),
-        };
-
-        let response =
-            Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
-        p.enqueue(Ok(response)).unwrap();
-
-        assert_eq!(client.state, ClientState::Idle);
-
-        assert_eq!(
-            client.send(&cmd),
-            Ok(TestResponseVec {
-                socket: 22,
-                length: 16,
-                data: Vec::from_slice(b"0123456789012345").unwrap()
-            })
-        );
-        assert_eq!(client.state, ClientState::Idle);
-        assert_eq!(client.tx.s, String::<32>::from("AT+CFUN=4,0\r\n"));
-    }
     // Test response containing string
     #[test]
     fn response_string() {
@@ -599,7 +595,7 @@ mod test {
 
         let response =
             Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
-        p.enqueue(Ok(response)).unwrap();
+        enqueue_res(&mut p, Ok(response));
 
         assert_eq!(client.state, ClientState::Idle);
 
@@ -621,7 +617,7 @@ mod test {
 
         let response =
             Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: \"0123456789012345\",22,16").unwrap();
-        p.enqueue(Ok(response)).unwrap();
+        enqueue_res(&mut p, Ok(response));
 
         assert_eq!(
             client.send(&cmd),
@@ -639,7 +635,10 @@ mod test {
         let (mut client, _, mut urc_p) = setup!(Config::new(Mode::NonBlocking));
 
         let response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+UMWI: 0, 1").unwrap();
-        urc_p.enqueue(response).unwrap();
+
+        let mut grant = urc_p.grant(response.len()).unwrap();
+        grant.copy_from_slice(response.as_ref());
+        grant.commit(response.len());
 
         assert_eq!(client.state, ClientState::Idle);
         assert!(client.check_urc::<Urc>().is_some());
@@ -657,7 +656,7 @@ mod test {
         };
 
         let response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: 22,16,22").unwrap();
-        p.enqueue(Ok(response)).unwrap();
+        enqueue_res(&mut p, Ok(response));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Parse)));

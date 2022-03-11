@@ -92,13 +92,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: ["x86_64-unknown-linux-gnu", "thumbv7m-none-eabi"]
+        target: ["x86_64-unknown-linux-gnu", "thumbv7em-none-eabihf"]
         features:
           [
             "",
             "derive",
             "derive, log",
-            "derive, defmt-default",
+            "derive, defmt",
           ]
         include:
           - target: "x86_64-unknown-linux-gnu"
@@ -108,9 +108,9 @@ jobs:
             features: "derive, log"
             std: ", std"
           - target: "x86_64-unknown-linux-gnu"
-            features: "derive, defmt-default"
+            features: "derive, defmt"
             std: ", std"
-          - target: "thumbv7m-none-eabi"
+          - target: "thumbv7em-none-eabihf"
             examples: "--examples"
     steps:
       - name: Checkout source code
@@ -121,7 +121,7 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-          target: thumbv7m-none-eabi
+          target: thumbv7em-none-eabihf
           override: true
 
       - name: Build
@@ -141,7 +141,7 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-          target: thumbv7m-none-eabi
+          target: thumbv7em-none-eabihf
           override: true
       - name: Library tests
         uses: actions-rs/cargo@v1
@@ -167,7 +167,7 @@ jobs:
         with:
           profile: minimal
           toolchain: nightly
-          target: thumbv7m-none-eabi
+          target: thumbv7em-none-eabihf
           override: true
 
       - name: Install grcov
@@ -178,7 +178,7 @@ jobs:
           # version: latest
           # use-tool-cache: true
           command: install
-          args: grcov --git https://github.com/mozilla/grcov
+          args: --locked grcov --git https://github.com/mozilla/grcov
 
       - name: Test
         uses: actions-rs/cargo@v1

@@ -1,5 +1,4 @@
 use crate::{
-    atat_log,
     helpers::{get_line, LossyStr, SliceExt},
     urc_matcher::{UrcMatcher, UrcMatcherResult},
     InternalError,
@@ -78,17 +77,11 @@ impl Digester for DefaultDigester {
     ) -> DigestResult<L> {
         // Trim leading whitespace
         if buf.starts_with(&[Self::LINE_TERM_CHAR]) || buf.starts_with(&[Self::FORMAT_CHAR]) {
-            *buf = Vec::from_slice(buf.trim_start(&[
-                b'\t',
-                b' ',
-                Self::FORMAT_CHAR,
-                Self::LINE_TERM_CHAR,
-            ]))
-            .unwrap();
+            buf.trim_start(&[b'\t', b' ', Self::FORMAT_CHAR, Self::LINE_TERM_CHAR]);
         }
 
         if !buf.is_empty() {
-            atat_log!(trace, "Digest {:?} / {:?}", self.state, LossyStr(buf));
+            trace!("Digest {:?} / {:?}", self.state, LossyStr(buf));
         }
 
         match self.state {
@@ -108,7 +101,7 @@ impl Digester for DefaultDigester {
                     {
                         self.state = State::ReceivingResponse;
                         self.buf_incomplete = false;
-                        atat_log!(trace, "Switching to state ReceivingResponse");
+                        trace!("Switching to state ReceivingResponse");
                     }
 
                 // Handle URCs
@@ -141,8 +134,7 @@ impl Digester for DefaultDigester {
                 // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
                 // ensure that we don't accidentally break a valid response.
                 } else if self.buf_incomplete || buf.len() > 2 {
-                    atat_log!(
-                        error,
+                    error!(
                         "Clearing buffer with invalid response (incomplete: {}, buflen: {})",
                         self.buf_incomplete,
                         buf.len()
@@ -164,10 +156,10 @@ impl Digester for DefaultDigester {
                     );
 
                     if let Some(r) = removed {
-                        atat_log!(debug, "Cleared partial buffer, removed {:?}", LossyStr(&r));
+                        debug!("Cleared partial buffer, removed {:?}", LossyStr(&r));
                     } else {
                         buf.clear();
-                        atat_log!(debug, "Cleared partial buffer, removed everything");
+                        debug!("Cleared partial buffer, removed everything");
                     }
 
                     // If the buffer wasn't cleared completely, that means that
@@ -245,7 +237,7 @@ impl Digester for DefaultDigester {
                     return DigestResult::None;
                 };
 
-                atat_log!(trace, "Switching to state Idle");
+                trace!("Switching to state Idle");
                 self.state = State::Idle;
                 return DigestResult::Response(resp);
             }
@@ -259,7 +251,7 @@ impl Digester for DefaultDigester {
 mod test {
     use super::*;
     use crate::helpers::SliceExt;
-    use crate::queues::{ComQueue, ResQueue, UrcQueue};
+    use crate::queues::ComQueue;
     use crate::urc_matcher::{DefaultUrcMatcher, UrcMatcherResult};
     use crate::{digest::State, urc_matcher};
     use heapless::spsc::Queue;

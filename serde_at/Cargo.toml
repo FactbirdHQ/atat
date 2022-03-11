@@ -9,14 +9,11 @@ repository = "https://github.com/BlackbirdHQ/atat"
 keywords = ["serde", "AT"]
 license = "MIT OR Apache-2.0"
 name = "serde_at"
-version = "0.11.1-alpha.0"
+version = "0.15.0"
 
 [dependencies]
 heapless = { version = "^0.7", features = ["serde"] }
-
-[dependencies.serde]
-default-features = false
-version = "^1"
+serde = { version = "^1", default-features = false }
 
 [dev-dependencies]
 serde_derive = "^1"
