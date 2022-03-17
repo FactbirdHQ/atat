@@ -10,6 +10,7 @@ use crate::ResponseHeader;
 use crate::{Command, Config};
 
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 enum ClientState {
     Idle,
     AwaitingResponse,
@@ -17,6 +18,7 @@ enum ClientState {
 
 /// Whether the AT client should block while waiting responses or return early.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Mode {
     /// The function call will wait as long as necessary to complete the operation
     Blocking,
@@ -259,9 +261,7 @@ mod test {
     }
 
     #[derive(Debug)]
-    pub enum SerialError {
-        Error,
-    }
+    pub enum SerialError {}
 
     impl embedded_hal::serial::Error for SerialError {
         fn kind(&self) -> serial::ErrorKind {
@@ -437,7 +437,7 @@ mod test {
 
     pub fn enqueue_res(
         producer: &mut FrameProducer<'static, TEST_RES_CAPACITY>,
-        res: Result<Vec<u8, TEST_RX_BUF_LEN>, InternalError>,
+        res: Result<&[u8], InternalError>,
     ) {
         let (header, bytes) = ResponseHeader::as_bytes(&res);
 
@@ -457,13 +457,10 @@ mod test {
 
         let cmd = ErrorTester { x: 7 };
 
-        enqueue_res(&mut p, Err(InternalError::Error(Vec::new())));
+        enqueue_res(&mut p, Err(InternalError::Error));
 
         assert_eq!(client.state, ClientState::Idle);
-        assert_eq!(
-            nb::block!(client.send(&cmd)),
-            Err(Error::Error(InnerError::Test))
-        );
+        assert_eq!(nb::block!(client.send(&cmd)), Err(Error::Error));
         assert_eq!(client.state, ClientState::Idle);
     }
 
@@ -476,13 +473,10 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Err(InternalError::Error(Vec::new())));
+        enqueue_res(&mut p, Err(InternalError::Error));
 
         assert_eq!(client.state, ClientState::Idle);
-        assert_eq!(
-            nb::block!(client.send(&cmd)),
-            Err(Error::Error(GenericError))
-        );
+        assert_eq!(nb::block!(client.send(&cmd)), Err(Error::Error));
         assert_eq!(client.state, ClientState::Idle);
     }
 
@@ -495,7 +489,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Ok(&[]));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -507,7 +501,7 @@ mod test {
             "Wrong encoding of string"
         );
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Ok(&[]));
 
         let cmd = Test2Cmd {
             fun: Functionality::DM,
@@ -551,7 +545,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Ok(&[]));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -574,7 +568,7 @@ mod test {
 
         assert_eq!(client.check_response(&cmd), Err(nb::Error::WouldBlock));
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Ok(&[]));
 
         assert_eq!(client.state, ClientState::AwaitingResponse);
 
@@ -593,8 +587,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let response =
-            Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
+        let response = b"+CUN: 22,16,\"0123456789012345\"";
         enqueue_res(&mut p, Ok(response));
 
         assert_eq!(client.state, ClientState::Idle);
@@ -615,8 +608,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let response =
-            Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: \"0123456789012345\",22,16").unwrap();
+        let response = b"+CUN: \"0123456789012345\",22,16";
         enqueue_res(&mut p, Ok(response));
 
         assert_eq!(
@@ -634,7 +626,7 @@ mod test {
     fn urc() {
         let (mut client, _, mut urc_p) = setup!(Config::new(Mode::NonBlocking));
 
-        let response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+UMWI: 0, 1").unwrap();
+        let response = b"+UMWI: 0, 1";
 
         let mut grant = urc_p.grant(response.len()).unwrap();
         grant.copy_from_slice(response.as_ref());
@@ -655,7 +647,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: 22,16,22").unwrap();
+        let response = b"+CUN: 22,16,22";
         enqueue_res(&mut p, Ok(response));
 
         assert_eq!(client.state, ClientState::Idle);

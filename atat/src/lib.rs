@@ -216,21 +216,21 @@
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::used_underscore_binding)]
-// #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 
 // This mod MUST go first, so that the others see its macros.
 pub(crate) mod fmt;
 
 mod builder;
 mod client;
-mod digest;
+// mod digest;
 mod error;
 pub mod helpers;
 mod ingress_manager;
+mod nom_digest;
 mod queues;
 mod traits;
 mod urc_matcher;
-mod nom_digest;
 
 pub use bbqueue;
 
@@ -256,9 +256,9 @@ pub use heapless;
 
 pub use builder::ClientBuilder;
 pub use client::{Client, Mode};
-pub use digest::{DefaultDigester, DigestResult, Digester};
 pub use error::{Error, GenericError, InternalError};
 pub use ingress_manager::IngressManager;
+pub use nom_digest::{DigestResult, NewDigester as Digester, NomDigester as DefaultDigester};
 pub use queues::{ComQueue, Queues};
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 pub use urc_matcher::{DefaultUrcMatcher, UrcMatcher, UrcMatcherResult};
@@ -316,17 +316,15 @@ impl Config {
 pub struct ResponseHeader;
 
 impl ResponseHeader {
-    pub fn as_bytes<'a, const BUF_LEN: usize>(
-        res: &'a Result<heapless::Vec<u8, BUF_LEN>, InternalError>,
-    ) -> ([u8; 2], &'a [u8]) {
+    pub fn as_bytes<'a>(res: &'a Result<&'a [u8], InternalError<'a>>) -> ([u8; 2], &'a [u8]) {
         match res {
-            Ok(ref r) => ([0xFF, 0xFF], r.as_ref()),
-            Err(InternalError::Error(ref b)) => ([0x00, 0x07], b.as_ref()),
+            Ok(r) => ([0xFF, 0xFF], r),
+            Err(InternalError::NamedError(ref t, ref b)) => ([0x00, 0x07], b.as_ref()),
             Err(ref e) => ([0x00, e.as_byte()], &[]),
         }
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<&[u8], InternalError> {
+    pub fn from_bytes<'a>(bytes: &'a [u8]) -> Result<&'a [u8], InternalError<'a>> {
         match bytes[0] {
             0xFF => Ok(&bytes[2..]),
             0x00 => Err(InternalError::from_bytes(&bytes[1..])),

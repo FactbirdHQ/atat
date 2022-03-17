@@ -779,12 +779,21 @@ impl fmt::Display for Error {
     }
 }
 
+fn trim_ascii_whitespace(x: &[u8]) -> &[u8] {
+    let from = match x.iter().position(|x| !x.is_ascii_whitespace()) {
+        Some(i) => i,
+        None => return &x[0..0],
+    };
+    let to = x.iter().rposition(|x| !x.is_ascii_whitespace()).unwrap();
+    &x[from..=to]
+}
+
 /// Deserializes an instance of type `T` from bytes of AT Response text
 pub fn from_slice<'a, T>(v: &'a [u8]) -> Result<T>
 where
     T: de::Deserialize<'a>,
 {
-    let mut de = Deserializer::new(v);
+    let mut de = Deserializer::new(trim_ascii_whitespace(v));
     let value = de::Deserialize::deserialize(&mut de)?;
     de.end()?;
     Ok(value)

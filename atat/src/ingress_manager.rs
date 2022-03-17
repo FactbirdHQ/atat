@@ -7,7 +7,7 @@ use crate::queues::ComConsumer;
 use crate::Command;
 use crate::ResponseHeader;
 use crate::{
-    digest::{DefaultDigester, DigestResult, Digester},
+    nom_digest::{DigestResult, NewDigester as Digester, NomDigester as DefaultDigester},
     urc_matcher::{DefaultUrcMatcher, UrcMatcher},
 };
 
@@ -91,7 +91,14 @@ where
 
         if self.buf.extend_from_slice(data).is_err() {
             error!("OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
-            self.notify_response(Err(InternalError::Overflow));
+            let (header, bytes) = ResponseHeader::as_bytes(&Err(InternalError::Overflow));
+            if let Ok(mut grant) = self.res_p.grant(bytes.len() + header.len()) {
+                grant[0..header.len()].copy_from_slice(&header);
+                grant[header.len()..header.len() + bytes.len()].copy_from_slice(bytes);
+                grant.commit(bytes.len() + header.len());
+            } else {
+                error!("Response queue full!");
+            }
         }
     }
 
@@ -116,48 +123,6 @@ where
         self.buf.capacity()
     }
 
-    /// Notify the client that an appropriate response code, or error has been
-    /// received
-    fn notify_response(&mut self, resp: Result<Vec<u8, BUF_LEN>, InternalError>) {
-        #[cfg(any(feature = "defmt", feature = "log"))]
-        match &resp {
-            Ok(r) => {
-                if r.is_empty() {
-                    debug!("Received OK")
-                } else {
-                    debug!("Received response: \"{:?}\"", LossyStr(r.as_ref()));
-                }
-            }
-            Err(e) => {
-                error!("Received error response {:?}", e);
-            }
-        };
-
-        let (header, bytes) = ResponseHeader::as_bytes(&resp);
-        if let Ok(mut grant) = self.res_p.grant(bytes.len() + header.len()) {
-            grant[0..header.len()].copy_from_slice(&header);
-            grant[header.len()..header.len() + bytes.len()].copy_from_slice(bytes);
-            grant.commit(bytes.len() + header.len());
-        } else {
-            // FIXME: Handle queue being full
-            error!("Response queue full!");
-        }
-    }
-
-    /// Notify the client that an unsolicited response code (URC) has been
-    /// received
-    fn notify_urc(&mut self, resp: Vec<u8, BUF_LEN>) {
-        debug!("Received response: \"{:?}\"", LossyStr(&resp));
-
-        if let Ok(mut grant) = self.urc_p.grant(resp.len()) {
-            grant.copy_from_slice(resp.as_ref());
-            grant.commit(resp.len());
-        } else {
-            // FIXME: Handle queue being full
-            error!("URC queue full!");
-        }
-    }
-
     /// Handle receiving internal config commands from the client.
     fn handle_com(&mut self) {
         if let Some(com) = self.com_c.dequeue() {
@@ -176,15 +141,65 @@ where
     }
 
     pub fn digest(&mut self) {
-        for _ in 0..5 {
-            // Handle commands every loop to catch timeouts asap
-            self.handle_com();
+        // Handle commands every loop to catch timeouts asap
+        self.handle_com();
 
-            match self.digester.digest(&mut self.buf, &mut self.urc_matcher) {
-                DigestResult::None => {}
-                DigestResult::Urc(urc_line) => self.notify_urc(urc_line),
-                DigestResult::Response(resp) => self.notify_response(resp),
-            };
+        if let Ok(swallowed) = match self.digester.digest(&self.buf, &mut self.urc_matcher) {
+            (DigestResult::None, swallowed) => Ok(swallowed),
+            (DigestResult::Prompt(prompt), swallowed) => {
+                info!("GOT PROMPT {}", prompt);
+                let (header, bytes) = ResponseHeader::as_bytes(&Ok(&[]));
+                let grant_len = bytes.len() + header.len();
+                if let Ok(mut grant) = self.res_p.grant(grant_len) {
+                    grant[..header.len()].copy_from_slice(&header);
+                    grant[header.len()..grant_len].copy_from_slice(bytes);
+                    grant.commit(grant_len);
+                    Ok(swallowed)
+                } else {
+                    error!("Response queue full!");
+                    Err(())
+                }
+            }
+            (DigestResult::Urc(urc_line), swallowed) => {
+                if let Ok(mut grant) = self.urc_p.grant(urc_line.len()) {
+                    grant.copy_from_slice(urc_line);
+                    grant.commit(urc_line.len());
+                    Ok(swallowed)
+                } else {
+                    error!("URC queue full!");
+                    Err(())
+                }
+            }
+            (DigestResult::Response(resp), swallowed) => {
+                #[cfg(any(feature = "defmt", feature = "log"))]
+                match &resp {
+                    Ok(r) => {
+                        if r.is_empty() {
+                            debug!("Received OK")
+                        } else {
+                            debug!("Received response: \"{:?}\"", LossyStr(r.as_ref()));
+                        }
+                    }
+                    Err(e) => {
+                        error!("Received error response {:?}", e);
+                    }
+                };
+
+                let (header, bytes) = ResponseHeader::as_bytes(&resp);
+                let grant_len = bytes.len() + header.len();
+                if let Ok(mut grant) = self.res_p.grant(grant_len) {
+                    grant[..header.len()].copy_from_slice(&header);
+                    grant[header.len()..grant_len].copy_from_slice(bytes);
+                    grant.commit(grant_len);
+                    Ok(swallowed)
+                } else {
+                    error!("Response queue full!");
+                    Err(())
+                }
+            }
+        } {
+            self.buf.rotate_left(swallowed);
+            self.buf.truncate(self.buf.len() - swallowed);
         }
     }
 }

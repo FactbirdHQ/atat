@@ -1,7 +1,11 @@
 use crate::{
-    digest::{DefaultDigester, Digester},
+    // digest::{DefaultDigester, Digester},
+    nom_digest::{NewDigester as Digester, NomDigester as DefaultDigester},
     urc_matcher::{DefaultUrcMatcher, UrcMatcher},
-    Client, Config, IngressManager, Queues,
+    Client,
+    Config,
+    IngressManager,
+    Queues,
 };
 
 type ClientParser<

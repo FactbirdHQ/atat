@@ -2,7 +2,7 @@ use heapless::Vec;
 
 /// Errors returned used internally within the crate
 #[derive(Clone, Debug, PartialEq)]
-pub enum InternalError {
+pub enum InternalError<'a> {
     /// Serial read error
     Read,
     /// Serial write error
@@ -18,10 +18,17 @@ pub enum InternalError {
     /// Failed to parse received response
     Parse,
     /// Error response containing any error message
-    Error(Vec<u8, 85>),
+    Error,
+    NamedError(&'a [u8], &'a [u8]),
 }
 
-impl InternalError {
+impl<'a> From<(&'a [u8], &'a [u8])> for InternalError<'a> {
+    fn from(v: (&'a [u8], &'a [u8])) -> Self {
+        Self::NamedError(v.0, v.1)
+    }
+}
+
+impl<'a> InternalError<'a> {
     pub fn as_byte(&self) -> u8 {
         match self {
             InternalError::Read => 0x00,
@@ -31,11 +38,12 @@ impl InternalError {
             InternalError::Aborted => 0x04,
             InternalError::Overflow => 0x05,
             InternalError::Parse => 0x06,
-            InternalError::Error(_) => 0x07,
+            InternalError::Error => 0x07,
+            InternalError::NamedError(_, _) => 0x08,
         }
     }
 
-    pub fn from_bytes(b: &[u8]) -> Self {
+    pub fn from_bytes(b: &'a [u8]) -> Self {
         match &b[0] {
             0x00 => InternalError::Read,
             0x01 => InternalError::Write,
@@ -44,15 +52,16 @@ impl InternalError {
             0x04 => InternalError::Aborted,
             0x05 => InternalError::Overflow,
             0x06 => InternalError::Parse,
-            0x07 if b.len() > 1 => InternalError::Error(Vec::from_slice(&b[1..]).unwrap()),
-            0x07 => InternalError::Error(Vec::new()),
+            0x07 => InternalError::Error,
+            0x08 if b.len() > 1 => InternalError::NamedError(&[], &b[1..]),
+            0x08 => InternalError::NamedError(&[], &[]),
             _ => InternalError::Parse,
         }
     }
 }
 
 #[cfg(feature = "defmt")]
-impl defmt::Format for InternalError {
+impl<'a> defmt::Format for InternalError<'a> {
     fn format(&self, f: defmt::Formatter) {
         match self {
             InternalError::Read => defmt::write!(f, "Read"),
@@ -62,7 +71,10 @@ impl defmt::Format for InternalError {
             InternalError::Aborted => defmt::write!(f, "Aborted"),
             InternalError::Overflow => defmt::write!(f, "Overflow"),
             InternalError::Parse => defmt::write!(f, "Parse"),
-            InternalError::Error(e) => defmt::write!(f, "Error({=[u8]:a})", &e),
+            InternalError::Error => defmt::write!(f, "Error"),
+            InternalError::NamedError(t, e) => {
+                defmt::write!(f, "Error({=[u8]:a}, {=[u8]:a})", &t, &e)
+            }
         }
     }
 }
@@ -85,11 +97,13 @@ pub enum Error<E = GenericError> {
     Overflow,
     /// Failed to parse received response
     Parse,
+    /// Generic error response without any error message
+    Error,
     /// Error response containing any error message
-    Error(E),
+    NamedError(E),
 }
 
-impl<E> From<InternalError> for Error<E>
+impl<'a, E> From<InternalError<'a>> for Error<E>
 where
     E: core::str::FromStr,
 {
@@ -102,10 +116,12 @@ where
             InternalError::Aborted => Self::Aborted,
             InternalError::Overflow => Self::Overflow,
             InternalError::Parse => Self::Parse,
-            InternalError::Error(ref e) => {
+            InternalError::Error => Self::Error,
+            InternalError::NamedError(ref t, ref e) => {
+                // TODO: Handle tag & message encoding correctly here
                 if let Ok(s) = core::str::from_utf8(e) {
                     if let Ok(e) = core::str::FromStr::from_str(s) {
-                        return Self::Error(e);
+                        return Self::NamedError(e);
                     }
                 }
                 Self::Parse

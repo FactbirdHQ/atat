@@ -2,7 +2,7 @@
 #![no_std]
 mod common;
 
-use stm32l4xx_hal as hal;
+// use stm32l4xx_hal as hal;
 
 use defmt_rtt as _;
 use panic_probe as _; // global logger
