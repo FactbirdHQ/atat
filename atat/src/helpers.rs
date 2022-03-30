@@ -24,6 +24,9 @@ impl<const L: usize> SliceExt for Vec<u8, L> {
         if let Some(idx) = self.iter().position(is_not_whitespace) {
             self.rotate_left(idx);
             self.truncate(self.len() - idx);
+        } else {
+            // We did not find any non-whitespace chars so everything must be whitespaces that we can clear
+            self.clear();
         }
     }
 }
@@ -156,6 +159,12 @@ mod test {
             b.trim(&[b' ', b'\t', b'\r', b'\n']);
 
             assert_eq!(b, Vec::<u8, 64>::from_slice(b"hello  whatup").unwrap());
+        }
+        {
+            let mut b = Vec::<u8, 64>::from_slice(b"\n").unwrap();
+            b.trim_start(&[b' ', b'\t', b'\r', b'\n']);
+
+            assert_eq!(b, Vec::<u8, 64>::from_slice(b"").unwrap());
         }
     }
 }
