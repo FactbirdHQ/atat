@@ -211,7 +211,11 @@ impl Digester for DefaultDigester {
                         )
                         .unwrap_or_else(|| Vec::from_slice(&line).unwrap_or_default()),
                     ))
-                } else if get_line::<L, L>(
+                }
+                // Look for prompts `>` or `@`.
+                // We should not be able to see a prompt `@\n@`, but in practice we do
+                // on Ublox SARA-U2. Treat that as `@` to recover from the unexpected input
+                else if get_line::<L, L>(
                     buf,
                     b">",
                     Self::LINE_TERM_CHAR,
@@ -221,6 +225,17 @@ impl Digester for DefaultDigester {
                     false,
                 )
                 .is_some()
+                    // Recover from unexpected trailing `\n@`
+                    || get_line::<L, L>(
+                        buf,
+                        b"@\n@",
+                        Self::LINE_TERM_CHAR,
+                        Self::FORMAT_CHAR,
+                        false,
+                        false,
+                        false,
+                    )
+                    .is_some()
                     || get_line::<L, L>(
                         buf,
                         b"@",
