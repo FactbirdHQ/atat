@@ -105,6 +105,12 @@ impl NewDigester for NomDigester {
         buf: &'a [u8],
         urc_matcher: &mut impl UrcMatcher,
     ) -> (DigestResult<'a>, usize) {
+
+        // 1. Match for URC's
+        // 2. Optionally remove echo
+        // 3. Parse for success responses
+        // 4. Parse for error responses
+
         // Trim any leading whitespace
         let (buf, ws) = multispace0::<_, nom::error::Error<_>>(buf).unwrap_or_else(|_| (buf, &[]));
 
@@ -145,7 +151,7 @@ fn trim_ascii_whitespace(x: &[u8]) -> &[u8] {
 }
 
 fn print_dbg(i: &[u8]) -> IResult<&[u8], &[u8]> {
-    println!("{:?}", LossyStr(i));
+    debug!("{:?}", LossyStr(i));
     Ok((i, &[]))
 }
 
@@ -164,7 +170,7 @@ fn echo() -> impl FnMut(&[u8]) -> IResult<&[u8], &[u8]> {
 }
 
 /// Matches all parameters until `\r\nOK\r\n`
-/// TODO: Should this be quote pair aware, to handle the eg. `OK` in a received string?
+/// TODO: This should be quote pair aware, to handle the eg. `OK` in a received string!
 fn parameters(error_tags: &'static [&'static str]) -> impl FnMut(&[u8]) -> IResult<&[u8], &[u8]> {
     move |i| {
         recognize(alt((
@@ -938,6 +944,29 @@ mod test {
         assert_eq!((res, bytes), (DigestResult::Prompt(b'@'), 15));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
+    }
+
+    #[test]
+    fn without_prefix() {
+        let mut digester = NomDigester::default();
+        let mut urc_matcher = DefaultUrcMatcher::default();
+        let mut buf = Vec::<u8, TEST_RX_BUF_LEN>::new();
+
+        // With echo enabled
+        buf.extend_from_slice(b"AT+CIMI?\r\n123456789\r\nOK\r\n").unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
+        assert_eq!((res, bytes), (DigestResult::Response(Ok(b"123456789")), 25));
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
+        assert!(buf.is_empty());
+
+        // Without echo enabled
+        buf.extend_from_slice(b"123456789\r\nOK\r\n").unwrap();
+        let (res, bytes) = digester.digest(&mut buf, &mut urc_matcher);
+        assert_eq!((res, bytes), (DigestResult::Response(Ok(b"123456789")), 15));
+        buf.rotate_left(bytes);
+        buf.truncate(buf.len() - bytes);
+        assert!(buf.is_empty());
     }
 
     // Regression test for #87

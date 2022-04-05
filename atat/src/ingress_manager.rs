@@ -200,6 +200,9 @@ where
         } {
             self.buf.rotate_left(swallowed);
             self.buf.truncate(self.buf.len() - swallowed);
+            if !self.buf.is_empty() {
+                trace!("Buffer remainder: \"{:?}\"", LossyStr(&self.buf));
+            }
         }
     }
 }
