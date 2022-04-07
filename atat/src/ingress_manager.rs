@@ -3,10 +3,10 @@ use heapless::Vec;
 
 use crate::error::InternalError;
 use crate::helpers::LossyStr;
-use crate::nom_digest::{AtDigester, DigestResult, Digester};
+use crate::nom_digest::{DigestResult, Digester};
 use crate::queues::ComConsumer;
 use crate::ResponseHeader;
-use crate::{Command, Parser};
+use crate::Command;
 
 pub struct IngressManager<
     D,
@@ -178,7 +178,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{queues, Parser};
+    use crate::{queues, Parser, AtDigester};
     use bbqueue::BBBuffer;
     use heapless::spsc::Queue;
 
@@ -190,7 +190,7 @@ mod test {
 
     impl Parser for UrcTestParser {
         fn parse<'a>(
-            buf: &'a [u8],
+            _buf: &'a [u8],
         ) -> Result<(&'a [u8], usize), nom::Err<nom::error::Error<&'a [u8]>>> {
             Err(nom::Err::Incomplete(nom::Needed::Unknown))
         }

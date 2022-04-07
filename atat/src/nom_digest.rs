@@ -68,7 +68,7 @@ impl<P: Parser> Digester for AtDigester<P> {
         let (buf, echo_bytes) = match nom::combinator::opt(parser::echo)(input) {
             Ok((buf, echo)) => (buf, echo.unwrap_or_default().len()),
             Err(nom::Err::Incomplete(_)) => return (DigestResult::None, 0),
-            Err(e) => panic!("NOM ERROR - opt(echo)"),
+            Err(_) => panic!("NOM ERROR - opt(echo)"),
         };
 
         // 2. Match for URC's
@@ -83,12 +83,12 @@ impl<P: Parser> Digester for AtDigester<P> {
         }
 
         // Generic success replies
-        if let Ok((buf, (result, len))) = parser::success_response(buf) {
+        if let Ok((_, (result, len))) = parser::success_response(buf) {
             return (result, len + echo_bytes);
         }
 
         // Custom prompts for data replies first, if any
-        if let Ok((response, len)) = (self.custom_prompt)(buf) {
+        if let Ok((_response, len)) = (self.custom_prompt)(buf) {
             return (
                 // FIXME:
                 DigestResult::Prompt(b'p'),
@@ -97,7 +97,7 @@ impl<P: Parser> Digester for AtDigester<P> {
         }
 
         // Generic prompts for data
-        if let Ok((buf, (result, len))) = parser::prompt_response(buf) {
+        if let Ok((_, (result, len))) = parser::prompt_response(buf) {
             return (result, len + echo_bytes);
         }
 
@@ -111,7 +111,7 @@ impl<P: Parser> Digester for AtDigester<P> {
         }
 
         // Generic error matches
-        if let Ok((buf, (result, len))) = parser::error_response(buf) {
+        if let Ok((_, (result, len))) = parser::error_response(buf) {
             return (result, len + echo_bytes);
         }
 
@@ -211,7 +211,7 @@ pub mod parser {
                 )
             }),
             // Matches the equivalent of regex: "\r\nMODEM ERROR:\s*(\d+)\r\n"
-            map(numeric_error("\r\nMODEM ERROR:"), |(error_code, len)| {
+            map(numeric_error("\r\nMODEM ERROR:"), |(_error_code, len)| {
                 (
                     DigestResult::Response(Err(InternalError::CmeError(CmeError::Unknown))),
                     len,
@@ -422,9 +422,8 @@ mod test {
     use super::*;
     use crate::{
         error::{CmeError, CmsError, ConnectionError},
-        helpers::{LossyStr, SliceExt},
+        helpers::LossyStr,
     };
-    use heapless::spsc::Queue;
 
     const TEST_RX_BUF_LEN: usize = 256;
 
@@ -484,7 +483,7 @@ mod test {
                     assert_eq!(buf, expected);
                 }
                 Err(nom::Err::Incomplete(_)) => {}
-                Err(e) => panic!("NOM ERROR - opt(echo)"),
+                Err(_) => panic!("NOM ERROR - opt(echo)"),
             }
         }
     }

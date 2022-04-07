@@ -37,7 +37,6 @@
 //!
 //! impl<'a> AtatCmd<64> for SetGreetingText<'a> {
 //!     type Response = NoResponse;
-//!     type Error = ();
 //!
 //!     fn as_bytes(&self) -> Vec<u8, 64> {
 //!         let mut buf: Vec<u8, 64> = Vec::new();
@@ -52,7 +51,6 @@
 //!
 //! impl AtatCmd<8> for GetGreetingText {
 //!     type Response = GreetingText;
-//!     type Error = ();
 //!
 //!     fn as_bytes(&self) -> Vec<u8, 8> {
 //!         Vec::from_slice(b"AT+CSGT?").unwrap()

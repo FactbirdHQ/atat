@@ -17,7 +17,6 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
     let CmdAttributes {
         cmd,
         resp,
-        error,
         timeout_ms,
         abortable,
         force_receive_state,
@@ -89,7 +88,6 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         #[automatically_derived]
         impl #impl_generics atat::AtatCmd<{ #ident_len + #cmd_len }> for #ident #ty_generics #where_clause {
             type Response = #resp;
-            type Error = ();
 
             #timeout
 

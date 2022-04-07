@@ -1,5 +1,5 @@
 use crate::{
-    nom_digest::{AtDigester, Digester},
+    nom_digest::Digester,
     Client, Config, IngressManager, Queues,
 };
 

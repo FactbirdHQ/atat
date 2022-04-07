@@ -223,7 +223,7 @@ mod test {
     };
     use bbqueue::framed::FrameProducer;
     use bbqueue::BBBuffer;
-    use heapless::{spsc::Queue, String, Vec};
+    use heapless::{spsc::Queue, String};
     use nb;
 
     const TEST_RX_BUF_LEN: usize = 256;

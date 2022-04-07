@@ -46,7 +46,6 @@ pub trait AtatUrc {
 ///
 /// impl<'a> AtatCmd<64> for SetGreetingText<'a> {
 ///     type Response = NoResponse;
-///     type Error = ();
 ///
 ///     fn as_bytes(&self) -> Vec<u8, 64> {
 ///         let mut buf: Vec<u8, 64> = Vec::new();
@@ -62,9 +61,6 @@ pub trait AtatUrc {
 pub trait AtatCmd<const LEN: usize> {
     /// The type of the response. Must implement the `AtatResp` trait.
     type Response: AtatResp;
-
-    /// The type of the error.
-    type Error;
 
     /// Whether or not this command can be aborted.
     const CAN_ABORT: bool = false;
@@ -175,7 +171,6 @@ impl<const L: usize> AtatResp for String<L> {}
 
 impl<const L: usize> AtatCmd<L> for String<L> {
     type Response = String<256>;
-    type Error = ();
 
     fn as_bytes(&self) -> Vec<u8, L> {
         self.clone().into_bytes()
