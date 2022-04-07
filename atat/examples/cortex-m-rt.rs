@@ -10,7 +10,6 @@ use panic_probe as _; // global logger
 use atat::{AtatClient, ClientBuilder, Clock, ComQueue, Queues};
 use bbqueue::BBBuffer;
 use common::{timer::DwtTimer, Urc};
-use cortex_m::asm;
 use cortex_m_rt::entry;
 use fugit::ExtU32;
 use hal::{
@@ -122,6 +121,7 @@ fn main() -> ! {
     let (mut client, ingress) = ClientBuilder::new(
         tx,
         DwtTimer::<80_000_000>::new(),
+        atat::AtDigester::new(),
         atat::Config::new(atat::Mode::Timeout),
     )
     .build(queues);

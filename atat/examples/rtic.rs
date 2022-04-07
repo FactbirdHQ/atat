@@ -138,6 +138,7 @@ mod app {
         let (client, ingress) = ClientBuilder::new(
             tx,
             DwtTimer::<80_000_000>::new(),
+            atat::AtDigester::new(),
             atat::Config::new(atat::Mode::Timeout),
         )
         .build(queues);
