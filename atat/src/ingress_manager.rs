@@ -3,22 +3,17 @@ use heapless::Vec;
 
 use crate::error::InternalError;
 use crate::helpers::LossyStr;
+use crate::nom_digest::{AtDigester, DigestResult, Digester};
 use crate::queues::ComConsumer;
-use crate::Command;
 use crate::ResponseHeader;
-use crate::{
-    nom_digest::{DigestResult, NewDigester as Digester, NomDigester as DefaultDigester},
-    urc_matcher::{DefaultUrcMatcher, UrcMatcher},
-};
+use crate::{Command, Parser};
 
 pub struct IngressManager<
     D,
-    U,
     const BUF_LEN: usize,
     const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
 > where
-    U: UrcMatcher,
     D: Digester,
 {
     /// Buffer holding incoming bytes.
@@ -33,41 +28,17 @@ pub struct IngressManager<
 
     /// Digester.
     digester: D,
-
-    /// URC matcher.
-    urc_matcher: U,
 }
 
-impl<const BUF_LEN: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    IngressManager<DefaultDigester, DefaultUrcMatcher, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
+impl<D, const BUF_LEN: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
+    IngressManager<D, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
+where
+    D: Digester,
 {
-    #[must_use]
     pub fn new(
         res_p: FrameProducer<'static, RES_CAPACITY>,
         urc_p: FrameProducer<'static, URC_CAPACITY>,
         com_c: ComConsumer,
-    ) -> Self {
-        Self::with_customs(
-            res_p,
-            urc_p,
-            com_c,
-            DefaultUrcMatcher::default(),
-            DefaultDigester::default(),
-        )
-    }
-}
-
-impl<U, D, const BUF_LEN: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    IngressManager<D, U, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
-where
-    D: Digester,
-    U: UrcMatcher,
-{
-    pub fn with_customs(
-        res_p: FrameProducer<'static, RES_CAPACITY>,
-        urc_p: FrameProducer<'static, URC_CAPACITY>,
-        com_c: ComConsumer,
-        urc_matcher: U,
         digester: D,
     ) -> Self {
         Self {
@@ -75,7 +46,6 @@ where
             res_p,
             urc_p,
             com_c,
-            urc_matcher,
             digester,
         }
     }
@@ -132,10 +102,8 @@ where
                         "Cleared complete buffer as requested by client [{:?}]",
                         LossyStr(&self.buf),
                     );
-                    self.digester.reset();
                     self.buf.clear();
                 }
-                Command::ForceReceiveState => self.digester.force_receive_state(),
             }
         }
     }
@@ -144,7 +112,7 @@ where
         // Handle commands every loop to catch timeouts asap
         self.handle_com();
 
-        if let Ok(swallowed) = match self.digester.digest(&self.buf, &mut self.urc_matcher) {
+        if let Ok(swallowed) = match self.digester.digest(&self.buf) {
             (DigestResult::None, swallowed) => Ok(swallowed),
             (DigestResult::Prompt(prompt), swallowed) => {
                 info!("GOT PROMPT {}", prompt);
@@ -200,9 +168,9 @@ where
         } {
             self.buf.rotate_left(swallowed);
             self.buf.truncate(self.buf.len() - swallowed);
-            if !self.buf.is_empty() {
-                trace!("Buffer remainder: \"{:?}\"", LossyStr(&self.buf));
-            }
+            // if !self.buf.is_empty() {
+            //     trace!("Buffer remainder: \"{:?}\"", LossyStr(&self.buf));
+            // }
         }
     }
 }
@@ -210,13 +178,23 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::queues;
+    use crate::{queues, Parser};
     use bbqueue::BBBuffer;
     use heapless::spsc::Queue;
 
     const TEST_RX_BUF_LEN: usize = 256;
     const TEST_URC_CAPACITY: usize = 10;
     const TEST_RES_CAPACITY: usize = 10;
+
+    enum UrcTestParser {}
+
+    impl Parser for UrcTestParser {
+        fn parse<'a>(
+            buf: &'a [u8],
+        ) -> Result<(&'a [u8], usize), nom::Err<nom::error::Error<&'a [u8]>>> {
+            Err(nom::Err::Incomplete(nom::Needed::Unknown))
+        }
+    }
 
     #[test]
     fn overflow() {
@@ -229,19 +207,13 @@ mod test {
         static mut COM_Q: queues::ComQueue = Queue::new();
         let (_com_p, com_c) = unsafe { COM_Q.split() };
 
-        let mut ingress = IngressManager::<
-            _,
-            _,
-            TEST_RX_BUF_LEN,
-            TEST_RES_CAPACITY,
-            TEST_URC_CAPACITY,
-        >::with_customs(
-            res_p,
-            urc_p,
-            com_c,
-            DefaultUrcMatcher::default(),
-            DefaultDigester::default(),
-        );
+        let mut ingress =
+            IngressManager::<_, TEST_RX_BUF_LEN, TEST_RES_CAPACITY, TEST_URC_CAPACITY>::new(
+                res_p,
+                urc_p,
+                com_c,
+                AtDigester::<UrcTestParser>::new(),
+            );
 
         ingress.write(b"+USORD: 3,266,\"");
         for _ in 0..266 {

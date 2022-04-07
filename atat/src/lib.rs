@@ -15,7 +15,7 @@
 //!
 //! ### Command and response example without `atat_derive`:
 //! ```
-//! use atat::{AtatCmd, AtatResp, Error, InternalError, GenericError};
+//! use atat::{AtatCmd, AtatResp, Error, InternalError};
 //! use core::fmt::Write;
 //! use heapless::{String, Vec};
 //!
@@ -37,7 +37,7 @@
 //!
 //! impl<'a> AtatCmd<64> for SetGreetingText<'a> {
 //!     type Response = NoResponse;
-//!     type Error = GenericError;
+//!     type Error = ();
 //!
 //!     fn as_bytes(&self) -> Vec<u8, 64> {
 //!         let mut buf: Vec<u8, 64> = Vec::new();
@@ -45,20 +45,20 @@
 //!         buf
 //!     }
 //!
-//!     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error<Self::Error>> {
+//!     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error> {
 //!         Ok(NoResponse)
 //!     }
 //! }
 //!
 //! impl AtatCmd<8> for GetGreetingText {
 //!     type Response = GreetingText;
-//!     type Error = GenericError;
+//!     type Error = ();
 //!
 //!     fn as_bytes(&self) -> Vec<u8, 8> {
 //!         Vec::from_slice(b"AT+CSGT?").unwrap()
 //!     }
 //!
-//!     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error<Self::Error>> {
+//!     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error> {
 //!         // Parse resp into `GreetingText`
 //!         Ok(GreetingText {
 //!             text: String::from(core::str::from_utf8(resp.unwrap()).unwrap()),
@@ -223,16 +223,15 @@ pub(crate) mod fmt;
 
 mod builder;
 mod client;
-// mod digest;
 mod error;
 pub mod helpers;
 mod ingress_manager;
-mod nom_digest;
+pub mod nom_digest;
 mod queues;
 mod traits;
-mod urc_matcher;
 
 pub use bbqueue;
+pub use nom;
 
 #[cfg(feature = "bytes")]
 pub use serde_bytes;
@@ -256,12 +255,11 @@ pub use heapless;
 
 pub use builder::ClientBuilder;
 pub use client::{Client, Mode};
-pub use error::{Error, GenericError, InternalError};
+pub use error::{Error, InternalError};
 pub use ingress_manager::IngressManager;
-pub use nom_digest::{DigestResult, NewDigester as Digester, NomDigester as DefaultDigester};
+pub use nom_digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
 pub use queues::{ComQueue, Queues};
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
-pub use urc_matcher::{DefaultUrcMatcher, UrcMatcher, UrcMatcherResult};
 
 pub use fugit_timer::Timer as Clock;
 
@@ -273,8 +271,6 @@ pub enum Command {
     /// Reset to initial state, including clearing the buffer,
     /// usually as a result of a command timeout
     Reset,
-    /// Force the ingress manager into receive state
-    ForceReceiveState,
 }
 
 /// Configuration of both the ingress manager, and the AT client. Some of these
@@ -319,7 +315,7 @@ impl ResponseHeader {
     pub fn as_bytes<'a>(res: &'a Result<&'a [u8], InternalError<'a>>) -> ([u8; 2], &'a [u8]) {
         match res {
             Ok(r) => ([0xFF, 0xFF], r),
-            Err(InternalError::NamedError(ref t, ref b)) => ([0x00, 0x07], b.as_ref()),
+            // Err(InternalError::NamedError(ref t, ref b)) => ([0x00, 0x07], b.as_ref()),
             Err(ref e) => ([0x00, e.as_byte()], &[]),
         }
     }

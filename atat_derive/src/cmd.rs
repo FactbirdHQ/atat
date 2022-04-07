@@ -64,7 +64,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         cmd_len += 1;
     }
 
-    let err = error.unwrap_or_else(|| syn::parse_str("atat::GenericError").unwrap());
+    // let err = error.unwrap_or_else(|| syn::parse_str("atat::GenericError").unwrap());
 
     let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants
         .iter()
@@ -89,7 +89,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         #[automatically_derived]
         impl #impl_generics atat::AtatCmd<{ #ident_len + #cmd_len }> for #ident #ty_generics #where_clause {
             type Response = #resp;
-            type Error = #err;
+            type Error = ();
 
             #timeout
 
@@ -110,7 +110,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             }
 
             #[inline]
-            fn parse(&self, res: Result<&[u8], atat::InternalError>) -> core::result::Result<Self::Response, atat::Error<Self::Error>> {
+            fn parse(&self, res: Result<&[u8], atat::InternalError>) -> core::result::Result<Self::Response, atat::Error> {
                 match res {
                     Ok(resp) => atat::serde_at::from_slice::<#resp>(resp).map_err(|e| {
                         atat::Error::Parse

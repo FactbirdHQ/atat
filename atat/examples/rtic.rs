@@ -5,13 +5,14 @@ pub mod common;
 use defmt_rtt as _;
 use panic_probe as _; // global logger
 
+#[cfg(feature = "defmt")]
 defmt::timestamp!("{=u64}", {
     common::timer::DwtTimer::<80_000_000>::now() / 80_000
 });
 
 #[rtic::app(device = stm32l4xx_hal::pac, peripherals = true, dispatchers = [UART5, LCD])]
 mod app {
-    use super::common::{self, timer::DwtTimer};
+    use super::common::{self, timer::DwtTimer, Urc};
     use bbqueue::BBBuffer;
     use dwt_systick_monotonic::*;
     use stm32l4xx_hal::{
@@ -37,8 +38,7 @@ mod app {
     #[shared]
     struct SharedResources {
         ingress: atat::IngressManager<
-            atat::DefaultDigester,
-            atat::DefaultUrcMatcher,
+            atat::AtDigester<Urc>,
             RX_BUFFER_BYTES,
             RES_CAPACITY_BYTES,
             URC_CAPACITY_BYTES,
@@ -164,6 +164,7 @@ mod app {
 
     #[task(local = [client], priority = 2)]
     fn at_send(ctx: at_send::Context, state: u8) {
+        #[cfg(feature = "defmt")]
         defmt::debug!("\r\n\r\n\r\n");
 
         match state {

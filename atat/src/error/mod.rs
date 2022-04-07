@@ -1,4 +1,10 @@
-use heapless::Vec;
+mod cme_error;
+mod cms_error;
+mod connection_error;
+
+pub use cme_error::CmeError;
+pub use cms_error::CmsError;
+pub use connection_error::ConnectionError;
 
 /// Errors returned used internally within the crate
 #[derive(Clone, Debug, PartialEq)]
@@ -19,13 +25,11 @@ pub enum InternalError<'a> {
     Parse,
     /// Error response containing any error message
     Error,
-    NamedError(&'a [u8], &'a [u8]),
-}
-
-impl<'a> From<(&'a [u8], &'a [u8])> for InternalError<'a> {
-    fn from(v: (&'a [u8], &'a [u8])) -> Self {
-        Self::NamedError(v.0, v.1)
-    }
+    CmeError(CmeError),
+    CmsError(CmsError),
+    // Connection Error
+    ConnectionError(ConnectionError),
+    Custom(&'a [u8]),
 }
 
 impl<'a> InternalError<'a> {
@@ -39,7 +43,10 @@ impl<'a> InternalError<'a> {
             InternalError::Overflow => 0x05,
             InternalError::Parse => 0x06,
             InternalError::Error => 0x07,
-            InternalError::NamedError(_, _) => 0x08,
+            InternalError::CmeError(_) => 0x08,
+            InternalError::CmsError(_) => 0x09,
+            InternalError::ConnectionError(_) => 0x10,
+            InternalError::Custom(_) => 0x11,
         }
     }
 
@@ -53,8 +60,9 @@ impl<'a> InternalError<'a> {
             0x05 => InternalError::Overflow,
             0x06 => InternalError::Parse,
             0x07 => InternalError::Error,
-            0x08 if b.len() > 1 => InternalError::NamedError(&[], &b[1..]),
-            0x08 => InternalError::NamedError(&[], &[]),
+            0x08 => InternalError::ConnectionError(ConnectionError::Busy),
+            0x09 if b.len() > 1 => InternalError::Custom(&b[1..]),
+            0x09 => InternalError::Custom(&[]),
             _ => InternalError::Parse,
         }
     }
@@ -64,16 +72,21 @@ impl<'a> InternalError<'a> {
 impl<'a> defmt::Format for InternalError<'a> {
     fn format(&self, f: defmt::Formatter) {
         match self {
-            InternalError::Read => defmt::write!(f, "Read"),
-            InternalError::Write => defmt::write!(f, "Write"),
-            InternalError::Timeout => defmt::write!(f, "Timeout"),
-            InternalError::InvalidResponse => defmt::write!(f, "InvalidResponse"),
-            InternalError::Aborted => defmt::write!(f, "Aborted"),
-            InternalError::Overflow => defmt::write!(f, "Overflow"),
-            InternalError::Parse => defmt::write!(f, "Parse"),
-            InternalError::Error => defmt::write!(f, "Error"),
-            InternalError::NamedError(t, e) => {
-                defmt::write!(f, "Error({=[u8]:a}, {=[u8]:a})", &t, &e)
+            InternalError::Read => defmt::write!(f, "InternalError::Read"),
+            InternalError::Write => defmt::write!(f, "InternalError::Write"),
+            InternalError::Timeout => defmt::write!(f, "InternalError::Timeout"),
+            InternalError::InvalidResponse => defmt::write!(f, "InternalError::InvalidResponse"),
+            InternalError::Aborted => defmt::write!(f, "InternalError::Aborted"),
+            InternalError::Overflow => defmt::write!(f, "InternalError::Overflow"),
+            InternalError::Parse => defmt::write!(f, "InternalError::Parse"),
+            InternalError::Error => defmt::write!(f, "InternalError::Error"),
+            InternalError::CmeError(e) => defmt::write!(f, "InternalError::CmeError({:?})", e),
+            InternalError::CmsError(e) => defmt::write!(f, "InternalError::CmsError({:?})", e),
+            InternalError::ConnectionError(e) => {
+                defmt::write!(f, "InternalError::ConnectionError({:?})", e)
+            }
+            InternalError::Custom(e) => {
+                defmt::write!(f, "InternalError::Custom({=[u8]:a})", &e)
             }
         }
     }
@@ -82,7 +95,7 @@ impl<'a> defmt::Format for InternalError<'a> {
 /// Errors returned by the crate
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum Error<E = GenericError> {
+pub enum Error {
     /// Serial read error
     Read,
     /// Serial write error
@@ -100,13 +113,10 @@ pub enum Error<E = GenericError> {
     /// Generic error response without any error message
     Error,
     /// Error response containing any error message
-    NamedError(E),
+    Custom,
 }
 
-impl<'a, E> From<InternalError<'a>> for Error<E>
-where
-    E: core::str::FromStr,
-{
+impl<'a> From<InternalError<'a>> for Error {
     fn from(ie: InternalError) -> Self {
         match ie {
             InternalError::Read => Self::Read,
@@ -117,27 +127,11 @@ where
             InternalError::Overflow => Self::Overflow,
             InternalError::Parse => Self::Parse,
             InternalError::Error => Self::Error,
-            InternalError::NamedError(ref t, ref e) => {
-                // TODO: Handle tag & message encoding correctly here
-                if let Ok(s) = core::str::from_utf8(e) {
-                    if let Ok(e) = core::str::FromStr::from_str(s) {
-                        return Self::NamedError(e);
-                    }
-                }
-                Self::Parse
-            }
+            // FIXME:
+            InternalError::CmeError(_) => Self::Error,
+            InternalError::CmsError(_) => Self::Error,
+            InternalError::ConnectionError(_) => Self::Error,
+            InternalError::Custom(_) => Self::Error,
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct GenericError;
-
-impl core::str::FromStr for GenericError {
-    type Err = core::convert::Infallible;
-
-    fn from_str(_s: &str) -> Result<Self, Self::Err> {
-        Ok(GenericError)
     }
 }

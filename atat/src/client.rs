@@ -95,12 +95,12 @@ where
     fn send<A: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
         cmd: &A,
-    ) -> nb::Result<A::Response, Error<A::Error>> {
+    ) -> nb::Result<A::Response, Error> {
         if let ClientState::Idle = self.state {
-            if A::FORCE_RECEIVE_STATE && self.com_p.enqueue(Command::ForceReceiveState).is_err() {
-                // TODO: Consider how to act in this situation.
-                error!("Failed to signal parser to force state transition to 'ReceivingResponse'!",);
-            }
+            // if A::FORCE_RECEIVE_STATE && self.com_p.enqueue(Command::ForceReceiveState).is_err() {
+            //     // TODO: Consider how to act in this situation.
+            //     error!("Failed to signal parser to force state transition to 'ReceivingResponse'!",);
+            // }
 
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
@@ -156,7 +156,7 @@ where
     fn check_response<A: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
         cmd: &A,
-    ) -> nb::Result<A::Response, Error<A::Error>> {
+    ) -> nb::Result<A::Response, Error> {
         if let Some(mut res_grant) = self.res_c.read() {
             res_grant.auto_release(true);
 
@@ -219,7 +219,7 @@ mod test {
     use crate::{self as atat, InternalError};
     use crate::{
         atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc},
-        Clock, GenericError,
+        Clock,
     };
     use bbqueue::framed::FrameProducer;
     use bbqueue::BBBuffer;
@@ -514,26 +514,6 @@ mod test {
             String::<32>::from("AT+CFUN=4,0\r\nAT+FUN=1,6\r\n"),
             "Reverse order string did not match"
         );
-    }
-
-    #[test]
-    #[ignore]
-    fn countdown() {
-        let (mut client, _, _) = setup!(Config::new(Mode::Timeout));
-
-        assert_eq!(client.state, ClientState::Idle);
-
-        let cmd = Test2Cmd {
-            fun: Functionality::DM,
-            rst: Some(ResetMode::Reset),
-        };
-        assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Timeout)));
-
-        match client.config.mode {
-            Mode::Timeout => {} // assert_eq!(cd_mock.time, 180000),
-            _ => panic!("Wrong AT mode"),
-        }
-        assert_eq!(client.state, ClientState::Idle);
     }
 
     #[test]

@@ -1,9 +1,5 @@
+use crate::error::{Error, InternalError};
 use crate::Mode;
-use crate::{
-    error::{Error, InternalError},
-    GenericError,
-};
-use core::str::FromStr;
 use heapless::{String, Vec};
 
 /// This trait needs to be implemented for every response type.
@@ -36,7 +32,7 @@ pub trait AtatUrc {
 ///
 /// Example:
 /// ```
-/// use atat::{AtatCmd, AtatResp, Error, InternalError, GenericError};
+/// use atat::{AtatCmd, AtatResp, Error, InternalError};
 /// use core::fmt::Write;
 /// use heapless::Vec;
 ///
@@ -50,7 +46,7 @@ pub trait AtatUrc {
 ///
 /// impl<'a> AtatCmd<64> for SetGreetingText<'a> {
 ///     type Response = NoResponse;
-///     type Error = GenericError;
+///     type Error = ();
 ///
 ///     fn as_bytes(&self) -> Vec<u8, 64> {
 ///         let mut buf: Vec<u8, 64> = Vec::new();
@@ -58,7 +54,7 @@ pub trait AtatUrc {
 ///         buf
 ///     }
 ///
-///     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error<Self::Error>> {
+///     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error> {
 ///         Ok(NoResponse)
 ///     }
 /// }
@@ -68,7 +64,7 @@ pub trait AtatCmd<const LEN: usize> {
     type Response: AtatResp;
 
     /// The type of the error.
-    type Error: FromStr;
+    type Error;
 
     /// Whether or not this command can be aborted.
     const CAN_ABORT: bool = false;
@@ -88,11 +84,8 @@ pub trait AtatCmd<const LEN: usize> {
     /// Return the command as a heapless `Vec` of bytes.
     fn as_bytes(&self) -> Vec<u8, LEN>;
 
-    /// Parse the response into a `Self::Response` or `Error<Self::Error>` instance.
-    fn parse(
-        &self,
-        resp: Result<&[u8], InternalError>,
-    ) -> Result<Self::Response, Error<Self::Error>>;
+    /// Parse the response into a `Self::Response` or `Error` instance.
+    fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error>;
 }
 
 pub trait AtatClient {
@@ -111,7 +104,7 @@ pub trait AtatClient {
     fn send<A: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
         cmd: &A,
-    ) -> nb::Result<A::Response, Error<A::Error>>;
+    ) -> nb::Result<A::Response, Error>;
 
     /// Checks if there are any URC's (Unsolicited Response Code) in
     /// queue from the ingress manager.
@@ -162,7 +155,7 @@ pub trait AtatClient {
     fn check_response<A: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
         cmd: &A,
-    ) -> nb::Result<A::Response, Error<A::Error>>;
+    ) -> nb::Result<A::Response, Error>;
 
     /// Get the configured mode of the client.
     ///
@@ -182,16 +175,13 @@ impl<const L: usize> AtatResp for String<L> {}
 
 impl<const L: usize> AtatCmd<L> for String<L> {
     type Response = String<256>;
-    type Error = GenericError;
+    type Error = ();
 
     fn as_bytes(&self) -> Vec<u8, L> {
         self.clone().into_bytes()
     }
 
-    fn parse(
-        &self,
-        resp: Result<&[u8], InternalError>,
-    ) -> Result<Self::Response, Error<Self::Error>> {
+    fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error> {
         let utf8_string =
             core::str::from_utf8(resp.map_err(Error::from)?).map_err(|_| Error::Parse)?;
         Ok(String::from(utf8_string))

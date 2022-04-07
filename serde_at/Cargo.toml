@@ -1,6 +1,6 @@
 [package]
 authors = ["Mathias Koch <mk@blackbird.online>"]
-edition = "2018"
+edition = "2021"
 categories = ["no-std"]
 description = "serde serializer/deserializer for AT commands"
 readme = "../README.md"
