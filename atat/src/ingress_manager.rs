@@ -5,8 +5,8 @@ use crate::error::InternalError;
 use crate::helpers::LossyStr;
 use crate::nom_digest::{DigestResult, Digester};
 use crate::queues::ComConsumer;
-use crate::ResponseHeader;
 use crate::Command;
+use crate::ResponseHeader;
 
 pub struct IngressManager<
     D,
@@ -178,7 +178,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{queues, Parser, AtDigester};
+    use crate::{queues, AtDigester, Parser};
     use bbqueue::BBBuffer;
     use heapless::spsc::Queue;
 

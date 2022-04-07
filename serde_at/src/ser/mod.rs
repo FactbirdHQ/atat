@@ -1,11 +1,8 @@
 //! Serialize a Rust data structure into AT Command strings
 
 use core::fmt::{self, Write};
-use core::ops::Deref;
 
 use serde::ser;
-
-use crate::de::CharVec;
 
 use heapless::{String, Vec};
 
@@ -17,65 +14,6 @@ use self::struct_::SerializeStruct;
 
 /// Serialization result
 pub type Result<T> = ::core::result::Result<T, Error>;
-
-/// Wrapper type to allow serializing a byte slice as bytes, rather than as a
-/// sequence (array)
-///
-/// Example:
-/// ```
-/// use heapless::String;
-/// use serde_at::{to_string, Bytes, SerializeOptions};
-/// use serde_derive::Serialize;
-///
-/// #[derive(Clone, PartialEq, Serialize)]
-/// pub struct WithBytes<'a> {
-///     s: Bytes<'a>,
-/// };
-///
-/// let slice = b"Some bytes";
-/// let b = WithBytes {
-///     s: Bytes(&slice[..]),
-/// };
-/// let s: String<32> = to_string(
-///     &b,
-///     "+CMD",
-///     SerializeOptions::default(),
-/// )
-/// .unwrap();
-///
-/// assert_eq!(s, String::<32>::from("AT+CMD=Some bytes\r\n"));
-/// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct Bytes<'a>(pub &'a [u8]);
-
-impl Deref for Bytes<'_> {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        self.0
-    }
-}
-
-impl<'a> serde::Serialize for Bytes<'a> {
-    fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serde::Serializer::serialize_bytes(serializer, self.0)
-    }
-}
-
-impl<const T: usize> serde::Serialize for CharVec<T> {
-    fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serde::Serializer::serialize_bytes(
-            serializer,
-            &self.0.iter().map(|c| *c as u8).collect::<Vec<u8, T>>()[0..self.0.len()],
-        )
-    }
-}
 
 /// Options used by the serializer, to customize the resulting string
 pub struct SerializeOptions<'a> {
@@ -592,6 +530,7 @@ impl ser::SerializeTuple for Unreachable {
 mod tests {
     use super::*;
     use heapless::String;
+    use serde_bytes::Bytes;
     use serde_derive::{Deserialize, Serialize};
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -661,34 +600,13 @@ mod tests {
     fn byte_serialize() {
         #[derive(Clone, PartialEq, Serialize)]
         pub struct WithBytes<'a> {
-            s: Bytes<'a>,
+            s: &'a Bytes,
         }
         let slice = b"Some bytes";
         let b = WithBytes {
-            s: Bytes(&slice[..]),
+            s: Bytes::new(&slice[..]),
         };
         let s: String<32> = to_string(&b, "+CMD", SerializeOptions::default()).unwrap();
         assert_eq!(s, String::<32>::from("AT+CMD=Some bytes\r\n"));
-    }
-
-    #[test]
-    fn char_vec_serialize() {
-        let test: CharVec<8> =
-            CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap());
-
-        let s: String<32> = to_string(&test, "", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<32>::from("IMP_MSG"));
-
-        #[derive(Clone, PartialEq, Serialize)]
-        pub struct WithCharVec {
-            s: CharVec<8>,
-            n: u8,
-        }
-        let b = WithCharVec {
-            s: CharVec(heapless::Vec::from_slice(&['I', 'M', 'P', '_', 'M', 'S', 'G']).unwrap()),
-            n: 12,
-        };
-        let s: String<32> = to_string(&b, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<32>::from("AT+CMD=IMP_MSG,12\r\n"));
     }
 }

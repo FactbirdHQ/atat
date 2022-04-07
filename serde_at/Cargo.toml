@@ -17,6 +17,8 @@ serde = { version = "^1", default-features = false }
 
 [dev-dependencies]
 serde_derive = "^1"
+heapless-bytes = { version = "0.3.0" }
+serde_bytes = { version = "0.11.5", default-features = false }
 
 [features]
 default = []
