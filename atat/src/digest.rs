@@ -60,6 +60,36 @@ impl<P: Parser> AtDigester<P> {
             custom_prompt: |_| Err(nom::Err::Incomplete(nom::Needed::Unknown)),
         }
     }
+
+    pub fn with_custom_success(
+        self,
+        f: fn(&[u8]) -> Result<(&[u8], usize), nom::Err<nom::error::Error<&[u8]>>>,
+    ) -> Self {
+        Self {
+            custom_success: f,
+            ..self
+        }
+    }
+
+    pub fn with_custom_error(
+        self,
+        f: fn(&[u8]) -> Result<(&[u8], usize), nom::Err<nom::error::Error<&[u8]>>>,
+    ) -> Self {
+        Self {
+            custom_error: f,
+            ..self
+        }
+    }
+
+    pub fn with_custom_prompt(
+        self,
+        f: fn(&[u8]) -> Result<(u8, usize), nom::Err<nom::error::Error<&[u8]>>>,
+    ) -> Self {
+        Self {
+            custom_prompt: f,
+            ..self
+        }
+    }
 }
 
 impl<P: Parser> Digester for AtDigester<P> {
