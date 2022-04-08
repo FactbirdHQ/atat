@@ -7,7 +7,6 @@
 [![chat][chat-badge]][chat]
 ![No Std][no-std-badge]
 
-
 <div>
   <img style="vertical-align:middle; padding-bottom: 20px; padding-right: 40px;"  src="https://cdn.pixabay.com/photo/2012/04/12/12/24/star-wars-29792_960_720.png" alt="ATAT" width="250" />
 </div>
@@ -43,8 +42,8 @@ This crate attempts to work from these AT best practices:
 
 > The crate is covered by tests. These tests can be run by `cargo test --tests`, and are run by the CI on every push.
 
-
 ## Examples
+
 The crate has examples for usage with [cortex-m-rt] and [cortex-m-rtic] crates.
 
 The samples can be built using `cargo build --example cortex-m-rt --target thumbv7em-none-eabihf` and `cargo build --example rtic --target thumbv7em-none-eabihf`.
@@ -59,46 +58,48 @@ Furthermore I have used the crate to build initial WIP drivers for uBlox cellula
 ## Releasing to crates.io
 
 This workspace uses `cargo-release` to do workspace releases to crates.io. It can be installed through cargo with `cargo install cargo-release`. The steps involved in a new release are:
+
 1. Run `cargo release --dry-run -- major|minor|patch`, and verify the output
 2. Run `cargo release -- major|minor|patch`, to release
 
 ## About
 
-  - Minimum rustc version 1.52
-  - Tested and built using stable toolchain
+- Minimum rustc version 1.52
+- Tested and built using stable toolchain
 
 ## Supported Crates
 
 The following dependent crates provide platform-agnostic device drivers built on `embedded-hal` which also implement this crate's traits:
 
-| Device Name | Description | Crate + Docs |
-|-------------|-------------|--------------|
-| [ublox-short-range-rs] | Driver crate for U-Blox host-based short range devices (wifi and BT) with AT-command interface | <!--[![crates.io][ublox-short-range-rs-crate-img]][ublox-short-range-rs] [![docs.rs][ublox-short-range-rs-docs-img]][ublox-short-range-rs-docs] --> |
-| [ublox-cellular-rs] | Driver crate for U-Blox host-based cellular devices with AT-command interface | [![crates.io][ublox-cellular-rs-crate-img]][ublox-cellular-rs-crates] [![docs.rs][ublox-cellular-rs-docs-img]][ublox-cellular-rs-docs] |
-| [espresso] | AT based driver crate for ESP8266 WiFi modules | <!--[![crates.io][espresso-crate-img]][espresso] [![docs.rs][espresso-docs-img]][espresso-docs] --> |
+| Device Name            | Description                                                                                    | Crate + Docs                                                                                                                                |
+| ---------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ublox-short-range-rs] | Driver crate for U-Blox host-based short range devices (wifi and BT) with AT-command interface | [![crates.io][ublox-short-range-rs-crate-img]][ublox-short-range-rs] [![docs.rs][ublox-short-range-rs-docs-img]][ublox-short-range-rs-docs] |
+| [ublox-cellular-rs]    | Driver crate for U-Blox host-based cellular devices with AT-command interface                  | [![crates.io][ublox-cellular-rs-crate-img]][ublox-cellular-rs-crates] [![docs.rs][ublox-cellular-rs-docs-img]][ublox-cellular-rs-docs]      |
+| [espresso]             | AT based driver crate for ESP8266 WiFi modules                                                 | <!--[![crates.io][espresso-crate-img]][espresso] [![docs.rs][espresso-docs-img]][espresso-docs] -->                                         |
 
 [ublox-short-range-rs]: https://github.com/BlackbirdHQ/ublox-short-range-rs
-<!-- [ublox-short-range-rs-crate-img]: https://img.shields.io/crates/v/ublox-short-range-rs.svg
+[ublox-short-range-rs-crate-img]: https://img.shields.io/crates/v/ublox-short-range-rs.svg
 [ublox-short-range-rs-docs-img]: https://docs.rs/ublox-short-range-rs/badge.svg
-[ublox-short-range-rs-docs]: https://docs.rs/ublox-short-range-rs/ -->
-
+[ublox-short-range-rs-docs]: https://docs.rs/ublox-short-range-rs/
 [ublox-cellular-rs]: https://github.com/BlackbirdHQ/ublox-cellular-rs
 [ublox-cellular-rs-crate-img]: https://img.shields.io/crates/v/ublox-cellular-rs.svg
 [ublox-cellular-rs-crates]: https://crates.io/crates/ublox-cellular-rs
 [ublox-cellular-rs-docs-img]: https://docs.rs/ublox-cellular-rs/badge.svg
 [ublox-cellular-rs-docs]: https://docs.rs/ublox-cellular-rs/
-
 [espresso]: https://github.com/dbrgn/espresso
+
 <!-- [espresso-crate-img]: https://img.shields.io/crates/v/espresso.svg
 [espresso-docs-img]: https://docs.rs/espresso/badge.svg
 [espresso-docs]: https://docs.rs/espresso/ -->
 
 ## Features
 
- - `derive`: Enabled by default. Re-exports `atat_derive` to allow deriving `Atat__` traits.
- - `log`: Disabled by default. Enable log statements on various log levels to aid debugging. Powered by `log`.
- - `defmt`: Disabled by default. Enable defmt log statements on various log levels to aid debugging. Powered by `defmt`.
- 
+- `derive`: Enabled by default. Re-exports `atat_derive` to allow deriving `Atat__` traits.
+- `bytes`: Enabled by default. Re-exports `serde-bytes` & `heapless-bytes` to allow serializing & deserializing non-quoted byte slices correctly.
+- `log`: Disabled by default. Enable log statements on various log levels to aid debugging. Powered by `log`.
+- `defmt`: Disabled by default. Enable defmt log statements on various log levels to aid debugging. Powered by `defmt`.
+- `custom-error-messages`: Disabled by default. Allows errors to contain custom error messages up to 64 characters, parsed by `AtDigest::custom_error`.
+
 ## Chat / Getting Help
 
 If you have questions on the development of AT-AT or want to write a driver
@@ -109,7 +110,7 @@ based on it, feel free to join our matrix room at `#atat:matrix.org`!
 Licensed under either of
 
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
- http://www.apache.org/licenses/LICENSE-2.0)
+  http://www.apache.org/licenses/LICENSE-2.0)
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
@@ -121,6 +122,7 @@ for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
 
 <!-- Badges -->
+
 [test]: https://github.com/BlackbirdHQ/atat/workflows/Test/badge.svg
 [crates-io]: https://crates.io/crates/atat
 [chat]: https://matrix.to/#/!ocRyOwQJhEWrphujkM:matrix.org?via=chat.berline.rs&via=matrix.org
