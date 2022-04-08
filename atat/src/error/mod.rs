@@ -25,10 +25,13 @@ pub enum InternalError<'a> {
     Parse,
     /// Error response containing any error message
     Error,
+    /// GSM Equipment related error
     CmeError(CmeError),
+    /// GSM Network related error
     CmsError(CmsError),
-    // Connection Error
+    /// Connection Error
     ConnectionError(ConnectionError),
+    /// Custom error match
     Custom(&'a [u8]),
 }
 
