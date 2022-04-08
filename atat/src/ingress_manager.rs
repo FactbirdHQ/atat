@@ -212,7 +212,7 @@ mod test {
     enum UrcTestParser {}
 
     impl Parser for UrcTestParser {
-        fn parse(_buf: &[u8]) -> Result<(&[u8], usize), ParseError> {
+        fn parse<'a>(_buf: &'a [u8]) -> Result<(&'a [u8], usize), ParseError> {
             Err(ParseError::NoMatch)
         }
     }

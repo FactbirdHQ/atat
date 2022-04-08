@@ -67,7 +67,7 @@ impl<'a> InternalError<'a> {
             InternalError::CmeError(e) => Encoded::Array(0x08, (*e as u16).to_le_bytes()),
             InternalError::CmsError(e) => Encoded::Array(0x09, (*e as u16).to_le_bytes()),
             InternalError::ConnectionError(e) => Encoded::Nested(0x10, *e as u8),
-            InternalError::Custom(e) => Encoded::Slice(0x11, e),
+            InternalError::Custom(e) => Encoded::Slice(0x11, e.as_ref()),
         }
     }
 

@@ -317,7 +317,7 @@ impl ResponseHeader {
         }
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<&[u8], InternalError> {
+    pub fn from_bytes<'a>(bytes: &'a [u8]) -> Result<&'a [u8], InternalError<'a>> {
         match bytes[0] {
             0xFF => Ok(&bytes[1..]),
             _ => Err(InternalError::decode(bytes)),

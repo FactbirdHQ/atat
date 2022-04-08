@@ -96,7 +96,7 @@ where
         &mut self,
         cmd: &A,
     ) -> nb::Result<A::Response, Error> {
-        if self.state == ClientState::Idle {
+        if let ClientState::Idle = self.state {
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
@@ -159,7 +159,7 @@ where
                 .parse(ResponseHeader::from_bytes(res_grant.as_ref()))
                 .map_err(nb::Error::from)
                 .and_then(|r| {
-                    if self.state == ClientState::Idle {
+                    if let ClientState::AwaitingResponse = self.state {
                         self.timer.start(self.config.cmd_cooldown.millis()).ok();
                         self.state = ClientState::Idle;
                         Ok(r)
@@ -172,14 +172,16 @@ where
                     self.state = ClientState::Idle;
                     e
                 });
-        } else if self.config.mode == Mode::Timeout && self.timer.wait().is_ok() {
-            self.state = ClientState::Idle;
-            // Tell the parser to reset to initial state due to timeout
-            if self.com_p.enqueue(Command::Reset).is_err() {
-                // TODO: Consider how to act in this situation.
-                error!("Failed to signal parser to clear buffer on timeout!");
+        } else if let Mode::Timeout = self.config.mode {
+            if self.timer.wait().is_ok() {
+                self.state = ClientState::Idle;
+                // Tell the parser to reset to initial state due to timeout
+                if self.com_p.enqueue(Command::Reset).is_err() {
+                    // TODO: Consider how to act in this situation.
+                    error!("Failed to signal parser to clear buffer on timeout!");
+                }
+                return Err(nb::Error::Other(Error::Timeout));
             }
-            return Err(nb::Error::Other(Error::Timeout));
         }
         Err(nb::Error::WouldBlock)
     }
