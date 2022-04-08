@@ -146,9 +146,6 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 /// - `timeout_ms`: **integer** The maximum timeout in milliseconds of the
 ///   command
 /// - `abortable`: **bool** Whether or not the command can be aborted
-/// - `force_receive_state`: **bool** Force the ingress manager into receive
-///   state immediately after sending (don't wait for echo). This is useful in
-///   some command patterns.
 /// - `value_sep`: **bool** Disable the seperator between the command and any
 ///   parameters (default true). Useful to create "fixed" commands, eg.
 ///   `#[at_cmd("+UDCONF=1", NoResponse, value_sep = false)]`.

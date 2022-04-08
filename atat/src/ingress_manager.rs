@@ -1,24 +1,19 @@
 use bbqueue::framed::FrameProducer;
 use heapless::Vec;
 
+use crate::digest::{DigestResult, Digester};
 use crate::error::InternalError;
 use crate::helpers::LossyStr;
 use crate::queues::ComConsumer;
 use crate::Command;
 use crate::ResponseHeader;
-use crate::{
-    digest::{DefaultDigester, DigestResult, Digester},
-    urc_matcher::{DefaultUrcMatcher, UrcMatcher},
-};
 
 pub struct IngressManager<
     D,
-    U,
     const BUF_LEN: usize,
     const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
 > where
-    U: UrcMatcher,
     D: Digester,
 {
     /// Buffer holding incoming bytes.
@@ -33,41 +28,17 @@ pub struct IngressManager<
 
     /// Digester.
     digester: D,
-
-    /// URC matcher.
-    urc_matcher: U,
 }
 
-impl<const BUF_LEN: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    IngressManager<DefaultDigester, DefaultUrcMatcher, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
+impl<D, const BUF_LEN: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
+    IngressManager<D, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
+where
+    D: Digester,
 {
-    #[must_use]
     pub fn new(
         res_p: FrameProducer<'static, RES_CAPACITY>,
         urc_p: FrameProducer<'static, URC_CAPACITY>,
         com_c: ComConsumer,
-    ) -> Self {
-        Self::with_customs(
-            res_p,
-            urc_p,
-            com_c,
-            DefaultUrcMatcher::default(),
-            DefaultDigester::default(),
-        )
-    }
-}
-
-impl<U, D, const BUF_LEN: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    IngressManager<D, U, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
-where
-    D: Digester,
-    U: UrcMatcher,
-{
-    pub fn with_customs(
-        res_p: FrameProducer<'static, RES_CAPACITY>,
-        urc_p: FrameProducer<'static, URC_CAPACITY>,
-        com_c: ComConsumer,
-        urc_matcher: U,
         digester: D,
     ) -> Self {
         Self {
@@ -75,8 +46,34 @@ where
             res_p,
             urc_p,
             com_c,
-            urc_matcher,
             digester,
+        }
+    }
+
+    fn enqueue_encoded_header<const N: usize>(
+        producer: &mut FrameProducer<'static, N>,
+        header: crate::error::Encoded,
+    ) -> Result<(), ()> {
+        if let Ok(mut grant) = producer.grant(header.len()) {
+            match header {
+                crate::error::Encoded::Simple(h) => grant[..1].copy_from_slice(&[h]),
+                crate::error::Encoded::Nested(h, b) => {
+                    grant[..1].copy_from_slice(&[h]);
+                    grant[1..2].copy_from_slice(&[b]);
+                }
+                crate::error::Encoded::Array(h, b) => {
+                    grant[..1].copy_from_slice(&[h]);
+                    grant[1..header.len()].copy_from_slice(&b);
+                }
+                crate::error::Encoded::Slice(h, b) => {
+                    grant[..1].copy_from_slice(&[h]);
+                    grant[1..header.len()].copy_from_slice(b);
+                }
+            };
+            grant.commit(header.len());
+            Ok(())
+        } else {
+            Err(())
         }
     }
 
@@ -91,7 +88,14 @@ where
 
         if self.buf.extend_from_slice(data).is_err() {
             error!("OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
-            self.notify_response(Err(InternalError::Overflow));
+            if Self::enqueue_encoded_header(
+                &mut self.res_p,
+                ResponseHeader::as_bytes(&Err(InternalError::Overflow)),
+            )
+            .is_err()
+            {
+                error!("Response queue full!");
+            }
         }
     }
 
@@ -116,48 +120,6 @@ where
         self.buf.capacity()
     }
 
-    /// Notify the client that an appropriate response code, or error has been
-    /// received
-    fn notify_response(&mut self, resp: Result<Vec<u8, BUF_LEN>, InternalError>) {
-        #[cfg(any(feature = "defmt", feature = "log"))]
-        match &resp {
-            Ok(r) => {
-                if r.is_empty() {
-                    debug!("Received OK")
-                } else {
-                    debug!("Received response: \"{:?}\"", LossyStr(r.as_ref()));
-                }
-            }
-            Err(e) => {
-                error!("Received error response {:?}", e);
-            }
-        };
-
-        let (header, bytes) = ResponseHeader::as_bytes(&resp);
-        if let Ok(mut grant) = self.res_p.grant(bytes.len() + header.len()) {
-            grant[0..header.len()].copy_from_slice(&header);
-            grant[header.len()..header.len() + bytes.len()].copy_from_slice(bytes);
-            grant.commit(bytes.len() + header.len());
-        } else {
-            // FIXME: Handle queue being full
-            error!("Response queue full!");
-        }
-    }
-
-    /// Notify the client that an unsolicited response code (URC) has been
-    /// received
-    fn notify_urc(&mut self, resp: Vec<u8, BUF_LEN>) {
-        debug!("Received response: \"{:?}\"", LossyStr(&resp));
-
-        if let Ok(mut grant) = self.urc_p.grant(resp.len()) {
-            grant.copy_from_slice(resp.as_ref());
-            grant.commit(resp.len());
-        } else {
-            // FIXME: Handle queue being full
-            error!("URC queue full!");
-        }
-    }
-
     /// Handle receiving internal config commands from the client.
     fn handle_com(&mut self) {
         if let Some(com) = self.com_c.dequeue() {
@@ -167,24 +129,71 @@ where
                         "Cleared complete buffer as requested by client [{:?}]",
                         LossyStr(&self.buf),
                     );
-                    self.digester.reset();
                     self.buf.clear();
                 }
-                Command::ForceReceiveState => self.digester.force_receive_state(),
             }
         }
     }
 
     pub fn digest(&mut self) {
-        for _ in 0..5 {
-            // Handle commands every loop to catch timeouts asap
-            self.handle_com();
+        // Handle commands every loop to catch timeouts asap
+        self.handle_com();
 
-            match self.digester.digest(&mut self.buf, &mut self.urc_matcher) {
-                DigestResult::None => {}
-                DigestResult::Urc(urc_line) => self.notify_urc(urc_line),
-                DigestResult::Response(resp) => self.notify_response(resp),
-            };
+        if let Ok(swallowed) = match self.digester.digest(&self.buf) {
+            (DigestResult::None, swallowed) => Ok(swallowed),
+            (DigestResult::Prompt(prompt), swallowed) => {
+                info!("GOT PROMPT {}", prompt);
+                match Self::enqueue_encoded_header(
+                    &mut self.res_p,
+                    ResponseHeader::as_bytes(&Ok(&[])),
+                ) {
+                    Ok(_) => Ok(swallowed),
+                    Err(_) => {
+                        error!("Response queue full!");
+                        Err(())
+                    }
+                }
+            }
+            (DigestResult::Urc(urc_line), swallowed) => {
+                if let Ok(mut grant) = self.urc_p.grant(urc_line.len()) {
+                    grant.copy_from_slice(urc_line);
+                    grant.commit(urc_line.len());
+                    Ok(swallowed)
+                } else {
+                    error!("URC queue full!");
+                    Err(())
+                }
+            }
+            (DigestResult::Response(resp), swallowed) => {
+                #[cfg(any(feature = "defmt", feature = "log"))]
+                match &resp {
+                    Ok(r) => {
+                        if r.is_empty() {
+                            debug!("Received OK")
+                        } else {
+                            debug!("Received response: \"{:?}\"", LossyStr(r.as_ref()));
+                        }
+                    }
+                    Err(e) => {
+                        error!("Received error response {:?}", e);
+                    }
+                };
+
+                match Self::enqueue_encoded_header(&mut self.res_p, ResponseHeader::as_bytes(&resp))
+                {
+                    Ok(_) => Ok(swallowed),
+                    Err(_) => {
+                        error!("Response queue full!");
+                        Err(())
+                    }
+                }
+            }
+        } {
+            self.buf.rotate_left(swallowed);
+            self.buf.truncate(self.buf.len() - swallowed);
+            // if !self.buf.is_empty() {
+            //     trace!("Buffer remainder: \"{:?}\"", LossyStr(&self.buf));
+            // }
         }
     }
 }
@@ -192,13 +201,21 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::queues;
+    use crate::{digest::ParseError, queues, AtDigester, Parser};
     use bbqueue::BBBuffer;
     use heapless::spsc::Queue;
 
     const TEST_RX_BUF_LEN: usize = 256;
     const TEST_URC_CAPACITY: usize = 10;
     const TEST_RES_CAPACITY: usize = 10;
+
+    enum UrcTestParser {}
+
+    impl Parser for UrcTestParser {
+        fn parse<'a>(_buf: &'a [u8]) -> Result<(&'a [u8], usize), ParseError> {
+            Err(ParseError::NoMatch)
+        }
+    }
 
     #[test]
     fn overflow() {
@@ -211,19 +228,13 @@ mod test {
         static mut COM_Q: queues::ComQueue = Queue::new();
         let (_com_p, com_c) = unsafe { COM_Q.split() };
 
-        let mut ingress = IngressManager::<
-            _,
-            _,
-            TEST_RX_BUF_LEN,
-            TEST_RES_CAPACITY,
-            TEST_URC_CAPACITY,
-        >::with_customs(
-            res_p,
-            urc_p,
-            com_c,
-            DefaultUrcMatcher::default(),
-            DefaultDigester::default(),
-        );
+        let mut ingress =
+            IngressManager::<_, TEST_RX_BUF_LEN, TEST_RES_CAPACITY, TEST_URC_CAPACITY>::new(
+                res_p,
+                urc_p,
+                com_c,
+                AtDigester::<UrcTestParser>::new(),
+            );
 
         ingress.write(b"+USORD: 3,266,\"");
         for _ in 0..266 {

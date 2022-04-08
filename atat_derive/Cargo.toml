@@ -3,7 +3,7 @@
 name = "atat_derive"
 version = "0.15.0"
 authors = ["Mathias Koch <mk@blackbird.online>"]
-edition = "2018"
+edition = "2021"
 description = "Derive macro for atat"
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/atat_derive"

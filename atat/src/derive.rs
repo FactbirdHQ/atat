@@ -1,5 +1,4 @@
 use heapless::{String, Vec};
-use serde_at::CharVec;
 
 /// Trait used by [`atat_derive`] to estimate lengths of the serialized commands, at compile time.
 ///
@@ -56,10 +55,6 @@ where
     T: AtatLen,
 {
     const LEN: usize = L * <T as AtatLen>::LEN;
-}
-
-impl<const N: usize> AtatLen for CharVec<N> {
-    const LEN: usize = N;
 }
 
 #[cfg(test)]

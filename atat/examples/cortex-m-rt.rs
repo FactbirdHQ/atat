@@ -9,8 +9,7 @@ use panic_probe as _; // global logger
 
 use atat::{AtatClient, ClientBuilder, Clock, ComQueue, Queues};
 use bbqueue::BBBuffer;
-use common::timer::DwtTimer;
-use cortex_m::asm;
+use common::{timer::DwtTimer, Urc};
 use cortex_m_rt::entry;
 use fugit::ExtU32;
 use hal::{
@@ -23,6 +22,7 @@ use hal::{
 };
 use heapless::spsc::Queue;
 
+#[cfg(feature = "defmt")]
 defmt::timestamp!("{=u64}", { DwtTimer::<80_000_000>::now() / 80_000 });
 
 const RX_BUFFER_BYTES: usize = 512;
@@ -33,8 +33,7 @@ const URC_CAPACITY_BYTES: usize = RX_BUFFER_BYTES * 3;
 
 static mut INGRESS: Option<
     atat::IngressManager<
-        atat::DefaultDigester,
-        atat::DefaultUrcMatcher,
+        atat::AtDigester<Urc>,
         RX_BUFFER_BYTES,
         RES_CAPACITY_BYTES,
         URC_CAPACITY_BYTES,
@@ -122,6 +121,7 @@ fn main() -> ! {
     let (mut client, ingress) = ClientBuilder::new(
         tx,
         DwtTimer::<80_000_000>::new(),
+        atat::AtDigester::new(),
         atat::Config::new(atat::Mode::Timeout),
     )
     .build(queues);
@@ -140,6 +140,7 @@ fn main() -> ! {
     let mut loop_timer = DwtTimer::<80_000_000>::new();
 
     loop {
+        #[cfg(feature = "defmt")]
         defmt::debug!("\r\n\r\n\r\n");
 
         match state {

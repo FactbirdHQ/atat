@@ -12,8 +12,8 @@ pub struct NoResponse;
 #[at_cmd("", NoResponse, timeout_ms = 1000)]
 pub struct AT;
 
-// #[derive(Clone, AtatUrc)]
-// pub enum Urc {
-//     // #[at_urc("+UMWI")]
-//     // MessageWaitingIndication(general::urc::MessageWaitingIndication),
-// }
+#[derive(Clone, AtatUrc)]
+pub enum Urc {
+    #[at_urc("+UMWI")]
+    MessageWaitingIndication(general::urc::MessageWaitingIndication),
+}

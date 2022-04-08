@@ -19,7 +19,7 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
         panic!("there must be at least one variant");
     }
 
-    let match_arms: Vec<_> = variants.iter().map(|variant| {
+    let (match_arms, digest_arms): (Vec<_>, Vec<_>) = variants.iter().map(|variant| {
         let UrcAttributes {
             code
         } = variant.attrs.at_urc.clone().unwrap_or_else(|| {
@@ -29,7 +29,7 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
         });
 
         let variant_ident = variant.ident.clone();
-        match variant.fields.clone() {
+        let parse_arm = match variant.fields.clone() {
             Some(Fields::Named(_)) => {
                 panic!("cannot handle named enum variants")
             }
@@ -51,8 +51,14 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
             None => {
                 panic!()
             }
-        }
-    }).collect();
+        };
+
+        let digest_arm = quote! {
+            atat::digest::parser::urc_helper(&#code[..]),
+        };
+
+        (parse_arm, digest_arm)
+    }).unzip();
 
     TokenStream::from(quote! {
         #[automatically_derived]
@@ -61,6 +67,7 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
 
             #[inline]
             fn parse(resp: &[u8]) -> Option<Self::Response> {
+                // FIXME: this should be more generic than ':' (Split using #code?)
                 if let Some(index) = resp.iter().position(|&x| x == b':') {
                     Some(match &resp[..index] {
                         #(
@@ -71,6 +78,21 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
                 } else {
                     None
                 }
+            }
+        }
+
+        #[automatically_derived]
+        impl #impl_generics atat::Parser for #ident #ty_generics #where_clause {
+            fn parse<'a>(
+                buf: &'a [u8],
+            ) -> Result<(&'a [u8], usize), atat::digest::ParseError> {
+                let (_, r) = atat::nom::branch::alt((
+                    #(
+                        #digest_arms
+                    )*
+                ))(buf)?;
+
+                Ok(r)
             }
         }
     })

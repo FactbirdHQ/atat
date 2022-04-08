@@ -10,6 +10,7 @@ use crate::ResponseHeader;
 use crate::{Command, Config};
 
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 enum ClientState {
     Idle,
     AwaitingResponse,
@@ -17,6 +18,7 @@ enum ClientState {
 
 /// Whether the AT client should block while waiting responses or return early.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Mode {
     /// The function call will wait as long as necessary to complete the operation
     Blocking,
@@ -93,13 +95,8 @@ where
     fn send<A: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
         cmd: &A,
-    ) -> nb::Result<A::Response, Error<A::Error>> {
+    ) -> nb::Result<A::Response, Error> {
         if let ClientState::Idle = self.state {
-            if A::FORCE_RECEIVE_STATE && self.com_p.enqueue(Command::ForceReceiveState).is_err() {
-                // TODO: Consider how to act in this situation.
-                error!("Failed to signal parser to force state transition to 'ReceivingResponse'!",);
-            }
-
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
@@ -154,7 +151,7 @@ where
     fn check_response<A: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
         cmd: &A,
-    ) -> nb::Result<A::Response, Error<A::Error>> {
+    ) -> nb::Result<A::Response, Error> {
         if let Some(mut res_grant) = self.res_c.read() {
             res_grant.auto_release(true);
 
@@ -167,8 +164,6 @@ where
                         self.state = ClientState::Idle;
                         Ok(r)
                     } else {
-                        // FIXME: Is this correct?
-                        error!("Is this correct?! WouldBlock");
                         Err(nb::Error::WouldBlock)
                     }
                 })
@@ -217,11 +212,11 @@ mod test {
     use crate::{self as atat, InternalError};
     use crate::{
         atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc},
-        Clock, GenericError,
+        Clock,
     };
     use bbqueue::framed::FrameProducer;
     use bbqueue::BBBuffer;
-    use heapless::{spsc::Queue, String, Vec};
+    use heapless::{spsc::Queue, String};
     use nb;
 
     const TEST_RX_BUF_LEN: usize = 256;
@@ -255,6 +250,15 @@ mod test {
         /// Wait until countdown `duration` set with the `fn start` has expired
         fn wait(&mut self) -> nb::Result<(), Self::Error> {
             Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    pub enum SerialError {}
+
+    impl embedded_hal::serial::Error for SerialError {
+        fn kind(&self) -> serial::ErrorKind {
+            serial::ErrorKind::Other
         }
     }
 
@@ -426,18 +430,27 @@ mod test {
 
     pub fn enqueue_res(
         producer: &mut FrameProducer<'static, TEST_RES_CAPACITY>,
-        res: Result<Vec<u8, TEST_RX_BUF_LEN>, InternalError>,
+        res: Result<&[u8], InternalError>,
     ) {
-        let (header, bytes) = ResponseHeader::as_bytes(&res);
+        let header = ResponseHeader::as_bytes(&res);
 
-        if let Ok(mut grant) = producer.grant(bytes.len() + header.len()) {
-            grant[0..header.len()].copy_from_slice(&header);
-            grant[header.len()..header.len() + bytes.len()].copy_from_slice(bytes);
-            grant.commit(bytes.len() + header.len());
-        } else {
-            // FIXME: Handle queue being full
-            error!("Response queue full!");
-        }
+        let mut grant = producer.grant(header.len()).unwrap();
+        match header {
+            crate::error::Encoded::Simple(h) => grant[..1].copy_from_slice(&[h]),
+            crate::error::Encoded::Nested(h, b) => {
+                grant[..1].copy_from_slice(&[h]);
+                grant[1..2].copy_from_slice(&[b]);
+            }
+            crate::error::Encoded::Array(h, b) => {
+                grant[..1].copy_from_slice(&[h]);
+                grant[1..header.len()].copy_from_slice(&b);
+            }
+            crate::error::Encoded::Slice(h, b) => {
+                grant[..1].copy_from_slice(&[h]);
+                grant[1..header.len()].copy_from_slice(b);
+            }
+        };
+        grant.commit(header.len());
     }
 
     #[test]
@@ -446,13 +459,10 @@ mod test {
 
         let cmd = ErrorTester { x: 7 };
 
-        enqueue_res(&mut p, Err(InternalError::Error(Vec::new())));
+        enqueue_res(&mut p, Err(InternalError::Error));
 
         assert_eq!(client.state, ClientState::Idle);
-        assert_eq!(
-            nb::block!(client.send(&cmd)),
-            Err(Error::Error(InnerError::Test))
-        );
+        assert_eq!(nb::block!(client.send(&cmd)), Err(Error::Error));
         assert_eq!(client.state, ClientState::Idle);
     }
 
@@ -465,13 +475,10 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Err(InternalError::Error(Vec::new())));
+        enqueue_res(&mut p, Err(InternalError::Error));
 
         assert_eq!(client.state, ClientState::Idle);
-        assert_eq!(
-            nb::block!(client.send(&cmd)),
-            Err(Error::Error(GenericError))
-        );
+        assert_eq!(nb::block!(client.send(&cmd)), Err(Error::Error));
         assert_eq!(client.state, ClientState::Idle);
     }
 
@@ -484,7 +491,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Ok(&[]));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -496,7 +503,7 @@ mod test {
             "Wrong encoding of string"
         );
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Ok(&[]));
 
         let cmd = Test2Cmd {
             fun: Functionality::DM,
@@ -512,26 +519,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
-    fn countdown() {
-        let (mut client, _, _) = setup!(Config::new(Mode::Timeout));
-
-        assert_eq!(client.state, ClientState::Idle);
-
-        let cmd = Test2Cmd {
-            fun: Functionality::DM,
-            rst: Some(ResetMode::Reset),
-        };
-        assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Timeout)));
-
-        match client.config.mode {
-            Mode::Timeout => {} // assert_eq!(cd_mock.time, 180000),
-            _ => panic!("Wrong AT mode"),
-        }
-        assert_eq!(client.state, ClientState::Idle);
-    }
-
-    #[test]
     fn blocking() {
         let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
 
@@ -540,7 +527,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Ok(&[]));
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -563,7 +550,7 @@ mod test {
 
         assert_eq!(client.check_response(&cmd), Err(nb::Error::WouldBlock));
 
-        enqueue_res(&mut p, Ok(Vec::<u8, TEST_RX_BUF_LEN>::new()));
+        enqueue_res(&mut p, Ok(&[]));
 
         assert_eq!(client.state, ClientState::AwaitingResponse);
 
@@ -582,8 +569,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let response =
-            Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: 22,16,\"0123456789012345\"").unwrap();
+        let response = b"+CUN: 22,16,\"0123456789012345\"";
         enqueue_res(&mut p, Ok(response));
 
         assert_eq!(client.state, ClientState::Idle);
@@ -604,8 +590,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let response =
-            Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: \"0123456789012345\",22,16").unwrap();
+        let response = b"+CUN: \"0123456789012345\",22,16";
         enqueue_res(&mut p, Ok(response));
 
         assert_eq!(
@@ -623,7 +608,7 @@ mod test {
     fn urc() {
         let (mut client, _, mut urc_p) = setup!(Config::new(Mode::NonBlocking));
 
-        let response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+UMWI: 0, 1").unwrap();
+        let response = b"+UMWI: 0, 1";
 
         let mut grant = urc_p.grant(response.len()).unwrap();
         grant.copy_from_slice(response.as_ref());
@@ -644,7 +629,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(b"+CUN: 22,16,22").unwrap();
+        let response = b"+CUN: 22,16,22";
         enqueue_res(&mut p, Ok(response));
 
         assert_eq!(client.state, ClientState::Idle);

@@ -16,9 +16,9 @@ pub mod ser;
 pub use serde;
 
 #[doc(inline)]
-pub use self::de::{from_slice, from_str, CharVec};
+pub use self::de::{from_slice, from_str};
 #[doc(inline)]
-pub use self::ser::{to_string, to_vec, Bytes, SerializeOptions};
+pub use self::ser::{to_string, to_vec, SerializeOptions};
 
 #[allow(clippy::uninit_assumed_init)]
 unsafe fn uninitialized<T>() -> T {

@@ -1,9 +1,6 @@
 [workspace]
-members = [
-    "serde_at",
-    "atat_derive",
-    "atat",
-]
+resolver = "2"
+members = ["serde_at", "atat_derive", "atat"]
 
 
 # cargo build/run
@@ -12,8 +9,8 @@ codegen-units = 1
 debug = 2
 debug-assertions = true # <-
 incremental = false
-opt-level = "s" # <-
-overflow-checks = true # <-
+opt-level = "s"         # <-
+overflow-checks = true  # <-
 
 # cargo test
 [profile.test]
@@ -21,8 +18,8 @@ codegen-units = 1
 debug = 2
 debug-assertions = true # <-
 incremental = false
-opt-level = "s" # <-
-overflow-checks = true # <-
+opt-level = "s"         # <-
+overflow-checks = true  # <-
 
 # cargo build/run --release
 [profile.release]
@@ -31,8 +28,8 @@ debug = 2
 debug-assertions = false # <-
 incremental = false
 lto = 'fat'
-opt-level = "s" # <-
-overflow-checks = false # <-
+opt-level = "s"          # <-
+overflow-checks = false  # <-
 
 # cargo test --release
 [profile.bench]
@@ -41,5 +38,5 @@ debug = 2
 debug-assertions = false # <-
 incremental = false
 lto = 'fat'
-opt-level = "s" # <-
-overflow-checks = false # <-
+opt-level = "s"          # <-
+overflow-checks = false  # <-
