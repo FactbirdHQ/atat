@@ -48,7 +48,7 @@ pub struct AtDigester<P: Parser> {
     _urc_parser: PhantomData<P>,
     custom_success: fn(&[u8]) -> Result<(&[u8], usize), nom::Err<nom::error::Error<&[u8]>>>,
     custom_error: fn(&[u8]) -> Result<(&[u8], usize), nom::Err<nom::error::Error<&[u8]>>>,
-    custom_prompt: fn(&[u8]) -> Result<(&[u8], usize), nom::Err<nom::error::Error<&[u8]>>>,
+    custom_prompt: fn(&[u8]) -> Result<(u8, usize), nom::Err<nom::error::Error<&[u8]>>>,
 }
 
 impl<P: Parser> AtDigester<P> {
@@ -88,12 +88,8 @@ impl<P: Parser> Digester for AtDigester<P> {
         }
 
         // Custom prompts for data replies first, if any
-        if let Ok((_response, len)) = (self.custom_prompt)(buf) {
-            return (
-                // FIXME:
-                DigestResult::Prompt(b'p'),
-                len + echo_bytes,
-            );
+        if let Ok((response, len)) = (self.custom_prompt)(buf) {
+            return (DigestResult::Prompt(response), len + echo_bytes);
         }
 
         // Generic prompts for data

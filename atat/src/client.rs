@@ -169,8 +169,6 @@ where
                         self.state = ClientState::Idle;
                         Ok(r)
                     } else {
-                        // FIXME: Is this correct?
-                        error!("Is this correct?! WouldBlock");
                         Err(nb::Error::WouldBlock)
                     }
                 })
