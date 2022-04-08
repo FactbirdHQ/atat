@@ -59,6 +59,7 @@ stm32l4xx-hal = { git = "https://github.com/BlackbirdHQ/stm32l4xx-hal", branch =
 [features]
 default = ["derive", "bytes"]
 derive = ["atat_derive", "serde_at"]
+custom-error-messages = []
 
 bytes = ["heapless-bytes", "serde_bytes"]
 

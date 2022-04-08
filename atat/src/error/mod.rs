@@ -35,7 +35,7 @@ pub enum InternalError<'a> {
     Custom(&'a [u8]),
 }
 
-pub enum Encoded<'a> {
+pub(crate) enum Encoded<'a> {
     Simple(u8),
     Nested(u8, u8),
     Array(u8, [u8; 2]),
@@ -54,7 +54,7 @@ impl<'a> Encoded<'a> {
 }
 
 impl<'a> InternalError<'a> {
-    pub fn encode(&'a self) -> Encoded<'a> {
+    pub(crate) fn encode(&'a self) -> Encoded<'a> {
         match self {
             InternalError::Read => Encoded::Simple(0x00),
             InternalError::Write => Encoded::Simple(0x01),
@@ -71,7 +71,7 @@ impl<'a> InternalError<'a> {
         }
     }
 
-    pub fn decode(b: &'a [u8]) -> Self {
+    pub(crate) fn decode(b: &'a [u8]) -> Self {
         match &b[0] {
             0x00 => InternalError::Read,
             0x01 => InternalError::Write,
@@ -142,6 +142,8 @@ pub enum Error {
     ConnectionError(ConnectionError),
     /// Error response containing any error message
     Custom,
+    #[cfg(feature = "custom-error-messages")]
+    CustomMessage(heapless::Vec<u8, 64>),
 }
 
 impl<'a> From<InternalError<'a>> for Error {
@@ -158,8 +160,12 @@ impl<'a> From<InternalError<'a>> for Error {
             InternalError::CmeError(e) => Self::CmeError(e),
             InternalError::CmsError(e) => Self::CmsError(e),
             InternalError::ConnectionError(e) => Self::ConnectionError(e),
-            // FIXME:
-            InternalError::Custom(_) => Self::Error,
+            #[cfg(feature = "custom-error-messages")]
+            InternalError::Custom(e) => Self::CustomMessage(
+                heapless::Vec::from_slice(&e[..core::cmp::min(e.len(), 64)]).unwrap_or_default(),
+            ),
+            #[cfg(not(feature = "custom-error-messages"))]
+            InternalError::Custom(_) => Self::Custom,
         }
     }
 }

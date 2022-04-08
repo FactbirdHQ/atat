@@ -307,7 +307,7 @@ impl Config {
     }
 }
 
-pub struct ResponseHeader;
+pub(crate) struct ResponseHeader;
 
 impl ResponseHeader {
     pub fn as_bytes<'a>(res: &'a Result<&'a [u8], InternalError<'a>>) -> error::Encoded {
