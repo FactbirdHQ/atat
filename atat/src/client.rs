@@ -124,14 +124,27 @@ where
             return cmd.parse(Ok(&[])).map_err(nb::Error::Other);
         }
 
-        match self.config.mode {
-            Mode::Blocking => Ok(nb::block!(self.check_response(cmd))?),
-            Mode::NonBlocking => self.check_response(cmd),
-            Mode::Timeout => {
-                self.timer.start(A::MAX_TIMEOUT_MS.millis()).ok();
-                Ok(nb::block!(self.check_response(cmd))?)
+        let mut error = Err(nb::Error::Other(Error::Error));
+        for _ in 0..(A::RETRY_ATTEMPTS + 1) {
+            let result = match self.config.mode {
+                Mode::Blocking => Ok(nb::block!(self.check_response(cmd))?),
+                Mode::NonBlocking => self.check_response(cmd),
+                Mode::Timeout => {
+                    self.timer.start(A::MAX_TIMEOUT_MS.millis()).ok();
+                    Ok(nb::block!(self.check_response(cmd))?)
+                }
+            };
+
+            match result {
+                e @ Err(nb::Error::Other(Error::Timeout))
+                | e @ Err(nb::Error::Other(Error::Parse)) => {
+                    error = e;
+                }
+                r => return r,
             }
         }
+
+        return error;
     }
 
     fn peek_urc_with<URC: AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F) {

@@ -68,6 +68,9 @@ pub trait AtatCmd<const LEN: usize> {
     /// The max timeout in milliseconds.
     const MAX_TIMEOUT_MS: u32 = 1000;
 
+    /// The max number of times to automatically retry a command
+    const RETRY_ATTEMPTS: u8 = 2;
+
     /// Force client to look for a response.
     /// Empty slice is then passed to parse by client.
     /// Implemented to enhance expandability fo ATAT
