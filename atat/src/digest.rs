@@ -256,7 +256,13 @@ pub mod parser {
                     len,
                 )
             }),
-            // TODO: Samsung Z810 may reply "NA" to report a not-available error
+            // Samsung Z810 may reply "NA" to report a not-available error
+            map(recognize(tag("\r\nNA\r\n")), |tag: &[u8]| {
+                (
+                    DigestResult::Response(Err(InternalError::CmeError(CmeError::NotAllowed))),
+                    tag.len(),
+                )
+            }),
         ))(buf)
     }
 
@@ -434,17 +440,6 @@ pub mod parser {
         let to = x.iter().rposition(|x| !x.is_ascii_whitespace()).unwrap();
         &x[from..=to]
     }
-
-    // fn print_dbg(i: &[u8]) -> IResult<&[u8], &[u8]> {
-    //     print_dbg_ident("")(i)
-    // }
-
-    // fn print_dbg_ident(ident: &'static str) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
-    //     move |i| {
-    //         // println!("{:?} = {:?}", ident, LossyStr(i));
-    //         Ok((i, &[]))
-    //     }
-    // }
 }
 #[cfg(test)]
 mod test {
