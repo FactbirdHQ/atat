@@ -201,7 +201,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{queues, AtDigester, Parser};
+    use crate::{digest::ParseError, queues, AtDigester, Parser};
     use bbqueue::BBBuffer;
     use heapless::spsc::Queue;
 
@@ -212,10 +212,8 @@ mod test {
     enum UrcTestParser {}
 
     impl Parser for UrcTestParser {
-        fn parse<'a>(
-            _buf: &'a [u8],
-        ) -> Result<(&'a [u8], usize), nom::Err<nom::error::Error<&'a [u8]>>> {
-            Err(nom::Err::Incomplete(nom::Needed::Unknown))
+        fn parse<'a>(_buf: &'a [u8]) -> Result<(&'a [u8], usize), ParseError> {
+            Err(ParseError::NoMatch)
         }
     }
 

@@ -10,13 +10,26 @@ pub enum DigestResult<'a> {
     None,
 }
 
+pub enum ParseError {
+    Incomplete,
+    NoMatch,
+}
+
+impl From<nom::Err<nom::error::Error<&[u8]>>> for ParseError {
+    fn from(e: nom::Err<nom::error::Error<&[u8]>>) -> Self {
+        match e {
+            nom::Err::Incomplete(_) => Self::Incomplete,
+            _ => Self::NoMatch,
+        }
+    }
+}
+
 pub trait Digester {
     fn digest<'a>(&mut self, buf: &'a [u8]) -> (DigestResult<'a>, usize);
 }
 
 pub trait Parser {
-    fn parse<'a>(buf: &'a [u8])
-        -> Result<(&'a [u8], usize), nom::Err<nom::error::Error<&'a [u8]>>>;
+    fn parse<'a>(buf: &'a [u8]) -> Result<(&'a [u8], usize), ParseError>;
 }
 
 /// A Digester that tries to implement the basic AT standard.
@@ -46,45 +59,36 @@ pub trait Parser {
 /// Usually \<PROMPT> can be one of \['>', '@'], and is command specific and only valid for few selected commands.
 pub struct AtDigester<P: Parser> {
     _urc_parser: PhantomData<P>,
-    custom_success: fn(&[u8]) -> Result<(&[u8], usize), nom::Err<nom::error::Error<&[u8]>>>,
-    custom_error: fn(&[u8]) -> Result<(&[u8], usize), nom::Err<nom::error::Error<&[u8]>>>,
-    custom_prompt: fn(&[u8]) -> Result<(u8, usize), nom::Err<nom::error::Error<&[u8]>>>,
+    custom_success: fn(&[u8]) -> Result<(&[u8], usize), ParseError>,
+    custom_error: fn(&[u8]) -> Result<(&[u8], usize), ParseError>,
+    custom_prompt: fn(&[u8]) -> Result<(u8, usize), ParseError>,
 }
 
 impl<P: Parser> AtDigester<P> {
     pub fn new() -> Self {
         Self {
             _urc_parser: PhantomData,
-            custom_success: |_| Err(nom::Err::Incomplete(nom::Needed::Unknown)),
-            custom_error: |_| Err(nom::Err::Incomplete(nom::Needed::Unknown)),
-            custom_prompt: |_| Err(nom::Err::Incomplete(nom::Needed::Unknown)),
+            custom_success: |_| Err(ParseError::NoMatch),
+            custom_error: |_| Err(ParseError::NoMatch),
+            custom_prompt: |_| Err(ParseError::NoMatch),
         }
     }
 
-    pub fn with_custom_success(
-        self,
-        f: fn(&[u8]) -> Result<(&[u8], usize), nom::Err<nom::error::Error<&[u8]>>>,
-    ) -> Self {
+    pub fn with_custom_success(self, f: fn(&[u8]) -> Result<(&[u8], usize), ParseError>) -> Self {
         Self {
             custom_success: f,
             ..self
         }
     }
 
-    pub fn with_custom_error(
-        self,
-        f: fn(&[u8]) -> Result<(&[u8], usize), nom::Err<nom::error::Error<&[u8]>>>,
-    ) -> Self {
+    pub fn with_custom_error(self, f: fn(&[u8]) -> Result<(&[u8], usize), ParseError>) -> Self {
         Self {
             custom_error: f,
             ..self
         }
     }
 
-    pub fn with_custom_prompt(
-        self,
-        f: fn(&[u8]) -> Result<(u8, usize), nom::Err<nom::error::Error<&[u8]>>>,
-    ) -> Self {
+    pub fn with_custom_prompt(self, f: fn(&[u8]) -> Result<(u8, usize), ParseError>) -> Self {
         Self {
             custom_prompt: f,
             ..self
@@ -456,9 +460,7 @@ mod test {
     enum UrcTestParser {}
 
     impl Parser for UrcTestParser {
-        fn parse<'a>(
-            buf: &'a [u8],
-        ) -> Result<(&'a [u8], usize), nom::Err<nom::error::Error<&'a [u8]>>> {
+        fn parse<'a>(buf: &'a [u8]) -> Result<(&'a [u8], usize), ParseError> {
             let (_, r) = nom::branch::alt((urc_helper("+UUSORD"), urc_helper("+CIEV")))(buf)?;
 
             Ok(r)
