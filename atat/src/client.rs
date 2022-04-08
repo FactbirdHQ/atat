@@ -439,16 +439,25 @@ mod test {
         producer: &mut FrameProducer<'static, TEST_RES_CAPACITY>,
         res: Result<&[u8], InternalError>,
     ) {
-        let (header, bytes) = ResponseHeader::as_bytes(&res);
+        let header = ResponseHeader::as_bytes(&res);
 
-        if let Ok(mut grant) = producer.grant(bytes.len() + header.len()) {
-            grant[0..header.len()].copy_from_slice(&header);
-            grant[header.len()..header.len() + bytes.len()].copy_from_slice(bytes);
-            grant.commit(bytes.len() + header.len());
-        } else {
-            // FIXME: Handle queue being full
-            error!("Response queue full!");
-        }
+        let mut grant = producer.grant(header.len()).unwrap();
+        match header {
+            crate::error::Encoded::Simple(h) => grant[..1].copy_from_slice(&[h]),
+            crate::error::Encoded::Nested(h, b) => {
+                grant[..1].copy_from_slice(&[h]);
+                grant[1..2].copy_from_slice(&[b]);
+            }
+            crate::error::Encoded::Array(h, b) => {
+                grant[..1].copy_from_slice(&[h]);
+                grant[1..header.len()].copy_from_slice(&b);
+            }
+            crate::error::Encoded::Slice(h, b) => {
+                grant[..1].copy_from_slice(&[h]);
+                grant[1..header.len()].copy_from_slice(b);
+            }
+        };
+        grant.commit(header.len());
     }
 
     #[test]

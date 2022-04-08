@@ -50,6 +50,33 @@ where
         }
     }
 
+    fn enqueue_encoded_header<const N: usize>(
+        producer: &mut FrameProducer<'static, N>,
+        header: crate::error::Encoded,
+    ) -> Result<(), ()> {
+        if let Ok(mut grant) = producer.grant(header.len()) {
+            match header {
+                crate::error::Encoded::Simple(h) => grant[..1].copy_from_slice(&[h]),
+                crate::error::Encoded::Nested(h, b) => {
+                    grant[..1].copy_from_slice(&[h]);
+                    grant[1..2].copy_from_slice(&[b]);
+                }
+                crate::error::Encoded::Array(h, b) => {
+                    grant[..1].copy_from_slice(&[h]);
+                    grant[1..header.len()].copy_from_slice(&b);
+                }
+                crate::error::Encoded::Slice(h, b) => {
+                    grant[..1].copy_from_slice(&[h]);
+                    grant[1..header.len()].copy_from_slice(b);
+                }
+            };
+            grant.commit(header.len());
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
     /// Write data into the internal buffer raw bytes being the core type allows
     /// the ingress manager to be abstracted over the communication medium.
     ///
@@ -61,12 +88,12 @@ where
 
         if self.buf.extend_from_slice(data).is_err() {
             error!("OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
-            let (header, bytes) = ResponseHeader::as_bytes(&Err(InternalError::Overflow));
-            if let Ok(mut grant) = self.res_p.grant(bytes.len() + header.len()) {
-                grant[0..header.len()].copy_from_slice(&header);
-                grant[header.len()..header.len() + bytes.len()].copy_from_slice(bytes);
-                grant.commit(bytes.len() + header.len());
-            } else {
+            if Self::enqueue_encoded_header(
+                &mut self.res_p,
+                ResponseHeader::as_bytes(&Err(InternalError::Overflow)),
+            )
+            .is_err()
+            {
                 error!("Response queue full!");
             }
         }
@@ -116,16 +143,15 @@ where
             (DigestResult::None, swallowed) => Ok(swallowed),
             (DigestResult::Prompt(prompt), swallowed) => {
                 info!("GOT PROMPT {}", prompt);
-                let (header, bytes) = ResponseHeader::as_bytes(&Ok(&[]));
-                let grant_len = bytes.len() + header.len();
-                if let Ok(mut grant) = self.res_p.grant(grant_len) {
-                    grant[..header.len()].copy_from_slice(&header);
-                    grant[header.len()..grant_len].copy_from_slice(bytes);
-                    grant.commit(grant_len);
-                    Ok(swallowed)
-                } else {
-                    error!("Response queue full!");
-                    Err(())
+                match Self::enqueue_encoded_header(
+                    &mut self.res_p,
+                    ResponseHeader::as_bytes(&Ok(&[])),
+                ) {
+                    Ok(_) => Ok(swallowed),
+                    Err(_) => {
+                        error!("Response queue full!");
+                        Err(())
+                    }
                 }
             }
             (DigestResult::Urc(urc_line), swallowed) => {
@@ -153,16 +179,13 @@ where
                     }
                 };
 
-                let (header, bytes) = ResponseHeader::as_bytes(&resp);
-                let grant_len = bytes.len() + header.len();
-                if let Ok(mut grant) = self.res_p.grant(grant_len) {
-                    grant[..header.len()].copy_from_slice(&header);
-                    grant[header.len()..grant_len].copy_from_slice(bytes);
-                    grant.commit(grant_len);
-                    Ok(swallowed)
-                } else {
-                    error!("Response queue full!");
-                    Err(())
+                match Self::enqueue_encoded_header(&mut self.res_p, ResponseHeader::as_bytes(&resp))
+                {
+                    Ok(_) => Ok(swallowed),
+                    Err(_) => {
+                        error!("Response queue full!");
+                        Err(())
+                    }
                 }
             }
         } {

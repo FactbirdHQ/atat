@@ -35,25 +35,43 @@ pub enum InternalError<'a> {
     Custom(&'a [u8]),
 }
 
-impl<'a> InternalError<'a> {
-    pub fn as_byte(&self) -> u8 {
+pub enum Encoded<'a> {
+    Simple(u8),
+    Nested(u8, u8),
+    Array(u8, [u8; 2]),
+    Slice(u8, &'a [u8]),
+}
+
+impl<'a> Encoded<'a> {
+    pub fn len(&self) -> usize {
         match self {
-            InternalError::Read => 0x00,
-            InternalError::Write => 0x01,
-            InternalError::Timeout => 0x02,
-            InternalError::InvalidResponse => 0x03,
-            InternalError::Aborted => 0x04,
-            InternalError::Overflow => 0x05,
-            InternalError::Parse => 0x06,
-            InternalError::Error => 0x07,
-            InternalError::CmeError(_) => 0x08,
-            InternalError::CmsError(_) => 0x09,
-            InternalError::ConnectionError(_) => 0x10,
-            InternalError::Custom(_) => 0x11,
+            Encoded::Simple(_) => 1,
+            Encoded::Nested(_, _) => 2,
+            Encoded::Array(_, _) => 3,
+            Encoded::Slice(_, b) => 1 + b.len(),
+        }
+    }
+}
+
+impl<'a> InternalError<'a> {
+    pub fn encode(&'a self) -> Encoded<'a> {
+        match self {
+            InternalError::Read => Encoded::Simple(0x00),
+            InternalError::Write => Encoded::Simple(0x01),
+            InternalError::Timeout => Encoded::Simple(0x02),
+            InternalError::InvalidResponse => Encoded::Simple(0x03),
+            InternalError::Aborted => Encoded::Simple(0x04),
+            InternalError::Overflow => Encoded::Simple(0x05),
+            InternalError::Parse => Encoded::Simple(0x06),
+            InternalError::Error => Encoded::Simple(0x07),
+            InternalError::CmeError(e) => Encoded::Array(0x08, (*e as u16).to_le_bytes()),
+            InternalError::CmsError(e) => Encoded::Array(0x09, (*e as u16).to_le_bytes()),
+            InternalError::ConnectionError(e) => Encoded::Nested(0x10, *e as u8),
+            InternalError::Custom(e) => Encoded::Slice(0x11, e.as_ref()),
         }
     }
 
-    pub fn from_bytes(b: &'a [u8]) -> Self {
+    pub fn decode(b: &'a [u8]) -> Self {
         match &b[0] {
             0x00 => InternalError::Read,
             0x01 => InternalError::Write,
@@ -63,9 +81,10 @@ impl<'a> InternalError<'a> {
             0x05 => InternalError::Overflow,
             0x06 => InternalError::Parse,
             0x07 => InternalError::Error,
-            0x08 => InternalError::ConnectionError(ConnectionError::Busy),
-            0x09 if b.len() > 1 => InternalError::Custom(&b[1..]),
-            0x09 => InternalError::Custom(&[]),
+            0x08 => InternalError::CmeError(u16::from_le_bytes(b[1..3].try_into().unwrap()).into()),
+            0x09 => InternalError::CmsError(u16::from_le_bytes(b[1..3].try_into().unwrap()).into()),
+            0x10 => InternalError::ConnectionError(b[1].into()),
+            0x11 => InternalError::Custom(&b[1..]),
             _ => InternalError::Parse,
         }
     }
@@ -115,6 +134,12 @@ pub enum Error {
     Parse,
     /// Generic error response without any error message
     Error,
+    /// GSM Equipment related error
+    CmeError(CmeError),
+    /// GSM Network related error
+    CmsError(CmsError),
+    /// Connection Error
+    ConnectionError(ConnectionError),
     /// Error response containing any error message
     Custom,
 }
@@ -130,10 +155,10 @@ impl<'a> From<InternalError<'a>> for Error {
             InternalError::Overflow => Self::Overflow,
             InternalError::Parse => Self::Parse,
             InternalError::Error => Self::Error,
+            InternalError::CmeError(e) => Self::CmeError(e),
+            InternalError::CmsError(e) => Self::CmsError(e),
+            InternalError::ConnectionError(e) => Self::ConnectionError(e),
             // FIXME:
-            InternalError::CmeError(_) => Self::Error,
-            InternalError::CmsError(_) => Self::Error,
-            InternalError::ConnectionError(_) => Self::Error,
             InternalError::Custom(_) => Self::Error,
         }
     }

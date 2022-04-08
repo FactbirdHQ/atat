@@ -310,19 +310,17 @@ impl Config {
 pub struct ResponseHeader;
 
 impl ResponseHeader {
-    pub fn as_bytes<'a>(res: &'a Result<&'a [u8], InternalError<'a>>) -> ([u8; 2], &'a [u8]) {
+    pub fn as_bytes<'a>(res: &'a Result<&'a [u8], InternalError<'a>>) -> error::Encoded {
         match res {
-            Ok(r) => ([0xFF, 0xFF], r),
-            // Err(InternalError::NamedError(ref t, ref b)) => ([0x00, 0x07], b.as_ref()),
-            Err(ref e) => ([0x00, e.as_byte()], &[]),
+            Ok(r) => error::Encoded::Slice(0xFF, r),
+            Err(e) => e.encode(),
         }
     }
 
     pub fn from_bytes<'a>(bytes: &'a [u8]) -> Result<&'a [u8], InternalError<'a>> {
         match bytes[0] {
-            0xFF => Ok(&bytes[2..]),
-            0x00 => Err(InternalError::from_bytes(&bytes[1..])),
-            _ => Err(InternalError::Parse),
+            0xFF => Ok(&bytes[1..]),
+            _ => Err(InternalError::decode(bytes)),
         }
     }
 }
