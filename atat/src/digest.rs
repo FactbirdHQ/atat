@@ -29,8 +29,11 @@ pub trait Digester {
 }
 
 pub trait Parser {
-    fn parse<'a>(buf: &'a [u8]) -> Result<(&'a [u8], usize), ParseError>;
+    fn parse(buf: &[u8]) -> Result<(&[u8], usize), ParseError>;
 }
+
+pub type CustomResponse = fn(&[u8]) -> Result<(&[u8], usize), ParseError>;
+pub type CustomPrompt = fn(&[u8]) -> Result<(u8, usize), ParseError>;
 
 /// A Digester that tries to implement the basic AT standard.
 /// This digester should work for most usecases of ATAT.
@@ -59,9 +62,9 @@ pub trait Parser {
 /// Usually \<PROMPT> can be one of \['>', '@'], and is command specific and only valid for few selected commands.
 pub struct AtDigester<P: Parser> {
     _urc_parser: PhantomData<P>,
-    custom_success: fn(&[u8]) -> Result<(&[u8], usize), ParseError>,
-    custom_error: fn(&[u8]) -> Result<(&[u8], usize), ParseError>,
-    custom_prompt: fn(&[u8]) -> Result<(u8, usize), ParseError>,
+    custom_success: CustomResponse,
+    custom_error: CustomResponse,
+    custom_prompt: CustomPrompt,
 }
 
 impl<P: Parser> AtDigester<P> {
@@ -74,25 +77,31 @@ impl<P: Parser> AtDigester<P> {
         }
     }
 
-    pub fn with_custom_success(self, f: fn(&[u8]) -> Result<(&[u8], usize), ParseError>) -> Self {
+    pub fn with_custom_success(self, f: CustomResponse) -> Self {
         Self {
             custom_success: f,
             ..self
         }
     }
 
-    pub fn with_custom_error(self, f: fn(&[u8]) -> Result<(&[u8], usize), ParseError>) -> Self {
+    pub fn with_custom_error(self, f: CustomResponse) -> Self {
         Self {
             custom_error: f,
             ..self
         }
     }
 
-    pub fn with_custom_prompt(self, f: fn(&[u8]) -> Result<(u8, usize), ParseError>) -> Self {
+    pub fn with_custom_prompt(self, f: CustomPrompt) -> Self {
         Self {
             custom_prompt: f,
             ..self
         }
+    }
+}
+
+impl<P: Parser> Default for AtDigester<P> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -319,7 +328,7 @@ pub mod parser {
         recognize(nom::bytes::complete::take_until("\r\n"))(buf)
     }
 
-    fn take_until_including<'a, T, Input, Error: ParseError<Input>>(
+    fn take_until_including<T, Input, Error: ParseError<Input>>(
         tag: T,
     ) -> impl Fn(Input) -> IResult<Input, (Input, Input), Error>
     where
@@ -455,7 +464,7 @@ mod test {
     enum UrcTestParser {}
 
     impl Parser for UrcTestParser {
-        fn parse<'a>(buf: &'a [u8]) -> Result<(&'a [u8], usize), ParseError> {
+        fn parse(buf: &[u8]) -> Result<(&[u8], usize), ParseError> {
             let (_, r) = nom::branch::alt((urc_helper("+UUSORD"), urc_helper("+CIEV")))(buf)?;
 
             Ok(r)
