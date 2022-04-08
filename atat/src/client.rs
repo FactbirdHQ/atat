@@ -333,7 +333,7 @@ mod test {
         pub rst: Option<ResetMode>,
     }
     #[derive(Clone, AtatCmd)]
-    #[at_cmd("+CUN", TestResponseStringMixed, timeout_ms = 180000)]
+    #[at_cmd("+CUN", TestResponseStringMixed, timeout_ms = 180000, attempts = 1)]
     pub struct TestRespStringMixCmd {
         #[at_arg(position = 1)]
         pub fun: Functionality,

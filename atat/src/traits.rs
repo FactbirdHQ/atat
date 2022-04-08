@@ -108,8 +108,8 @@ pub trait AtatClient {
     ) -> nb::Result<A::Response, Error> {
         let mut error = Err(nb::Error::Other(Error::Error));
 
-        for attempt in 0..A::ATTEMPTS {
-            if attempt > 0 {
+        for attempt in 1..=A::ATTEMPTS {
+            if attempt > 1 {
                 debug!("Attempt {}:", attempt);
             }
 

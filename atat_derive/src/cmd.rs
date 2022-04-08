@@ -18,6 +18,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         cmd,
         resp,
         timeout_ms,
+        attempts,
         abortable,
         value_sep,
         cmd_prefix,
@@ -48,12 +49,19 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         None => quote! {},
     };
 
+    let attempts = match attempts {
+        Some(attempts) => {
+            quote! {
+                const ATTEMPTS: u8 = #attempts;
+            }
+        }
+        None => quote! {},
+    };
+
     let mut cmd_len = cmd_prefix.len() + cmd.len() + termination.len();
     if value_sep {
         cmd_len += 1;
     }
-
-    // let err = error.unwrap_or_else(|| syn::parse_str("atat::GenericError").unwrap());
 
     let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants
         .iter()
@@ -82,6 +90,8 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             #timeout
 
             #abortable
+
+            #attempts
 
             #[inline]
             fn as_bytes(&self) -> atat::heapless::Vec<u8, { #ident_len + #cmd_len }> {
