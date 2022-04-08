@@ -221,10 +221,10 @@ pub(crate) mod fmt;
 
 mod builder;
 mod client;
+pub mod digest;
 mod error;
 pub mod helpers;
 mod ingress_manager;
-pub mod nom_digest;
 mod queues;
 mod traits;
 
@@ -253,9 +253,9 @@ pub use heapless;
 
 pub use builder::ClientBuilder;
 pub use client::{Client, Mode};
+pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
 pub use error::{Error, InternalError};
 pub use ingress_manager::IngressManager;
-pub use nom_digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
 pub use queues::{ComQueue, Queues};
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 

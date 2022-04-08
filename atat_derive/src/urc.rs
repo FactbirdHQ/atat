@@ -54,7 +54,7 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
         };
 
         let digest_arm = quote! {
-            atat::nom_digest::parser::urc_helper(&#code[..]),
+            atat::digest::parser::urc_helper(&#code[..]),
         };
 
         (parse_arm, digest_arm)

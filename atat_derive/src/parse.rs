@@ -21,7 +21,6 @@ pub struct CmdAttributes {
     pub resp: Path,
     pub timeout_ms: Option<u32>,
     pub abortable: Option<bool>,
-    pub force_receive_state: Option<bool>,
     pub value_sep: bool,
     pub cmd_prefix: String,
     pub termination: String,
@@ -255,7 +254,6 @@ impl Parse for CmdAttributes {
             resp: response_ident,
             timeout_ms: None,
             abortable: None,
-            force_receive_state: None,
             value_sep: true,
             cmd_prefix: String::from("AT"),
             termination: String::from("\r\n"),
@@ -281,18 +279,6 @@ impl Parse for CmdAttributes {
                         at_cmd.abortable = Some(v.value);
                     }
                     _ => return Err(Error::new(call_site, "expected bool value for 'abortable'")),
-                }
-            } else if optional.path.is_ident("force_receive_state") {
-                match optional.lit {
-                    Lit::Bool(v) => {
-                        at_cmd.force_receive_state = Some(v.value);
-                    }
-                    _ => {
-                        return Err(Error::new(
-                            call_site,
-                            "expected bool value for 'force_receive_state'",
-                        ))
-                    }
                 }
             } else if optional.path.is_ident("value_sep") {
                 match optional.lit {

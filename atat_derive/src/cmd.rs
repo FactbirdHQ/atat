@@ -19,7 +19,6 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         resp,
         timeout_ms,
         abortable,
-        force_receive_state,
         value_sep,
         cmd_prefix,
         termination,
@@ -44,15 +43,6 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         Some(abortable) => {
             quote! {
                 const CAN_ABORT: bool = #abortable;
-            }
-        }
-        None => quote! {},
-    };
-
-    let force_receive = match force_receive_state {
-        Some(force_receive_state) => {
-            quote! {
-                const FORCE_RECEIVE_STATE: bool = #force_receive_state;
             }
         }
         None => quote! {},
@@ -92,8 +82,6 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             #timeout
 
             #abortable
-
-            #force_receive
 
             #[inline]
             fn as_bytes(&self) -> atat::heapless::Vec<u8, { #ident_len + #cmd_len }> {

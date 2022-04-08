@@ -1,9 +1,9 @@
 use bbqueue::framed::FrameProducer;
 use heapless::Vec;
 
+use crate::digest::{DigestResult, Digester};
 use crate::error::InternalError;
 use crate::helpers::LossyStr;
-use crate::nom_digest::{DigestResult, Digester};
 use crate::queues::ComConsumer;
 use crate::Command;
 use crate::ResponseHeader;

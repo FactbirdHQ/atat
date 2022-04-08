@@ -97,11 +97,6 @@ where
         cmd: &A,
     ) -> nb::Result<A::Response, Error> {
         if let ClientState::Idle = self.state {
-            // if A::FORCE_RECEIVE_STATE && self.com_p.enqueue(Command::ForceReceiveState).is_err() {
-            //     // TODO: Consider how to act in this situation.
-            //     error!("Failed to signal parser to force state transition to 'ReceivingResponse'!",);
-            // }
-
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command

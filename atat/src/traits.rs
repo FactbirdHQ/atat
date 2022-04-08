@@ -68,10 +68,6 @@ pub trait AtatCmd<const LEN: usize> {
     /// The max timeout in milliseconds.
     const MAX_TIMEOUT_MS: u32 = 1000;
 
-    /// Force the ingress manager into receive state immediately after sending
-    /// the command.
-    const FORCE_RECEIVE_STATE: bool = false;
-
     /// Force client to look for a response.
     /// Empty slice is then passed to parse by client.
     /// Implemented to enhance expandability fo ATAT
