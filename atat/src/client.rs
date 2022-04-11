@@ -2,11 +2,10 @@ use bbqueue::framed::FrameConsumer;
 use embedded_hal::serial;
 use fugit::ExtU32;
 
-use crate::error::Error;
+use crate::error::{Error, Response};
 use crate::helpers::LossyStr;
 use crate::queues::ComProducer;
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
-use crate::ResponseHeader;
 use crate::{Command, Config};
 
 #[derive(Debug, PartialEq)]
@@ -155,8 +154,13 @@ where
         if let Some(mut res_grant) = self.res_c.read() {
             res_grant.auto_release(true);
 
+            let res = match Response::from(res_grant.as_ref()) {
+                Response::Result(r) => r,
+                Response::Prompt(_) => Ok(&[][..]),
+            };
+
             return cmd
-                .parse(ResponseHeader::from_bytes(res_grant.as_ref()))
+                .parse(res)
                 .map_err(nb::Error::from)
                 .and_then(|r| {
                     if let ClientState::AwaitingResponse = self.state {
@@ -432,7 +436,7 @@ mod test {
         producer: &mut FrameProducer<'static, TEST_RES_CAPACITY>,
         res: Result<&[u8], InternalError>,
     ) {
-        let header = ResponseHeader::as_bytes(&res);
+        let header: crate::error::Encoded = res.into();
 
         let mut grant = producer.grant(header.len()).unwrap();
         match header {

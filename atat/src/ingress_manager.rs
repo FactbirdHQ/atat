@@ -6,7 +6,6 @@ use crate::error::InternalError;
 use crate::helpers::LossyStr;
 use crate::queues::ComConsumer;
 use crate::Command;
-use crate::ResponseHeader;
 
 pub struct IngressManager<
     D,
@@ -50,10 +49,11 @@ where
         }
     }
 
-    fn enqueue_encoded_header<const N: usize>(
+    fn enqueue_encoded_header<'a, const N: usize>(
         producer: &mut FrameProducer<'static, N>,
-        header: crate::error::Encoded,
+        header: impl Into<crate::error::Encoded<'a>>,
     ) -> Result<(), ()> {
+        let header = header.into();
         if let Ok(mut grant) = producer.grant(header.len()) {
             match header {
                 crate::error::Encoded::Simple(h) => grant[..1].copy_from_slice(&[h]),
@@ -88,11 +88,7 @@ where
 
         if self.buf.extend_from_slice(data).is_err() {
             error!("OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
-            if Self::enqueue_encoded_header(
-                &mut self.res_p,
-                ResponseHeader::as_bytes(&Err(InternalError::Overflow)),
-            )
-            .is_err()
+            if Self::enqueue_encoded_header(&mut self.res_p, Err(InternalError::Overflow)).is_err()
             {
                 error!("Response queue full!");
             }
@@ -129,7 +125,7 @@ where
                         "Cleared complete buffer as requested by client [{:?}]",
                         LossyStr(&self.buf),
                     );
-                    self.buf.clear();
+                    // self.buf.clear();
                 }
             }
         }
@@ -142,11 +138,7 @@ where
         if let Ok(swallowed) = match self.digester.digest(&self.buf) {
             (DigestResult::None, swallowed) => Ok(swallowed),
             (DigestResult::Prompt(prompt), swallowed) => {
-                info!("GOT PROMPT {}", prompt);
-                match Self::enqueue_encoded_header(
-                    &mut self.res_p,
-                    ResponseHeader::as_bytes(&Ok(&[])),
-                ) {
+                match Self::enqueue_encoded_header(&mut self.res_p, prompt) {
                     Ok(_) => Ok(swallowed),
                     Err(_) => {
                         error!("Response queue full!");
@@ -179,8 +171,7 @@ where
                     }
                 };
 
-                match Self::enqueue_encoded_header(&mut self.res_p, ResponseHeader::as_bytes(&resp))
-                {
+                match Self::enqueue_encoded_header(&mut self.res_p, resp) {
                     Ok(_) => Ok(swallowed),
                     Err(_) => {
                         error!("Response queue full!");
@@ -201,7 +192,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{digest::ParseError, queues, AtDigester, Parser};
+    use crate::{digest::ParseError, error::Response, queues, AtDigester, Parser};
     use bbqueue::BBBuffer;
     use heapless::spsc::Queue;
 
@@ -244,9 +235,12 @@ mod test {
         ingress.digest();
         let mut grant = res_c.read().unwrap();
         grant.auto_release(true);
-        assert_eq!(
-            ResponseHeader::from_bytes(grant.as_ref()),
-            Err(InternalError::Overflow)
-        );
+
+        let res = match Response::from(grant.as_ref()) {
+            Response::Result(r) => r,
+            Response::Prompt(_) => Ok(&[][..]),
+        };
+
+        assert_eq!(res, Err(InternalError::Overflow));
     }
 }
