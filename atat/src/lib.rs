@@ -221,6 +221,7 @@ pub(crate) mod fmt;
 
 mod builder;
 mod client;
+pub mod clock;
 pub mod digest;
 mod error;
 pub mod helpers;
@@ -258,8 +259,6 @@ pub use error::{Error, InternalError};
 pub use ingress_manager::IngressManager;
 pub use queues::{ComQueue, Queues};
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
-
-pub use fugit_timer::Timer as Clock;
 
 /// Commands that can be sent from the client to the ingress manager, for
 /// configuration after initial setup. This is also used for stuff like clearing
