@@ -68,6 +68,10 @@ pub trait AtatCmd<const LEN: usize> {
     /// The max timeout in milliseconds.
     const MAX_TIMEOUT_MS: u32 = 1000;
 
+    /// The max number of times to attempt a command with automatic retries if
+    /// using `send_retry`.
+    const ATTEMPTS: u8 = 3;
+
     /// Force client to look for a response.
     /// Empty slice is then passed to parse by client.
     /// Implemented to enhance expandability fo ATAT
@@ -97,6 +101,28 @@ pub trait AtatClient {
         &mut self,
         cmd: &A,
     ) -> nb::Result<A::Response, Error>;
+
+    fn send_retry<A: AtatCmd<LEN>, const LEN: usize>(
+        &mut self,
+        cmd: &A,
+    ) -> nb::Result<A::Response, Error> {
+        let mut error = Err(nb::Error::Other(Error::Error));
+
+        for attempt in 1..=A::ATTEMPTS {
+            if attempt > 1 {
+                debug!("Attempt {}:", attempt);
+            }
+
+            match self.send(cmd) {
+                e @ Err(nb::Error::Other(Error::Timeout))
+                | e @ Err(nb::Error::Other(Error::Parse)) => {
+                    error = e;
+                }
+                r => return r,
+            }
+        }
+        error
+    }
 
     /// Checks if there are any URC's (Unsolicited Response Code) in
     /// queue from the ingress manager.

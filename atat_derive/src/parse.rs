@@ -20,6 +20,7 @@ pub struct CmdAttributes {
     pub cmd: String,
     pub resp: Path,
     pub timeout_ms: Option<u32>,
+    pub attempts: Option<u8>,
     pub abortable: Option<bool>,
     pub value_sep: bool,
     pub cmd_prefix: String,
@@ -253,6 +254,7 @@ impl Parse for CmdAttributes {
             cmd: cmd.value(),
             resp: response_ident,
             timeout_ms: None,
+            attempts: None,
             abortable: None,
             value_sep: true,
             cmd_prefix: String::from("AT"),
@@ -270,6 +272,18 @@ impl Parse for CmdAttributes {
                         return Err(Error::new(
                             call_site,
                             "expected integer value for 'timeout_ms'",
+                        ))
+                    }
+                }
+            } else if optional.path.is_ident("attempts") {
+                match optional.lit {
+                    Lit::Int(v) => {
+                        at_cmd.attempts = Some(v.base10_parse().unwrap());
+                    }
+                    _ => {
+                        return Err(Error::new(
+                            call_site,
+                            "expected integer value for 'attempts'",
                         ))
                     }
                 }
