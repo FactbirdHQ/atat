@@ -146,10 +146,7 @@ impl<P: Parser> Digester for AtDigester<P> {
         }
 
         // No matches at all. Just eat the echo and do nothing else.
-        (
-            DigestResult::None,
-            parser::adjust_ending(&input[..echo_bytes]),
-        )
+        (DigestResult::None, echo_bytes)
     }
 }
 
@@ -169,17 +166,6 @@ pub mod parser {
         sequence::tuple,
         IResult,
     };
-
-    pub fn adjust_ending(buf: &[u8]) -> usize {
-        let mut len = buf.len();
-
-        // Ends with one or more '<CR><LF>'
-        while buf[..len].ends_with(b"\r\n") {
-            len -= 2;
-        }
-
-        len
-    }
 
     /// Matches the equivalent of regex: "\r\n{token}(.*)\r\n"
     pub fn urc_helper<'a, T, Error: ParseError<&'a [u8]>>(
