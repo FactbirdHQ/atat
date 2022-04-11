@@ -216,7 +216,7 @@ mod test {
     use crate::{self as atat, InternalError};
     use crate::{
         atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc},
-        Clock,
+        clock::Clock,
     };
     use bbqueue::framed::FrameProducer;
     use bbqueue::BBBuffer;

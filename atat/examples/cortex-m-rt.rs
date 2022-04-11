@@ -7,7 +7,7 @@ use stm32l4xx_hal as hal;
 use defmt_rtt as _;
 use panic_probe as _; // global logger
 
-use atat::{AtatClient, ClientBuilder, Clock, ComQueue, Queues};
+use atat::{clock::Clock, AtatClient, ClientBuilder, ComQueue, Queues};
 use bbqueue::BBBuffer;
 use common::{timer::DwtTimer, Urc};
 use cortex_m_rt::entry;
