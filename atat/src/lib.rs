@@ -255,7 +255,7 @@ pub use heapless;
 pub use builder::ClientBuilder;
 pub use client::{Client, Mode};
 pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
-pub use error::{Error, InternalError};
+pub use error::{Error, Response, InternalError};
 pub use ingress_manager::IngressManager;
 pub use queues::Queues;
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
