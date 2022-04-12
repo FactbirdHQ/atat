@@ -4,8 +4,6 @@ use heapless::Vec;
 use crate::digest::{DigestResult, Digester};
 use crate::error::InternalError;
 use crate::helpers::LossyStr;
-use crate::queues::ComConsumer;
-use crate::Command;
 
 pub struct IngressManager<
     D,
@@ -22,8 +20,6 @@ pub struct IngressManager<
     res_p: FrameProducer<'static, RES_CAPACITY>,
     /// The URC producer sends URCs to the client
     urc_p: FrameProducer<'static, URC_CAPACITY>,
-    /// The command consumer receives commands from the client
-    com_c: ComConsumer,
 
     /// Digester.
     digester: D,
@@ -37,14 +33,12 @@ where
     pub fn new(
         res_p: FrameProducer<'static, RES_CAPACITY>,
         urc_p: FrameProducer<'static, URC_CAPACITY>,
-        com_c: ComConsumer,
         digester: D,
     ) -> Self {
         Self {
             buf: Vec::new(),
             res_p,
             urc_p,
-            com_c,
             digester,
         }
     }
@@ -84,6 +78,10 @@ where
     /// interrupt, or a DMA interrupt, to move data from the peripheral into the
     /// ingress manager receive buffer.
     pub fn write(&mut self, data: &[u8]) {
+        if data.is_empty() {
+            return;
+        }
+
         // trace!("Write: \"{:?}\"", LossyStr(data));
 
         if self.buf.extend_from_slice(data).is_err() {
@@ -116,25 +114,7 @@ where
         self.buf.capacity()
     }
 
-    /// Handle receiving internal config commands from the client.
-    fn handle_com(&mut self) {
-        if let Some(com) = self.com_c.dequeue() {
-            match com {
-                Command::Reset => {
-                    debug!(
-                        "Cleared complete buffer as requested by client [{:?}]",
-                        LossyStr(&self.buf),
-                    );
-                    // self.buf.clear();
-                }
-            }
-        }
-    }
-
     pub fn digest(&mut self) {
-        // Handle commands every loop to catch timeouts asap
-        self.handle_com();
-
         if let Ok(swallowed) = match self.digester.digest(&self.buf) {
             (DigestResult::None, swallowed) => Ok(swallowed),
             (DigestResult::Prompt(prompt), swallowed) => {
@@ -192,9 +172,8 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{digest::ParseError, error::Response, queues, AtDigester, Parser};
+    use crate::{digest::ParseError, error::Response, AtDigester, Parser};
     use bbqueue::BBBuffer;
-    use heapless::spsc::Queue;
 
     const TEST_RX_BUF_LEN: usize = 256;
     const TEST_URC_CAPACITY: usize = 10;
@@ -216,14 +195,10 @@ mod test {
         static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer::new();
         let (urc_p, _urc_c) = unsafe { URC_Q.try_split_framed().unwrap() };
 
-        static mut COM_Q: queues::ComQueue = Queue::new();
-        let (_com_p, com_c) = unsafe { COM_Q.split() };
-
         let mut ingress =
             IngressManager::<_, TEST_RX_BUF_LEN, TEST_RES_CAPACITY, TEST_URC_CAPACITY>::new(
                 res_p,
                 urc_p,
-                com_c,
                 AtDigester::<UrcTestParser>::new(),
             );
 
