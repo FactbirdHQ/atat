@@ -4,9 +4,8 @@ use fugit::ExtU32;
 
 use crate::error::{Error, Response};
 use crate::helpers::LossyStr;
-use crate::queues::ComProducer;
 use crate::traits::{AtatClient, AtatCmd, AtatUrc};
-use crate::{Command, Config};
+use crate::Config;
 
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -49,8 +48,6 @@ pub struct Client<
     res_c: FrameConsumer<'static, RES_CAPACITY>,
     /// The URC consumer receives URCs from the ingress manager
     urc_c: FrameConsumer<'static, URC_CAPACITY>,
-    /// The command producer can send commands to the ingress manager
-    com_p: ComProducer,
 
     state: ClientState,
     timer: CLK,
@@ -67,7 +64,6 @@ where
         tx: Tx,
         res_c: FrameConsumer<'static, RES_CAPACITY>,
         urc_c: FrameConsumer<'static, URC_CAPACITY>,
-        com_p: ComProducer,
         mut timer: CLK,
         config: Config,
     ) -> Self {
@@ -77,7 +73,6 @@ where
             tx,
             res_c,
             urc_c,
-            com_p,
             state: ClientState::Idle,
             config,
             timer,
@@ -179,11 +174,6 @@ where
         } else if let Mode::Timeout = self.config.mode {
             if self.timer.wait().is_ok() {
                 self.state = ClientState::Idle;
-                // Tell the parser to reset to initial state due to timeout
-                if self.com_p.enqueue(Command::Reset).is_err() {
-                    // TODO: Consider how to act in this situation.
-                    error!("Failed to signal parser to clear buffer on timeout!");
-                }
                 return Err(nb::Error::Other(Error::Timeout));
             }
         }
@@ -195,10 +185,6 @@ where
     }
 
     fn reset(&mut self) {
-        if self.com_p.enqueue(Command::Reset).is_err() {
-            // TODO: Consider how to act in this situation.
-            error!("Failed to signal ingress manager to reset!");
-        }
         while let Some(grant) = self.res_c.read() {
             grant.release();
         }
@@ -212,7 +198,6 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::queues;
     use crate::{self as atat, InternalError};
     use crate::{
         atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc},
@@ -220,7 +205,7 @@ mod test {
     };
     use bbqueue::framed::FrameProducer;
     use bbqueue::BBBuffer;
-    use heapless::{spsc::Queue, String};
+    use heapless::String;
     use nb;
 
     const TEST_RX_BUF_LEN: usize = 256;
@@ -415,11 +400,6 @@ mod test {
             static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer::new();
             let (urc_p, urc_c) = unsafe { URC_Q.try_split_framed().unwrap() };
 
-            static mut COM_Q: queues::ComQueue = Queue::new();
-            let (com_p, _com_c) = unsafe { COM_Q.split() };
-
-            assert_eq!(com_p.capacity(), crate::queues::COM_CAPACITY);
-
             let tx_mock = TxMock::new(String::new());
             let client: Client<
                 TxMock,
@@ -427,7 +407,7 @@ mod test {
                 TIMER_HZ,
                 TEST_RES_CAPACITY,
                 TEST_URC_CAPACITY,
-            > = Client::new(tx_mock, res_c, urc_c, com_p, CdMock, $config);
+            > = Client::new(tx_mock, res_c, urc_c, CdMock, $config);
             (client, res_p, urc_p)
         }};
     }

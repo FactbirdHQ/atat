@@ -22,9 +22,7 @@ mod app {
         serial::{Config, Event::Rxne, Rx, Serial, Tx},
     };
 
-    use atat::{AtatClient, ClientBuilder, ComQueue, Queues};
-
-    use heapless::spsc::Queue;
+    use atat::{AtatClient, ClientBuilder, Queues};
 
     #[monotonic(binds = SysTick, default = true)]
     type MyMono = DwtSystick<80_000_000>;
@@ -61,7 +59,6 @@ mod app {
         // Create static queues for ATAT
         static mut RES_QUEUE: BBBuffer<RES_CAPACITY_BYTES> = BBBuffer::new();
         static mut URC_QUEUE: BBBuffer<URC_CAPACITY_BYTES> = BBBuffer::new();
-        static mut COM_QUEUE: ComQueue = Queue::new();
 
         // Setup clocks & peripherals
         let mut flash = ctx.device.FLASH.constrain();
@@ -132,7 +129,6 @@ mod app {
         let queues = Queues {
             res_queue: unsafe { RES_QUEUE.try_split_framed().unwrap() },
             urc_queue: unsafe { URC_QUEUE.try_split_framed().unwrap() },
-            com_queue: unsafe { COM_QUEUE.split() },
         };
 
         let (client, ingress) = ClientBuilder::new(
