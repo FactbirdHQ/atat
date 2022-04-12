@@ -7,7 +7,7 @@ use stm32l4xx_hal as hal;
 use defmt_rtt as _;
 use panic_probe as _; // global logger
 
-use atat::{clock::Clock, AtatClient, ClientBuilder, ComQueue, Queues};
+use atat::{clock::Clock, AtatClient, ClientBuilder, Queues};
 use bbqueue::BBBuffer;
 use common::{timer::DwtTimer, Urc};
 use cortex_m_rt::entry;
@@ -47,7 +47,6 @@ fn main() -> ! {
     // Create static queues for ATAT
     static mut RES_QUEUE: BBBuffer<RES_CAPACITY_BYTES> = BBBuffer::new();
     static mut URC_QUEUE: BBBuffer<URC_CAPACITY_BYTES> = BBBuffer::new();
-    static mut COM_QUEUE: ComQueue = Queue::new();
 
     // Setup clocks & peripherals
     let p = Peripherals::take().unwrap();
@@ -115,7 +114,6 @@ fn main() -> ! {
     let queues = Queues {
         res_queue: RES_QUEUE.try_split_framed().unwrap(),
         urc_queue: URC_QUEUE.try_split_framed().unwrap(),
-        com_queue: COM_QUEUE.split(),
     };
 
     let (mut client, ingress) = ClientBuilder::new(

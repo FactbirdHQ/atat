@@ -257,18 +257,8 @@ pub use client::{Client, Mode};
 pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
 pub use error::{Error, InternalError};
 pub use ingress_manager::IngressManager;
-pub use queues::{ComQueue, Queues};
+pub use queues::Queues;
 pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
-
-/// Commands that can be sent from the client to the ingress manager, for
-/// configuration after initial setup. This is also used for stuff like clearing
-/// the receive buffer on command timeouts.
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum Command {
-    /// Reset to initial state, including clearing the buffer,
-    /// usually as a result of a command timeout
-    Reset,
-}
 
 /// Configuration of both the ingress manager, and the AT client. Some of these
 /// parameters can be changed on the fly, through issuing a [`Command`] from the

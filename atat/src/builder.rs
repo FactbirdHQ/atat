@@ -77,17 +77,11 @@ where
         self,
         queues: Queues<RES_CAPACITY, URC_CAPACITY>,
     ) -> ClientParser<Tx, T, D, TIMER_HZ, BUF_LEN, RES_CAPACITY, URC_CAPACITY> {
-        let parser = IngressManager::new(
-            queues.res_queue.0,
-            queues.urc_queue.0,
-            queues.com_queue.1,
-            self.digester,
-        );
+        let parser = IngressManager::new(queues.res_queue.0, queues.urc_queue.0, self.digester);
         let client = Client::new(
             self.serial_tx,
             queues.res_queue.1,
             queues.urc_queue.1,
-            queues.com_queue.0,
             self.timer,
             self.config,
         );
