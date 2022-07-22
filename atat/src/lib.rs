@@ -214,6 +214,7 @@
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::used_underscore_binding)]
+#![allow(clippy::type_complexity)]
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 
 // This mod MUST go first, so that the others see its macros.

@@ -261,9 +261,11 @@ mod test {
         }
     }
 
-    impl serial::nb::Write<u8> for TxMock {
+    impl serial::ErrorType for TxMock {
         type Error = serial::ErrorKind;
+    }
 
+    impl serial::nb::Write<u8> for TxMock {
         fn write(&mut self, c: u8) -> nb::Result<(), Self::Error> {
             self.s
                 .push(c as char)

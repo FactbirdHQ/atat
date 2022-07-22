@@ -82,8 +82,6 @@ where
             return;
         }
 
-        // trace!("Write: \"{:?}\"", LossyStr(data));
-
         if self.buf.extend_from_slice(data).is_err() {
             error!("OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
             if Self::enqueue_encoded_header(&mut self.res_p, Err(InternalError::Overflow)).is_err()

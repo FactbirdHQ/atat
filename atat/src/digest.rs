@@ -29,7 +29,7 @@ pub trait Digester {
 }
 
 pub trait Parser {
-    fn parse<'a>(buf: &'a [u8]) -> Result<(&'a [u8], usize), ParseError>;
+    fn parse(buf: &[u8]) -> Result<(&[u8], usize), ParseError>;
 }
 
 /// A Digester that tries to implement the basic AT standard.
@@ -93,6 +93,12 @@ impl<P: Parser> AtDigester<P> {
             custom_prompt: f,
             ..self
         }
+    }
+}
+
+impl<P: Parser> Default for AtDigester<P> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -305,7 +311,7 @@ pub mod parser {
         recognize(nom::bytes::complete::take_until("\r\n"))(buf)
     }
 
-    fn take_until_including<'a, T, Input, Error: ParseError<Input>>(
+    fn take_until_including<T, Input, Error: ParseError<Input>>(
         tag: T,
     ) -> impl Fn(Input) -> IResult<Input, (Input, Input), Error>
     where

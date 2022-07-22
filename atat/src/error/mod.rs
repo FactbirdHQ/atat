@@ -48,8 +48,8 @@ impl<'a> From<&'a [u8]> for InternalError<'a> {
             0x07 => InternalError::Error,
             0x08 => InternalError::CmeError(u16::from_le_bytes(b[1..3].try_into().unwrap()).into()),
             0x09 => InternalError::CmsError(u16::from_le_bytes(b[1..3].try_into().unwrap()).into()),
-            0x10 if b.len() > 0 => InternalError::ConnectionError(b[1].into()),
-            0x11 if b.len() > 0 => InternalError::Custom(&b[1..]),
+            0x10 if !b.is_empty() => InternalError::ConnectionError(b[1].into()),
+            0x11 if !b.is_empty() => InternalError::Custom(&b[1..]),
             _ => InternalError::Parse,
         }
     }
@@ -109,7 +109,7 @@ impl<'a> From<InternalError<'a>> for Encoded<'a> {
             InternalError::CmeError(e) => Encoded::Array(0x08, (e as u16).to_le_bytes()),
             InternalError::CmsError(e) => Encoded::Array(0x09, (e as u16).to_le_bytes()),
             InternalError::ConnectionError(e) => Encoded::Nested(0x10, e as u8),
-            InternalError::Custom(e) => Encoded::Slice(0x11, e.as_ref()),
+            InternalError::Custom(e) => Encoded::Slice(0x11, e),
         }
     }
 }
