@@ -48,10 +48,10 @@ pub trait Parser {
 /// - '...\<PROMPT>'                                                        (Prompt for data)
 ///
 /// Goal of the digester is to extract these into:
-/// - DigestResult::Response(Result\<RESPONSE>)
-/// - DigestResult::Urc(\<URC>)
-/// - DigestResult::Prompt(\<CHAR>)
-/// - DigestResult::None
+/// - `DigestResult::Response(Result\<RESPONS`E>)
+/// - `DigestResult::Urc(\<UR`C>)
+/// - `DigestResult::Prompt(\<CHA`R>)
+/// - `DigestResult::None`
 ///
 /// Usually \<RESPONSE CODE> is one of \['OK', 'ERROR', 'CME ERROR: \<NUMBER/STRING>', 'CMS ERROR: \<NUMBER/STRING>'],
 /// but can be others as well depending on manufacturer.
@@ -65,7 +65,8 @@ pub struct AtDigester<P: Parser> {
 }
 
 impl<P: Parser> AtDigester<P> {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             _urc_parser: PhantomData,
             custom_success: |_| Err(ParseError::NoMatch),
@@ -74,6 +75,7 @@ impl<P: Parser> AtDigester<P> {
         }
     }
 
+    #[must_use]
     pub fn with_custom_success(self, f: fn(&[u8]) -> Result<(&[u8], usize), ParseError>) -> Self {
         Self {
             custom_success: f,
@@ -81,6 +83,7 @@ impl<P: Parser> AtDigester<P> {
         }
     }
 
+    #[must_use]
     pub fn with_custom_error(self, f: fn(&[u8]) -> Result<(&[u8], usize), ParseError>) -> Self {
         Self {
             custom_error: f,
@@ -88,6 +91,7 @@ impl<P: Parser> AtDigester<P> {
         }
     }
 
+    #[must_use]
     pub fn with_custom_prompt(self, f: fn(&[u8]) -> Result<(u8, usize), ParseError>) -> Self {
         Self {
             custom_prompt: f,
@@ -159,7 +163,7 @@ impl<P: Parser> Digester for AtDigester<P> {
 pub mod parser {
     use crate::error::{CmeError, CmsError, ConnectionError};
 
-    use super::*;
+    use super::{DigestResult, InternalError};
 
     use core::str::FromStr;
 
@@ -435,7 +439,7 @@ pub mod parser {
 }
 #[cfg(test)]
 mod test {
-    use super::parser::*;
+    use super::parser::{echo, urc_helper};
     use super::*;
     use crate::{
         error::{CmeError, CmsError, ConnectionError},
@@ -628,7 +632,7 @@ mod test {
             buf.clear();
 
             buf.extend_from_slice(response).unwrap();
-            let (res, bytes) = digester.digest(&mut buf);
+            let (res, bytes) = digester.digest(&buf);
             assert_eq!((res, bytes), (expected_result, swallowed_bytes));
 
             buf.rotate_left(bytes);
@@ -653,7 +657,7 @@ mod test {
             buf.clear();
 
             buf.extend_from_slice(response).unwrap();
-            let (res, bytes) = digester.digest(&mut buf);
+            let (res, bytes) = digester.digest(&buf);
             assert_eq!((res, bytes), (expected_result, swallowed_bytes));
 
             buf.rotate_left(bytes);
@@ -698,14 +702,14 @@ mod test {
         let mut buf = heapless::Vec::<u8, TEST_RX_BUF_LEN>::new();
 
         buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 13));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
         buf.extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
             .unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
 
         assert_eq!((res, bytes), (DigestResult::None, 0));
 
@@ -722,7 +726,7 @@ mod test {
             let expectation = b"\r\n+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n";
             assert_eq!(buf, expectation);
         }
-        let (result, bytes) = digester.digest(&mut buf);
+        let (result, bytes) = digester.digest(&buf);
         assert_eq!(
             result,
             DigestResult::Response(Ok(b"+USORD: 3,16,\"16 bytes of data\""))
@@ -742,7 +746,7 @@ mod test {
             b"\r\n+UUSORD: 0,5\r\nAT+USORD=0,4\r\r\n+USORD: 0,4,\"90030002\"\r\nOK\r\n",
         )
         .unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
 
         assert_eq!((res, bytes), (DigestResult::Urc(b"+UUSORD: 0,5"), 16));
         buf.rotate_left(bytes);
@@ -752,7 +756,7 @@ mod test {
             b"AT+USORD=0,4\r\r\n+USORD: 0,4,\"90030002\"\r\nOK\r\n"
         );
 
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
 
         assert_eq!(
             (res, bytes),
@@ -770,7 +774,7 @@ mod test {
 
         buf.extend_from_slice(b"\r\n+USORD: 3,16,\"16 bytes of data\"\r\n")
             .unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
 
         assert_eq!((res, bytes), (DigestResult::None, 0));
 
@@ -787,7 +791,7 @@ mod test {
             let expectation = b"\r\n+USORD: 3,16,\"16 bytes of data\"\r\nOK\r\n";
             assert_eq!(buf, expectation);
         }
-        let (result, bytes) = digester.digest(&mut buf);
+        let (result, bytes) = digester.digest(&buf);
         assert_eq!(
             result,
             DigestResult::Response(Ok(b"+USORD: 3,16,\"16 bytes of data\""))
@@ -804,13 +808,13 @@ mod test {
         let mut buf = heapless::Vec::<u8, TEST_RX_BUF_LEN>::new();
 
         buf.extend_from_slice(b"AT+GMR\r\r\n").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 7));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
         buf.extend_from_slice(b"AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19\r\nOK\r\n").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
 
         let expectation = b"AT version:1.1.0.0(May 11 2016 18:09:56)\r\nSDK version:1.5.4(baaeaebb)\r\ncompile time:May 20 2016 15:08:19";
         assert_eq!(res, DigestResult::Response(Ok(expectation)));
@@ -826,7 +830,7 @@ mod test {
 
         buf.extend_from_slice(b"\r\n+UUSORD: 3,16,\"16 bytes of data\"\r\n")
             .unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!(
             (res, bytes),
             (DigestResult::Urc(b"+UUSORD: 3,16,\"16 bytes of data\""), 36)
@@ -842,20 +846,20 @@ mod test {
         let mut buf = heapless::Vec::<u8, TEST_RX_BUF_LEN>::new();
 
         buf.extend_from_slice(b"AT+USORD=3,16\r\n").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 13));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
         buf.extend_from_slice(b"+USORD: 3,16,\"16 bytes of data\"\r\n")
             .unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 0));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
         buf.extend_from_slice(b"ERROR\r\n").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!(
             (res, bytes),
             (DigestResult::Response(Err(InternalError::Error)), 42)
@@ -876,13 +880,13 @@ mod test {
         let mut buf = heapless::Vec::<u8, TEST_RX_BUF_LEN>::new();
 
         buf.extend_from_slice(b"THIS FORM").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 0));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
         buf.extend_from_slice(b"AT SUCKS\r\n").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 17));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
@@ -890,7 +894,7 @@ mod test {
         assert!(buf.starts_with(b"\r\n"));
 
         buf.extend_from_slice(b"@\n@").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 0));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
@@ -901,7 +905,7 @@ mod test {
             .unwrap();
 
         buf.extend_from_slice(b"+CME ERROR: 122\r\n").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
 
         assert_eq!(
             res,
@@ -915,7 +919,7 @@ mod test {
         buf.extend_from_slice(b"\r\n+UUSORD: 0,37\n+UUSORD: 0,371\r\n")
             .unwrap();
 
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
 
         assert_eq!(res, DigestResult::Urc(b"+UUSORD: 0,37\n+UUSORD: 0,371"));
         buf.rotate_left(bytes);
@@ -934,25 +938,25 @@ mod test {
         let mut buf = heapless::Vec::<u8, TEST_RX_BUF_LEN>::new();
 
         buf.extend_from_slice(b"A").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 0));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
         buf.extend_from_slice(b"T").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 0));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
         buf.extend_from_slice(b"\r").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 0));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
         buf.extend_from_slice(b"\n").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 2));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
@@ -971,7 +975,7 @@ mod test {
             .unwrap();
 
         buf.extend_from_slice(b"+CME ERROR: 122\r\n").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
 
         assert_eq!(
             res,
@@ -995,7 +999,7 @@ mod test {
 
         buf.extend_from_slice(b"+CME ERROR: Operation not allowed\r\n")
             .unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
 
         assert_eq!(
             res,
@@ -1014,7 +1018,7 @@ mod test {
 
         buf.extend_from_slice(b"AT+USECMNG=0,0,\"Verisign\",1758\r>")
             .unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::Prompt(b'>'), 32));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
@@ -1026,7 +1030,7 @@ mod test {
         let mut buf = heapless::Vec::<u8, TEST_RX_BUF_LEN>::new();
 
         buf.extend_from_slice(b"AT+USOWR=3,16\r@").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::Prompt(b'@'), 15));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
@@ -1040,7 +1044,7 @@ mod test {
         // With echo enabled
         buf.extend_from_slice(b"AT+CIMI?\r\n123456789\r\nOK\r\n")
             .unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::Response(Ok(b"123456789")), 25));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
@@ -1048,7 +1052,7 @@ mod test {
 
         // Without echo enabled
         buf.extend_from_slice(b"\r\n123456789\r\nOK\r\n").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::Response(Ok(b"123456789")), 17));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
@@ -1064,7 +1068,7 @@ mod test {
         buf.extend_from_slice(b"AT+CPIN?\r\r\n+CPIN: READY\r\n\r\nOK\r\n")
             .unwrap();
 
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!(
             (res, bytes),
             (DigestResult::Response(Ok(b"+CPIN: READY")), 31)
@@ -1083,7 +1087,7 @@ mod test {
         buf.extend_from_slice(b"AT+CPIN?\r\r\n+CME ERROR: 10\r\n")
             .unwrap();
 
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
 
         assert_eq!(
             res,
@@ -1102,13 +1106,13 @@ mod test {
 
         buf.extend_from_slice(b"AT+URDBLOCK=\"response.txt\",0,512\r\r\n+")
             .unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 33));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
 
         buf.extend_from_slice(b"URDBLOCK: \"response.txt\",512,\"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2553\r\nConnection: close\r\nVary: Accept-Encoding\r\nDate: Mon, 19 Jul 2021 07:47:39 GMT\r\nx-amzn-RequestId: 436ba5b8-2aad-4089-a4fd-1b1c38773c87\r\nx-amz-apigw-id: CtQkMFE_DoEFUzg=\r\nX-Amzn-Trace-Id: Root=1-60f52e1a-0a05343260f3ba3331eea9d6;Sampled=1\r\nVia: 1.1 f99b5b46e77cfe9c3413f99dc8a4088c.cloudfront.net (CloudFront), 1.1 2f194b62c8c43859cbf5af8e53a8d2a7.cloudfront.net (CloudFront)\r\nX-Amz-Cf-Pop: FRA2-C2\r\nX-Cache: Miss from cloudfront\r\nX-Amz-Cf-Pop\"\r\nOK\r\n").unwrap();
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         let expectation = b"+URDBLOCK: \"response.txt\",512,\"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2553\r\nConnection: close\r\nVary: Accept-Encoding\r\nDate: Mon, 19 Jul 2021 07:47:39 GMT\r\nx-amzn-RequestId: 436ba5b8-2aad-4089-a4fd-1b1c38773c87\r\nx-amz-apigw-id: CtQkMFE_DoEFUzg=\r\nX-Amzn-Trace-Id: Root=1-60f52e1a-0a05343260f3ba3331eea9d6;Sampled=1\r\nVia: 1.1 f99b5b46e77cfe9c3413f99dc8a4088c.cloudfront.net (CloudFront), 1.1 2f194b62c8c43859cbf5af8e53a8d2a7.cloudfront.net (CloudFront)\r\nX-Amz-Cf-Pop: FRA2-C2\r\nX-Cache: Miss from cloudfront\r\nX-Amz-Cf-Pop\"";
         assert_eq!((res, bytes), (DigestResult::Response(Ok(expectation)), 552));
         buf.rotate_left(bytes);
@@ -1128,7 +1132,7 @@ mod test {
         buf.extend_from_slice(b"AT+URDBLOCK=\"response.txt\",0,512\r\r\n+")
             .unwrap();
 
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!(
             (res, bytes),
             (DigestResult::Response(Ok(b"+CPIN: READY")), 31)
@@ -1138,7 +1142,7 @@ mod test {
 
         assert_eq!(buf, b"AT+URDBLOCK=\"response.txt\",0,512\r\r\n+");
 
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         assert_eq!((res, bytes), (DigestResult::None, 33));
         buf.rotate_left(bytes);
         buf.truncate(buf.len() - bytes);
@@ -1146,7 +1150,7 @@ mod test {
 
         buf.extend_from_slice(b"URDBLOCK: \"response.txt\",512,\"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2553\r\nConnection: close\r\nVary: Accept-Encoding\r\nDate: Mon, 19 Jul 2021 07:47:39 GMT\r\nx-amzn-RequestId: 436ba5b8-2aad-4089-a4fd-1b1c38773c87\r\nx-amz-apigw-id: CtQkMFE_DoEFUzg=\r\nX-Amzn-Trace-Id: Root=1-60f52e1a-0a05343260f3ba3331eea9d6;Sampled=1\r\nVia: 1.1 f99b5b46e77cfe9c3413f99dc8a4088c.cloudfront.net (CloudFront), 1.1 2f194b62c8c43859cbf5af8e53a8d2a7.cloudfront.net (CloudFront)\r\nX-Amz-Cf-Pop: FRA2-C2\r\nX-Cache: Miss from cloudfront\r\nX-Amz-Cf-Pop\"\r\nOK\r\n").unwrap();
 
-        let (res, bytes) = digester.digest(&mut buf);
+        let (res, bytes) = digester.digest(&buf);
         let expectation = b"+URDBLOCK: \"response.txt\",512,\"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2553\r\nConnection: close\r\nVary: Accept-Encoding\r\nDate: Mon, 19 Jul 2021 07:47:39 GMT\r\nx-amzn-RequestId: 436ba5b8-2aad-4089-a4fd-1b1c38773c87\r\nx-amz-apigw-id: CtQkMFE_DoEFUzg=\r\nX-Amzn-Trace-Id: Root=1-60f52e1a-0a05343260f3ba3331eea9d6;Sampled=1\r\nVia: 1.1 f99b5b46e77cfe9c3413f99dc8a4088c.cloudfront.net (CloudFront), 1.1 2f194b62c8c43859cbf5af8e53a8d2a7.cloudfront.net (CloudFront)\r\nX-Amz-Cf-Pop: FRA2-C2\r\nX-Cache: Miss from cloudfront\r\nX-Amz-Cf-Pop\"";
         assert_eq!((res, bytes), (DigestResult::Response(Ok(expectation)), 552));
         buf.rotate_left(bytes);

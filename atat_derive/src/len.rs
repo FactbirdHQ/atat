@@ -51,12 +51,11 @@ pub fn enum_len(
                     ..
                 }) = parse_field_attr(&field.attrs)
                 {
-                    if value.is_some() {
-                        panic!("value is not allowed in this position");
-                    }
-                    if position.is_some() {
-                        panic!("position is not allowed in this position");
-                    }
+                    assert!(value.is_none(), "value is not allowed in this position");
+                    assert!(
+                        position.is_none(),
+                        "position is not allowed in this position"
+                    );
                     quote! { #len }
                 } else {
                     let ty = &field.ty;

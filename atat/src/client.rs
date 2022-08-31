@@ -90,7 +90,7 @@ where
         &mut self,
         cmd: &A,
     ) -> nb::Result<A::Response, Error> {
-        if let ClientState::Idle = self.state {
+        if self.state == ClientState::Idle {
             // compare the time of the last response or URC and ensure at least
             // `self.config.cmd_cooldown` ms have passed before sending a new
             // command
@@ -158,7 +158,7 @@ where
                 .parse(res)
                 .map_err(nb::Error::from)
                 .and_then(|r| {
-                    if let ClientState::AwaitingResponse = self.state {
+                    if self.state == ClientState::AwaitingResponse {
                         self.timer.start(self.config.cmd_cooldown.millis()).ok();
                         self.state = ClientState::Idle;
                         Ok(r)
@@ -171,11 +171,9 @@ where
                     self.state = ClientState::Idle;
                     e
                 });
-        } else if let Mode::Timeout = self.config.mode {
-            if self.timer.wait().is_ok() {
-                self.state = ClientState::Idle;
-                return Err(nb::Error::Other(Error::Timeout));
-            }
+        } else if self.config.mode == Mode::Timeout && self.timer.wait().is_ok() {
+            self.state = ClientState::Idle;
+            return Err(nb::Error::Other(Error::Timeout));
         }
         Err(nb::Error::WouldBlock)
     }
@@ -206,7 +204,6 @@ mod test {
     use bbqueue::framed::FrameProducer;
     use bbqueue::BBBuffer;
     use heapless::String;
-    use nb;
 
     const TEST_RX_BUF_LEN: usize = 256;
     const TEST_RES_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;

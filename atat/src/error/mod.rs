@@ -44,7 +44,7 @@ impl<'a> From<&'a [u8]> for InternalError<'a> {
             0x03 => InternalError::InvalidResponse,
             0x04 => InternalError::Aborted,
             0x05 => InternalError::Overflow,
-            0x06 => InternalError::Parse,
+            // 0x06 => InternalError::Parse,
             0x07 => InternalError::Error,
             0x08 => InternalError::CmeError(u16::from_le_bytes(b[1..3].try_into().unwrap()).into()),
             0x09 => InternalError::CmsError(u16::from_le_bytes(b[1..3].try_into().unwrap()).into()),
@@ -79,7 +79,7 @@ impl<'a> defmt::Format for InternalError<'a> {
     }
 }
 
-pub(crate) enum Encoded<'a> {
+pub enum Encoded<'a> {
     Simple(u8),
     Nested(u8, u8),
     Array(u8, [u8; 2]),
@@ -121,7 +121,7 @@ impl<'a> From<u8> for Encoded<'a> {
 }
 
 impl<'a> Encoded<'a> {
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         match self {
             Encoded::Simple(_) => 1,
             Encoded::Nested(_, _) => 2,

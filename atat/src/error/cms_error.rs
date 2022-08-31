@@ -85,7 +85,7 @@ impl From<u16> for CmsError {
 }
 
 impl CmsError {
-    pub fn from_msg(s: &[u8]) -> Self {
+    pub const fn from_msg(s: &[u8]) -> Self {
         // FIXME:
         match s {
             b"ME failure" => Self::MeFailure,

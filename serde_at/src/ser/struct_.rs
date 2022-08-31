@@ -17,9 +17,9 @@ impl<'a, 'b, const B: usize> ser::SerializeStruct for SerializeStruct<'a, 'b, B>
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(&mut self, _key: &'static str, value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
     where
-        T: ser::Serialize,
+        T: ser::Serialize + ?Sized,
     {
         if self.first {
             if self.ser.options.value_sep {
