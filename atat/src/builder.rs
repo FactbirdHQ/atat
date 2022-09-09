@@ -60,7 +60,7 @@ where
     /// the [`fugit_timer::Timer`] trait.
     ///
     /// [serialwrite]: ../embedded_hal/serial/trait.Write.html
-    pub fn new(serial_tx: Tx, timer: T, digester: D, config: Config) -> Self {
+    pub const fn new(serial_tx: Tx, timer: T, digester: D, config: Config) -> Self {
         Self {
             serial_tx,
             timer,

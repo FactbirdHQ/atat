@@ -20,7 +20,6 @@ use hal::{
     serial::{Config, Event::Rxne, Rx, Serial},
     timer::{Event, Timer},
 };
-use heapless::spsc::Queue;
 
 #[cfg(feature = "defmt")]
 defmt::timestamp!("{=u64}", { DwtTimer::<80_000_000>::now() / 80_000 });

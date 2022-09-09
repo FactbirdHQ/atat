@@ -15,9 +15,7 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    if variants.is_empty() {
-        panic!("there must be at least one variant");
-    }
+    assert!(!variants.is_empty(), "there must be at least one variant");
 
     let (match_arms, digest_arms): (Vec<_>, Vec<_>) = variants.iter().map(|variant| {
         let UrcAttributes {
@@ -36,9 +34,7 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
             Some(Fields::Unnamed(f)) => {
                 let mut field_iter = f.unnamed.iter();
                 let first_field = field_iter.next().expect("variant must have exactly one field");
-                if field_iter.next().is_some() {
-                    panic!("cannot handle variants with more than one field")
-                }
+                assert!(field_iter.next().is_none(), "cannot handle variants with more than one field");
                 quote! {
                     #code => #ident::#variant_ident(atat::serde_at::from_slice::<#first_field>(&resp).ok()?),
                 }

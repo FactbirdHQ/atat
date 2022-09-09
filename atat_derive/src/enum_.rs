@@ -308,9 +308,10 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         quote! {}
     };
 
-    if default_impls.len() > 1 {
-        panic!("Cannot have more than one default!")
-    }
+    assert!(
+        default_impls.len() <= 1,
+        "Cannot have more than one default!"
+    );
 
     let default_impl = default_impls.pop().unwrap_or_default();
 

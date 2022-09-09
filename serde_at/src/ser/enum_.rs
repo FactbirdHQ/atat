@@ -16,9 +16,9 @@ impl<'a, 'b, const B: usize> ser::SerializeTupleVariant for SerializeTupleVarian
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, value: &T) -> Result<()>
     where
-        T: ser::Serialize,
+        T: ser::Serialize + ?Sized,
     {
         if !self.first {
             self.ser.buf.push(b',')?;
@@ -49,9 +49,9 @@ impl<'a, 'b, const B: usize> ser::SerializeStructVariant for SerializeStructVari
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(&mut self, _key: &'static str, value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
     where
-        T: ser::Serialize,
+        T: ser::Serialize + ?Sized,
     {
         if !self.first {
             self.ser.buf.push(b',')?;

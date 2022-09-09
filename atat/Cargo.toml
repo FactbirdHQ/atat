@@ -27,7 +27,7 @@ name = "cortex-m-rt"
 required-features = ["defmt"]
 
 [dependencies]
-embedded-hal = { version = "=1.0.0-alpha.6" }
+embedded-hal = { version = "=1.0.0-alpha.8" }
 fugit = "0.3.3"
 fugit-timer = "0.1.2"
 nb = "^1"
@@ -51,7 +51,7 @@ defmt-rtt = "0.3.1"
 panic-probe = { version = "0.3.0", features = ["print-defmt"] }
 dwt-systick-monotonic = "1.0.0"
 panic-halt = "0.2.0"
-stm32l4xx-hal = { git = "https://github.com/BlackbirdHQ/stm32l4xx-hal", branch = "enhancement/prepare-embedded-hal-1.0", features = [
+stm32l4xx-hal = { git = "https://github.com/BlackbirdHQ/stm32l4xx-hal", branch = "temp/embedded-hal-1.0.0-alpha.8", features = [
     "stm32l475",
     "rt",
 ] }

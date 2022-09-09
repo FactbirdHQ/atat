@@ -30,7 +30,7 @@ impl<D, const BUF_LEN: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usi
 where
     D: Digester,
 {
-    pub fn new(
+    pub const fn new(
         res_p: FrameProducer<'static, RES_CAPACITY>,
         urc_p: FrameProducer<'static, URC_CAPACITY>,
         digester: D,
@@ -82,8 +82,6 @@ where
             return;
         }
 
-        // trace!("Write: \"{:?}\"", LossyStr(data));
-
         if self.buf.extend_from_slice(data).is_err() {
             error!("OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
             if Self::enqueue_encoded_header(&mut self.res_p, Err(InternalError::Overflow)).is_err()
@@ -110,7 +108,7 @@ where
     /// Return the capacity of the internal buffer
     ///
     /// This can be useful for custom flowcontrol implementations
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.buf.capacity()
     }
 
@@ -118,12 +116,11 @@ where
         if let Ok(swallowed) = match self.digester.digest(&self.buf) {
             (DigestResult::None, swallowed) => Ok(swallowed),
             (DigestResult::Prompt(prompt), swallowed) => {
-                match Self::enqueue_encoded_header(&mut self.res_p, prompt) {
-                    Ok(_) => Ok(swallowed),
-                    Err(_) => {
-                        error!("Response queue full!");
-                        Err(())
-                    }
+                if Self::enqueue_encoded_header(&mut self.res_p, prompt).is_ok() {
+                    Ok(swallowed)
+                } else {
+                    error!("Response queue full!");
+                    Err(())
                 }
             }
             (DigestResult::Urc(urc_line), swallowed) => {
@@ -151,12 +148,11 @@ where
                     }
                 };
 
-                match Self::enqueue_encoded_header(&mut self.res_p, resp) {
-                    Ok(_) => Ok(swallowed),
-                    Err(_) => {
-                        error!("Response queue full!");
-                        Err(())
-                    }
+                if Self::enqueue_encoded_header(&mut self.res_p, resp).is_ok() {
+                    Ok(swallowed)
+                } else {
+                    error!("Response queue full!");
+                    Err(())
                 }
             }
         } {

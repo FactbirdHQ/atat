@@ -179,7 +179,7 @@ mod tests {
                 x: 8,
                 y: String::from("SomeString"),
                 z: 2,
-                w: &"whatup",
+                w: "whatup",
                 a: SimpleEnum::A,
                 b: SimpleEnumU32::A,
                 c: SimpleEnumU32::B,

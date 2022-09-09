@@ -44,12 +44,12 @@ impl<'a> From<&'a [u8]> for InternalError<'a> {
             0x03 => InternalError::InvalidResponse,
             0x04 => InternalError::Aborted,
             0x05 => InternalError::Overflow,
-            0x06 => InternalError::Parse,
+            // 0x06 => InternalError::Parse,
             0x07 => InternalError::Error,
             0x08 => InternalError::CmeError(u16::from_le_bytes(b[1..3].try_into().unwrap()).into()),
             0x09 => InternalError::CmsError(u16::from_le_bytes(b[1..3].try_into().unwrap()).into()),
-            0x10 if b.len() > 0 => InternalError::ConnectionError(b[1].into()),
-            0x11 if b.len() > 0 => InternalError::Custom(&b[1..]),
+            0x10 if !b.is_empty() => InternalError::ConnectionError(b[1].into()),
+            0x11 if !b.is_empty() => InternalError::Custom(&b[1..]),
             _ => InternalError::Parse,
         }
     }
@@ -79,7 +79,7 @@ impl<'a> defmt::Format for InternalError<'a> {
     }
 }
 
-pub(crate) enum Encoded<'a> {
+pub enum Encoded<'a> {
     Simple(u8),
     Nested(u8, u8),
     Array(u8, [u8; 2]),
@@ -109,7 +109,7 @@ impl<'a> From<InternalError<'a>> for Encoded<'a> {
             InternalError::CmeError(e) => Encoded::Array(0x08, (e as u16).to_le_bytes()),
             InternalError::CmsError(e) => Encoded::Array(0x09, (e as u16).to_le_bytes()),
             InternalError::ConnectionError(e) => Encoded::Nested(0x10, e as u8),
-            InternalError::Custom(e) => Encoded::Slice(0x11, e.as_ref()),
+            InternalError::Custom(e) => Encoded::Slice(0x11, e),
         }
     }
 }
@@ -121,7 +121,7 @@ impl<'a> From<u8> for Encoded<'a> {
 }
 
 impl<'a> Encoded<'a> {
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         match self {
             Encoded::Simple(_) => 1,
             Encoded::Nested(_, _) => 2,

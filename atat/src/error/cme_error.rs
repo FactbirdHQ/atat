@@ -386,7 +386,7 @@ impl From<u16> for CmeError {
             61 => Self::DataMissing,
             62 => Self::CallBarred,
             63 => Self::MessageWaitingIndicationSubscriptionFailure,
-            100 => Self::Unknown,
+            // 100 => Self::Unknown,
             102 => Self::ImsiUnknownInHss,
             103 => Self::IllegalUe,
             104 => Self::ImsiUnknownInVlr,
@@ -503,7 +503,7 @@ impl From<u16> for CmeError {
 }
 
 impl CmeError {
-    pub fn from_msg(s: &[u8]) -> Self {
+    pub const fn from_msg(s: &[u8]) -> Self {
         // FIXME:
         match s {
             b"Phone failure" => Self::PhoneFailure,
