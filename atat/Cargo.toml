@@ -51,10 +51,10 @@ defmt-rtt = "0.3.1"
 panic-probe = { version = "0.3.0", features = ["print-defmt"] }
 dwt-systick-monotonic = "1.0.0"
 panic-halt = "0.2.0"
-# stm32l4xx-hal = { git = "https://github.com/BlackbirdHQ/stm32l4xx-hal", branch = "enhancement/prepare-embedded-hal-1.0", features = [
-#     "stm32l475",
-#     "rt",
-# ] }
+stm32l4xx-hal = { git = "https://github.com/BlackbirdHQ/stm32l4xx-hal", branch = "temp/embedded-hal-1.0.0-alpha.8", features = [
+    "stm32l475",
+    "rt",
+] }
 
 [features]
 default = ["derive", "bytes"]
