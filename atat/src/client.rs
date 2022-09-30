@@ -242,7 +242,7 @@ mod test {
     #[derive(Debug)]
     pub enum SerialError {}
 
-    impl embedded_hal::serial::Error for SerialError {
+    impl serial::Error for SerialError {
         fn kind(&self) -> serial::ErrorKind {
             serial::ErrorKind::Other
         }
