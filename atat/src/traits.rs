@@ -1,5 +1,6 @@
 use crate::error::{Error, InternalError};
 use crate::Mode;
+use embedded_hal_nb::nb;
 use heapless::{String, Vec};
 
 /// This trait needs to be implemented for every response type.
@@ -70,7 +71,7 @@ pub trait AtatCmd<const LEN: usize> {
 
     /// The max number of times to attempt a command with automatic retries if
     /// using `send_retry`.
-    const ATTEMPTS: u8 = 3;
+    const ATTEMPTS: u8 = 1;
 
     /// Force client to look for a response.
     /// Empty slice is then passed to parse by client.
@@ -106,21 +107,17 @@ pub trait AtatClient {
         &mut self,
         cmd: &A,
     ) -> nb::Result<A::Response, Error> {
-        let mut error = Err(nb::Error::Other(Error::Error));
-
         for attempt in 1..=A::ATTEMPTS {
             if attempt > 1 {
                 debug!("Attempt {}:", attempt);
             }
 
             match self.send(cmd) {
-                e @ Err(nb::Error::Other(Error::Timeout | Error::Parse)) => {
-                    error = e;
-                }
+                Err(nb::Error::Other(Error::Timeout)) => {}
                 r => return r,
             }
         }
-        error
+        Err(nb::Error::Other(Error::Timeout))
     }
 
     /// Checks if there are any URC's (Unsolicited Response Code) in

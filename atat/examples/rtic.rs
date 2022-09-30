@@ -10,17 +10,21 @@ defmt::timestamp!("{=u64}", {
     common::timer::DwtTimer::<80_000_000>::now() / 80_000
 });
 
-#[rtic::app(device = stm32l4xx_hal::pac, peripherals = true, dispatchers = [UART5, LCD])]
+pub mod pac {
+    pub const NVIC_PRIO_BITS: u8 = 2;
+    pub use cortex_m_rt::interrupt;
+    pub use embassy_stm32::pac::Interrupt as interrupt;
+    pub use embassy_stm32::pac::*;
+}
+
+#[rtic::app(device = crate::pac, peripherals = false, dispatchers = [UART4, UART5])]
 mod app {
     use super::common::{self, timer::DwtTimer, Urc};
     use bbqueue::BBBuffer;
     use dwt_systick_monotonic::*;
-    use stm32l4xx_hal::{
-        pac::USART3,
-        prelude::*,
-        rcc::{ClockSecuritySystem, CrystalBypass, MsiFreq, PllConfig, PllDivider, PllSource},
-        serial::{Config, Event::Rxne, Rx, Serial, Tx},
-    };
+    use embedded_hal_nb::nb;
+
+    use embassy_stm32::{dma::NoDma, gpio, peripherals::USART3};
 
     use atat::{AtatClient, ClientBuilder, Queues};
 
@@ -44,9 +48,9 @@ mod app {
     }
     #[local]
     struct LocalResources {
-        rx: Rx<USART3>,
+        rx: embassy_stm32::usart::UartRx<'static, USART3>,
         client: atat::Client<
-            Tx<USART3>,
+            embassy_stm32::usart::UartTx<'static, USART3>,
             DwtTimer<80_000_000>,
             80_000_000,
             RES_CAPACITY_BYTES,
@@ -60,69 +64,26 @@ mod app {
         static mut RES_QUEUE: BBBuffer<RES_CAPACITY_BYTES> = BBBuffer::new();
         static mut URC_QUEUE: BBBuffer<URC_CAPACITY_BYTES> = BBBuffer::new();
 
-        // Setup clocks & peripherals
-        let mut flash = ctx.device.FLASH.constrain();
-        let mut rcc = ctx.device.RCC.constrain();
-        let mut pwr = ctx.device.PWR.constrain(&mut rcc.apb1r1);
+        let p = embassy_stm32::init(Default::default());
 
-        // clock configuration using the default settings (all clocks run at 8 MHz)
-        let clocks = rcc
-            .cfgr
-            // .hsi48(true)
-            .lse(CrystalBypass::Disable, ClockSecuritySystem::Disable)
-            .hse(
-                8.mhz(),
-                CrystalBypass::Disable,
-                ClockSecuritySystem::Disable,
-            )
-            .sysclk_with_pll(80.mhz(), PllConfig::new(1, 20, PllDivider::Div2))
-            .pll_source(PllSource::HSE)
-            // Temp fix until PLLSAI1 is implemented
-            .msi(MsiFreq::RANGE48M)
-            .hclk(80.mhz())
-            .pclk1(80.mhz())
-            .pclk2(80.mhz())
-            .freeze(&mut flash.acr, &mut pwr);
-
-        let mut gpioa = ctx.device.GPIOA.split(&mut rcc.ahb2);
-        let mut gpiob = ctx.device.GPIOB.split(&mut rcc.ahb2);
-        let mut gpiod = ctx.device.GPIOD.split(&mut rcc.ahb2);
-
-        let mut wifi_nrst = gpiod
-            .pd13
-            .into_open_drain_output(&mut gpiod.moder, &mut gpiod.otyper);
+        let mut wifi_nrst = gpio::OutputOpenDrain::new(
+            p.PD13,
+            gpio::Level::Low,
+            gpio::Speed::Medium,
+            gpio::Pull::None,
+        );
         wifi_nrst.set_high();
 
-        let tx = gpiod.pd8.into_alternate_push_pull(
-            &mut gpiod.moder,
-            &mut gpiod.otyper,
-            &mut gpiod.afrh,
+        let serial = embassy_stm32::usart::Uart::new(
+            p.USART3,
+            p.PD9,
+            p.PD8,
+            // p.PB1,
+            // p.PA6,
+            NoDma,
+            NoDma,
+            embassy_stm32::usart::Config::default(),
         );
-        let rx = gpiod.pd9.into_alternate_push_pull(
-            &mut gpiod.moder,
-            &mut gpiod.otyper,
-            &mut gpiod.afrh,
-        );
-        let rts = gpiob.pb1.into_alternate_push_pull(
-            &mut gpiob.moder,
-            &mut gpiob.otyper,
-            &mut gpiob.afrl,
-        );
-        let cts = gpioa.pa6.into_alternate_push_pull(
-            &mut gpioa.moder,
-            &mut gpioa.otyper,
-            &mut gpioa.afrl,
-        );
-
-        // Configure UART peripheral
-        let mut serial = Serial::usart3(
-            ctx.device.USART3,
-            (tx, rx, rts, cts),
-            Config::default().baudrate(115_200.bps()),
-            clocks,
-            &mut rcc.apb1r1,
-        );
-        serial.listen(Rxne);
         let (tx, rx) = serial.split();
 
         // Instantiate ATAT client & IngressManager
@@ -201,7 +162,7 @@ mod app {
     fn serial_irq(mut ctx: serial_irq::Context) {
         let rx = ctx.local.rx;
         ctx.shared.ingress.lock(|ingress| {
-            if let Ok(d) = nb::block!(rx.read()) {
+            if let Ok(d) = nb::block!(rx.nb_read()) {
                 ingress.write(&[d]);
             }
         });

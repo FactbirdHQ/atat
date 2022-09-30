@@ -29,7 +29,7 @@ pub struct ClientBuilder<
     const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
 > where
-    Tx: embedded_hal::serial::nb::Write<u8>,
+    Tx: embedded_hal_nb::serial::Write<u8>,
     T: fugit_timer::Timer<TIMER_HZ>,
     D: Digester,
 {
@@ -49,17 +49,17 @@ impl<
         const URC_CAPACITY: usize,
     > ClientBuilder<Tx, T, D, TIMER_HZ, BUF_LEN, RES_CAPACITY, URC_CAPACITY>
 where
-    Tx: embedded_hal::serial::nb::Write<u8>,
+    Tx: embedded_hal_nb::serial::Write<u8>,
     T: fugit_timer::Timer<TIMER_HZ>,
     D: Digester,
 {
     /// Create a builder for new Atat client instance.
     ///
-    /// The `serial_tx` type must implement the `embedded_hal`
+    /// The `serial_tx` type must implement the `embedded_hal_nb`
     /// [`serial::Write<u8>`][serialwrite] trait while the timer must implement
     /// the [`fugit_timer::Timer`] trait.
     ///
-    /// [serialwrite]: ../embedded_hal/serial/trait.Write.html
+    /// [serialwrite]: ../embedded_hal_nb/serial/trait.Write.html
     pub const fn new(serial_tx: Tx, timer: T, digester: D, config: Config) -> Self {
         Self {
             serial_tx,
