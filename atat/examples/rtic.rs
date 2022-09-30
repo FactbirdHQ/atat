@@ -23,8 +23,8 @@ mod app {
     use bbqueue::BBBuffer;
     use dwt_systick_monotonic::*;
     use embedded_hal_nb::nb;
-   
-    use embassy_stm32::{peripherals::USART3, dma::NoDma, gpio};
+
+    use embassy_stm32::{dma::NoDma, gpio, peripherals::USART3};
 
     use atat::{AtatClient, ClientBuilder, Queues};
 

@@ -2,9 +2,9 @@
 #![no_std]
 mod common;
 
-use defmt_rtt as _;  // global logger
-use embassy_stm32::{dma::NoDma, gpio};
+use defmt_rtt as _; // global logger
 use embassy_stm32::peripherals::USART3;
+use embassy_stm32::{dma::NoDma, gpio};
 use panic_probe as _;
 
 use atat::{clock::Clock, AtatClient, ClientBuilder, Queues};
