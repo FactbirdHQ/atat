@@ -2,7 +2,9 @@
 #![no_std]
 mod common;
 
-use defmt_rtt as _; // global logger
+use defmt_rtt as _;
+use embassy_stm32::interrupt;
+// global logger
 use embassy_stm32::peripherals::USART3;
 use embassy_stm32::{dma::NoDma, gpio};
 use panic_probe as _;
@@ -51,7 +53,7 @@ fn main() -> ! {
     );
     wifi_nrst.set_high();
 
-    let mut serial = embassy_stm32::usart::Uart::new(
+    let serial = embassy_stm32::usart::Uart::new(
         p.USART3,
         p.PD9,
         p.PD8,
@@ -128,7 +130,7 @@ fn main() -> ! {
 //     });
 // }
 
-#[cortex_m_rt::interrupt]
+#[interrupt]
 fn USART3() {
     cortex_m::interrupt::free(|_| {
         let ingress = unsafe { INGRESS.as_mut().unwrap() };

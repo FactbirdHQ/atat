@@ -42,7 +42,7 @@ log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.3", optional = true }
 
 [dev-dependencies]
-cortex-m = "0.7.1"
+cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7.1"
 cortex-m-rtic = "1.0.0"
 defmt-rtt = "0.3.1"

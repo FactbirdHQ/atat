@@ -17,7 +17,7 @@ pub mod pac {
     pub use embassy_stm32::pac::*;
 }
 
-#[rtic::app(device = crate::pac, peripherals = true, dispatchers = [UART4, UART5])]
+#[rtic::app(device = crate::pac, peripherals = false, dispatchers = [UART4, UART5])]
 mod app {
     use super::common::{self, timer::DwtTimer, Urc};
     use bbqueue::BBBuffer;
@@ -74,7 +74,7 @@ mod app {
         );
         wifi_nrst.set_high();
 
-        let mut serial = embassy_stm32::usart::Uart::new(
+        let serial = embassy_stm32::usart::Uart::new(
             p.USART3,
             p.PD9,
             p.PD8,
