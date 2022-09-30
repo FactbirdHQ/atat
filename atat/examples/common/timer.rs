@@ -1,4 +1,5 @@
 use cortex_m::{interrupt, peripheral::DWT};
+use embedded_hal_nb::nb;
 
 pub struct DwtTimer<const TIMER_HZ: u32> {
     end_time: Option<fugit::TimerInstantU32<TIMER_HZ>>,

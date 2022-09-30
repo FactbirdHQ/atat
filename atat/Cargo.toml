@@ -21,16 +21,14 @@ name = "atat"
 name = "rtic"
 required-features = ["defmt"]
 
-
 [[example]]
 name = "cortex-m-rt"
 required-features = ["defmt"]
 
 [dependencies]
-embedded-hal = { version = "=1.0.0-alpha.8" }
+embedded-hal-nb = { version = "=1.0.0-alpha.1" }
 fugit = "0.3.3"
 fugit-timer = "0.1.2"
-nb = "^1"
 heapless = { version = "^0.7", features = ["serde"] }
 bbqueue = "0.5"
 serde_at = { path = "../serde_at", version = "^0.17.0", optional = true }
@@ -50,10 +48,10 @@ cortex-m-rtic = "1.0.0"
 defmt-rtt = "0.3.1"
 panic-probe = { version = "0.3.0", features = ["print-defmt"] }
 dwt-systick-monotonic = "1.0.0"
-panic-halt = "0.2.0"
-stm32l4xx-hal = { git = "https://github.com/BlackbirdHQ/stm32l4xx-hal", branch = "temp/embedded-hal-1.0.0-alpha.8", features = [
-    "stm32l475",
-    "rt",
+embassy-stm32 = { git = "https://github.com/embassy-rs/embassy", rev = "99284b8", features = [
+    "stm32l475vg",
+    "unstable-traits",
+    "unstable-pac",
 ] }
 
 [features]

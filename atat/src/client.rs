@@ -1,5 +1,5 @@
 use bbqueue::framed::FrameConsumer;
-use embedded_hal::serial;
+use embedded_hal_nb::{serial, nb};
 use fugit::ExtU32;
 
 use crate::error::{Error, Response};
@@ -38,7 +38,7 @@ pub struct Client<
     const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
 > where
-    Tx: serial::nb::Write<u8>,
+    Tx: serial::Write<u8>,
     CLK: fugit_timer::Timer<TIMER_HZ>,
 {
     /// Serial writer
@@ -57,7 +57,7 @@ pub struct Client<
 impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
     Client<Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
 where
-    Tx: serial::nb::Write<u8>,
+    Tx: serial::Write<u8>,
     CLK: fugit_timer::Timer<TIMER_HZ>,
 {
     pub fn new(
@@ -83,7 +83,7 @@ where
 impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
     for Client<Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
 where
-    Tx: serial::nb::Write<u8>,
+    Tx: serial::Write<u8>,
     CLK: fugit_timer::Timer<TIMER_HZ>,
 {
     fn send<A: AtatCmd<LEN>, const LEN: usize>(
@@ -262,7 +262,7 @@ mod test {
         type Error = serial::ErrorKind;
     }
 
-    impl serial::nb::Write<u8> for TxMock {
+    impl serial::Write<u8> for TxMock {
         fn write(&mut self, c: u8) -> nb::Result<(), Self::Error> {
             self.s
                 .push(c as char)
