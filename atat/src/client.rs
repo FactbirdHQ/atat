@@ -52,6 +52,8 @@ pub struct Client<
     state: ClientState,
     timer: CLK,
     config: Config,
+
+    flush_timeout_ms: u32,
 }
 
 impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
@@ -76,7 +78,12 @@ where
             state: ClientState::Idle,
             config,
             timer,
+            flush_timeout_ms: 0,
         }
+    }
+
+    pub fn set_flush_timeout(&mut self, ms: u32) {
+        self.flush_timeout_ms = ms;
     }
 }
 
@@ -109,7 +116,24 @@ where
             for c in cmd_buf {
                 nb::block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
             }
-            nb::block!(self.tx.flush()).map_err(|_e| Error::Write)?;
+            if self.flush_timeout_ms == 0 {
+                nb::block!(self.tx.flush()).map_err(|_e| Error::Write)?;
+            } else {
+                self.timer.start(self.flush_timeout_ms.millis()).ok();
+                loop {
+                    match self.timer.wait() {
+                        Ok(()) => break Err(Error::Timeout),
+                        Err(nb::Error::WouldBlock) => (),
+                        Err(_) => break Err(Error::Write),
+                    };
+                    match self.tx.flush() {
+                        Ok(()) => break Ok(()),
+                        Err(nb::Error::WouldBlock) => (),
+                        _ => break Err(Error::Write),
+                    }
+                }?;
+            }
+
             self.state = ClientState::AwaitingResponse;
         }
 
@@ -195,6 +219,9 @@ where
 
 #[cfg(test)]
 mod test {
+    use std::sync::mpsc;
+    use std::thread::{self, JoinHandle};
+
     use super::*;
     use crate::{self as atat, InternalError};
     use crate::{
@@ -210,7 +237,18 @@ mod test {
     const TEST_URC_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
     const TIMER_HZ: u32 = 1000;
 
-    struct CdMock<const TIMER_HZ: u32>;
+    struct CdMock<const TIMER_HZ: u32> {
+        handle: Option<JoinHandle<bool>>,
+        trigger: Option<mpsc::Sender<bool>>,
+    }
+    impl CdMock<TIMER_HZ> {
+        fn new() -> Self {
+            CdMock {
+                handle: None,
+                trigger: None,
+            }
+        }
+    }
 
     impl<const TIMER_HZ: u32> Clock<TIMER_HZ> for CdMock<TIMER_HZ> {
         type Error = core::convert::Infallible;
@@ -223,18 +261,49 @@ mod test {
         /// Start countdown with a `duration`
         fn start(
             &mut self,
-            _duration: fugit::TimerDurationU32<TIMER_HZ>,
+            duration: fugit::TimerDurationU32<TIMER_HZ>,
         ) -> Result<(), Self::Error> {
+            let (tx, rx) = mpsc::channel();
+            self.trigger = Some(tx.clone());
+
+            // self.start_time = Some(std::time::Instant::now());
+            thread::spawn(move || {
+                let trigger = tx.clone();
+                thread::sleep(std::time::Duration::from_millis(duration.to_millis() as u64));
+                trigger.send(true).unwrap();
+            });
+
+            let handle = thread::spawn(move || loop {
+                match rx.recv() {
+                    Ok(ticked) => {
+                        break ticked;
+                    }
+                    _ => break false,
+                }
+            });
+            self.handle.replace(handle);
             Ok(())
         }
 
         /// Stop timer
         fn cancel(&mut self) -> Result<(), Self::Error> {
-            Ok(())
+            match self.trigger.take() {
+                Some(trigger) => Ok(trigger.send(false).unwrap()),
+                None => Ok(()),
+            }
         }
 
         /// Wait until countdown `duration` set with the `fn start` has expired
         fn wait(&mut self) -> nb::Result<(), Self::Error> {
+            match &self.handle {
+                Some(handle) => match handle.is_finished() {
+                    true => {
+                        self.handle.take();
+                    }
+                    false => Err(nb::Error::WouldBlock)?,
+                },
+                None => (),
+            }
             Ok(())
         }
     }
@@ -250,11 +319,12 @@ mod test {
 
     struct TxMock {
         s: String<64>,
+        t: Option<std::time::Instant>,
     }
 
     impl TxMock {
         fn new(s: String<64>) -> Self {
-            TxMock { s }
+            TxMock { s, t: None }
         }
     }
 
@@ -270,6 +340,13 @@ mod test {
         }
 
         fn flush(&mut self) -> nb::Result<(), Self::Error> {
+            if self.t.is_none() {
+                self.t.replace(std::time::Instant::now());
+            }
+            if std::time::Instant::now() - self.t.unwrap() < std::time::Duration::from_millis(100) {
+                return Err(nb::Error::WouldBlock);
+            }
+            self.t.take();
             Ok(())
         }
     }
@@ -406,7 +483,7 @@ mod test {
                 TIMER_HZ,
                 TEST_RES_CAPACITY,
                 TEST_URC_CAPACITY,
-            > = Client::new(tx_mock, res_c, urc_c, CdMock, $config);
+            > = Client::new(tx_mock, res_c, urc_c, CdMock::new(), $config);
             (client, res_p, urc_p)
         }};
     }
@@ -617,6 +694,23 @@ mod test {
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Parse)));
+        assert_eq!(client.state, ClientState::Idle);
+    }
+
+    #[test]
+    fn flush_timeout() {
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
+        client.set_flush_timeout(50);
+
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        enqueue_res(&mut p, Ok(&[]));
+
+        assert_eq!(client.state, ClientState::Idle);
+        assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Timeout)));
         assert_eq!(client.state, ClientState::Idle);
     }
 }
