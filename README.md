@@ -75,7 +75,6 @@ The following dependent crates provide platform-agnostic device drivers built on
 | ---------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | [ublox-short-range-rs] | Driver crate for U-Blox host-based short range devices (wifi and BT) with AT-command interface | [![crates.io][ublox-short-range-rs-crate-img]][ublox-short-range-rs] [![docs.rs][ublox-short-range-rs-docs-img]][ublox-short-range-rs-docs] |
 | [ublox-cellular-rs]    | Driver crate for U-Blox host-based cellular devices with AT-command interface                  | [![crates.io][ublox-cellular-rs-crate-img]][ublox-cellular-rs-crates] [![docs.rs][ublox-cellular-rs-docs-img]][ublox-cellular-rs-docs]      |
-| [espresso]             | AT based driver crate for ESP8266 WiFi modules                                                 | <!--[![crates.io][espresso-crate-img]][espresso] [![docs.rs][espresso-docs-img]][espresso-docs] -->                                         |
 | [esp-at-nal]           | ESP-AT network layer driver for no_std                                                         | [![crates.io][esp-at-nal-crate-img]][esp-at-nal-crate] [![docs.rs][esp-at-nal-docs-img]][esp-at-nal-docs]                                   |
 
 [ublox-short-range-rs]: https://github.com/BlackbirdHQ/ublox-short-range-rs
@@ -93,10 +92,6 @@ The following dependent crates provide platform-agnostic device drivers built on
 [esp-at-nal-crate]: https://crates.io/crates/esp-at-nal
 [esp-at-nal-docs-img]: https://docs.rs/esp-at-nal/badge.svg
 [esp-at-nal-docs]: https://docs.rs/esp-at-nal/
-
-<!-- [espresso-crate-img]: https://img.shields.io/crates/v/espresso.svg
-[espresso-docs-img]: https://docs.rs/espresso/badge.svg
-[espresso-docs]: https://docs.rs/espresso/ -->
 
 ## Features
 
