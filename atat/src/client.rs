@@ -721,8 +721,8 @@ mod test {
 
     #[test]
     fn tx_timeout() {
-        let timeout = Duration::from_millis(10);
-        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking).tx_timeout(5), timeout);
+        let timeout = Duration::from_millis(20);
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking).tx_timeout(1), timeout);
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
@@ -738,8 +738,8 @@ mod test {
 
     #[test]
     fn flush_timeout() {
-        let timeout = Duration::from_millis(10);
-        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking).flush_timeout(5), timeout);
+        let timeout = Duration::from_millis(20);
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking).flush_timeout(1), timeout);
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
