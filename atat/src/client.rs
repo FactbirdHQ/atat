@@ -82,10 +82,8 @@ where
 
 /// Blocks on `nb` function calls but allow to time out
 /// Example of usage:
-/// ```
-/// block_timeout!((client.timer, client.config.tx_timeout) => {client.tx.write(c)}.map_err(|_e| Error::Write))?;
-/// block_timeout!((client.timer, client.config.tx_timeout) => {client.tx.write(c)});
-/// ```
+/// `block_timeout!((client.timer, client.config.tx_timeout) => {client.tx.write(c)}.map_err(|_e| Error::Write))?;`
+/// `block_timeout!((client.timer, client.config.tx_timeout) => {client.tx.write(c)});`
 #[macro_export]
 macro_rules! block_timeout {
     ($timer:expr, $duration:expr, $e:expr, $map_err:expr) => {{
