@@ -108,7 +108,7 @@ macro_rules! block_timeout {
         }
     }};
     (($timer:expr, $duration:expr) => {$e:expr}) => {{
-        block_timeout!($timer, $duration, $e, |e|{e})
+        block_timeout!($timer, $duration, $e, |e| { e })
     }};
     (($timer:expr, $duration:expr) => {$e:expr}.map_err($map_err:expr)) => {{
         block_timeout!($timer, $duration, $e, $map_err)
@@ -333,7 +333,11 @@ mod test {
 
     impl TxMock {
         fn new(s: String<64>, timeout: Option<Duration>) -> Self {
-            TxMock { s, timeout, timer_start: None }
+            TxMock {
+                s,
+                timeout,
+                timer_start: None,
+            }
         }
     }
 
