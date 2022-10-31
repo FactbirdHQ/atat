@@ -52,8 +52,6 @@ pub struct Client<
     state: ClientState,
     timer: CLK,
     config: Config,
-
-    flush_timeout_ms: u32,
 }
 
 impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
@@ -78,13 +76,43 @@ where
             state: ClientState::Idle,
             config,
             timer,
-            flush_timeout_ms: 0,
         }
     }
+}
 
-    pub fn set_flush_timeout(&mut self, ms: u32) {
-        self.flush_timeout_ms = ms;
-    }
+/// Blocks on `nb` function calls but allow to time out
+/// Example of usage:
+/// ```
+/// block_timeout!((client.timer, client.config.tx_timeout) => {client.tx.write(c)}.map_err(|_e| Error::Write))?;
+/// block_timeout!((client.timer, client.config.tx_timeout) => {client.tx.write(c)});
+/// ```
+#[macro_export]
+macro_rules! block_timeout {
+    ($timer:expr, $duration:expr, $e:expr, $map_err:expr) => {{
+        if $duration == 0 {
+            nb::block!($e).map_err($map_err)
+        } else {
+            $timer.start($duration.millis()).ok();
+            loop {
+                match $e {
+                    Err(nb::Error::WouldBlock) => (),
+                    Err(nb::Error::Other(e)) => break Err($map_err(e)),
+                    Ok(r) => break Ok(r),
+                };
+                match $timer.wait() {
+                    Err(nb::Error::WouldBlock) => (),
+                    Err(_) => break Err(Error::Write),
+                    Ok(_) => break Err(Error::Timeout),
+                };
+            }
+        }
+    }};
+    (($timer:expr, $duration:expr) => {$e:expr}) => {{
+        block_timeout!($timer, $duration, $e, |e|{e})
+    }};
+    (($timer:expr, $duration:expr) => {$e:expr}.map_err($map_err:expr)) => {{
+        block_timeout!($timer, $duration, $e, $map_err)
+    }};
 }
 
 impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
@@ -114,25 +142,9 @@ where
             }
 
             for c in cmd_buf {
-                nb::block!(self.tx.write(c)).map_err(|_e| Error::Write)?;
+                block_timeout!((self.timer, self.config.tx_timeout) => {self.tx.write(c)}.map_err(|_e| Error::Write))?;
             }
-            if self.flush_timeout_ms == 0 {
-                nb::block!(self.tx.flush()).map_err(|_e| Error::Write)?;
-            } else {
-                self.timer.start(self.flush_timeout_ms.millis()).ok();
-                loop {
-                    match self.timer.wait() {
-                        Ok(()) => break Err(Error::Timeout),
-                        Err(nb::Error::WouldBlock) => (),
-                        Err(_) => break Err(Error::Write),
-                    };
-                    match self.tx.flush() {
-                        Ok(()) => break Ok(()),
-                        Err(nb::Error::WouldBlock) => (),
-                        _ => break Err(Error::Write),
-                    }
-                }?;
-            }
+            block_timeout!((self.timer, self.config.flush_timeout) => {self.tx.flush()}.map_err(|_e| Error::Write))?;
 
             self.state = ClientState::AwaitingResponse;
         }
@@ -221,6 +233,7 @@ where
 mod test {
     use std::sync::mpsc;
     use std::thread::{self, JoinHandle};
+    use std::time::{Duration, Instant};
 
     use super::*;
     use crate::{self as atat, InternalError};
@@ -266,18 +279,15 @@ mod test {
             let (tx, rx) = mpsc::channel();
             self.trigger = Some(tx.clone());
 
-            // self.start_time = Some(std::time::Instant::now());
             thread::spawn(move || {
                 let trigger = tx.clone();
-                thread::sleep(std::time::Duration::from_millis(duration.to_millis() as u64));
+                thread::sleep(Duration::from_millis(duration.to_millis() as u64));
                 trigger.send(true).unwrap();
             });
 
             let handle = thread::spawn(move || loop {
                 match rx.recv() {
-                    Ok(ticked) => {
-                        break ticked;
-                    }
+                    Ok(ticked) => break ticked,
                     _ => break false,
                 }
             });
@@ -297,9 +307,7 @@ mod test {
         fn wait(&mut self) -> nb::Result<(), Self::Error> {
             match &self.handle {
                 Some(handle) => match handle.is_finished() {
-                    true => {
-                        self.handle.take();
-                    }
+                    true => self.handle = None,
                     false => Err(nb::Error::WouldBlock)?,
                 },
                 None => (),
@@ -319,12 +327,13 @@ mod test {
 
     struct TxMock {
         s: String<64>,
-        t: Option<std::time::Instant>,
+        timeout: Option<Duration>,
+        timer_start: Option<Instant>,
     }
 
     impl TxMock {
-        fn new(s: String<64>) -> Self {
-            TxMock { s, t: None }
+        fn new(s: String<64>, timeout: Option<Duration>) -> Self {
+            TxMock { s, timeout, timer_start: None }
         }
     }
 
@@ -334,19 +343,24 @@ mod test {
 
     impl serial::nb::Write<u8> for TxMock {
         fn write(&mut self, c: u8) -> nb::Result<(), Self::Error> {
+            if let Some(timeout) = self.timeout {
+                if self.timer_start.get_or_insert(Instant::now()).elapsed() < timeout {
+                    return Err(nb::Error::WouldBlock);
+                }
+                self.timer_start.take();
+            }
             self.s
                 .push(c as char)
                 .map_err(|_| nb::Error::Other(serial::ErrorKind::Other))
         }
 
         fn flush(&mut self) -> nb::Result<(), Self::Error> {
-            if self.t.is_none() {
-                self.t.replace(std::time::Instant::now());
+            if let Some(timeout) = self.timeout {
+                if self.timer_start.get_or_insert(Instant::now()).elapsed() < timeout {
+                    return Err(nb::Error::WouldBlock);
+                }
+                self.timer_start.take();
             }
-            if std::time::Instant::now() - self.t.unwrap() < std::time::Duration::from_millis(100) {
-                return Err(nb::Error::WouldBlock);
-            }
-            self.t.take();
             Ok(())
         }
     }
@@ -469,14 +483,14 @@ mod test {
     }
 
     macro_rules! setup {
-        ($config:expr) => {{
+        ($config:expr => $timeout:expr) => {{
             static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer::new();
             let (res_p, res_c) = unsafe { RES_Q.try_split_framed().unwrap() };
 
             static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer::new();
             let (urc_p, urc_c) = unsafe { URC_Q.try_split_framed().unwrap() };
 
-            let tx_mock = TxMock::new(String::new());
+            let tx_mock = TxMock::new(String::new(), $timeout);
             let client: Client<
                 TxMock,
                 CdMock<TIMER_HZ>,
@@ -485,6 +499,12 @@ mod test {
                 TEST_URC_CAPACITY,
             > = Client::new(tx_mock, res_c, urc_c, CdMock::new(), $config);
             (client, res_p, urc_p)
+        }};
+        ($config:expr, $timeout:expr) => {{
+            setup!($config => Some($timeout))
+        }};
+        ($config:expr) => {{
+            setup!($config => None)
         }};
     }
 
@@ -698,9 +718,26 @@ mod test {
     }
 
     #[test]
+    fn tx_timeout() {
+        let timeout = Duration::from_millis(10);
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking).tx_timeout(5), timeout);
+
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        enqueue_res(&mut p, Ok(&[]));
+
+        assert_eq!(client.state, ClientState::Idle);
+        assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Timeout)));
+        assert_eq!(client.state, ClientState::Idle);
+    }
+
+    #[test]
     fn flush_timeout() {
-        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
-        client.set_flush_timeout(50);
+        let timeout = Duration::from_millis(10);
+        let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking).flush_timeout(5), timeout);
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,

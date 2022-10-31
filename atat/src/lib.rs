@@ -271,6 +271,8 @@ pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
 pub struct Config {
     mode: Mode,
     cmd_cooldown: u32,
+    tx_timeout: u32,
+    flush_timeout: u32,
 }
 
 impl Default for Config {
@@ -278,6 +280,8 @@ impl Default for Config {
         Self {
             mode: Mode::Blocking,
             cmd_cooldown: 20,
+            tx_timeout: 0,
+            flush_timeout: 0,
         }
     }
 }
@@ -289,6 +293,18 @@ impl Config {
             mode,
             ..Self::default()
         }
+    }
+
+    #[must_use]
+    pub const fn tx_timeout(mut self, ms: u32) -> Self {
+        self.tx_timeout = ms;
+        self
+    }
+
+    #[must_use]
+    pub const fn flush_timeout(mut self, ms: u32) -> Self {
+        self.flush_timeout = ms;
+        self
     }
 
     #[must_use]
