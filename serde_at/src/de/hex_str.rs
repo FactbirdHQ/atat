@@ -30,7 +30,7 @@ where
         HexStr {
             val: T::default(),
             add_0x_with_encoding: false,
-            hex_in_caps: false,
+            hex_in_caps: true,
         }
     }
 }
