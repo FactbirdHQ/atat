@@ -58,7 +58,7 @@ macro_rules! impl_hex_literal_visitor {
                 for c in s.chars() {
                     let v = match c {
                         '0'..='9' => (c as $int_type) - ('0' as $int_type),
-                        'A'..='F' => 0xa + ((c as $int_type) - ('A' as $int_type)),
+                        'A'..='F' => 0xA + ((c as $int_type) - ('A' as $int_type)),
                         'a'..='f' => 0xa + ((c as $int_type) - ('a' as $int_type)),
                         _ => 0
                     };
