@@ -1,6 +1,6 @@
 use crate::proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Ident};
+use syn::{parse_macro_input, Ident, Type};
 
 use crate::parse::{parse_field_attr, ArgAttributes, FieldAttributes, ParseInput, Variant};
 
@@ -13,7 +13,12 @@ pub fn struct_len(variants: Vec<Variant>, init_len: usize) -> proc_macro2::Token
     let mut struct_len = quote! { #init_len };
     for field in variants {
         let len = if let Some(ArgAttributes { len: Some(len), .. }) = field.attrs.at_arg {
-            quote! { #len }
+            let ty = field.ty.unwrap();
+            if is_ref_str(ty) {
+                quote! { 1 + #len + 1 }
+            } else {
+                quote! { #len }
+            }
         } else {
             let ty = field.ty.unwrap();
             quote! { <#ty as atat::AtatLen>::LEN }
@@ -23,6 +28,16 @@ pub fn struct_len(variants: Vec<Variant>, init_len: usize) -> proc_macro2::Token
         };
     }
     struct_len
+}
+
+fn is_ref_str(ty: Type) -> bool {
+    match ty {
+        Type::Reference(r) => match r.elem.as_ref() {
+            Type::Path(p) => p.path.segments.len() == 1 && p.path.segments[0].ident == "str",
+            _ => false,
+        },
+        _ => false,
+    }
 }
 
 /// Calculate the serialized length of an enum, as the longest of all variants
