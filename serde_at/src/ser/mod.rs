@@ -7,8 +7,8 @@ use serde::ser;
 use heapless::{String, Vec};
 
 mod enum_;
-mod struct_;
 mod hex_str;
+mod struct_;
 
 use self::enum_::{SerializeStructVariant, SerializeTupleVariant};
 use self::struct_::SerializeStruct;
@@ -460,10 +460,10 @@ impl ser::SerializeTuple for Unreachable {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::HexStr;
     use heapless::String;
     use serde_bytes::Bytes;
     use serde_derive::{Deserialize, Serialize};
-    use crate::HexStr;
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
     pub enum PacketSwitchedParam {
@@ -550,30 +550,30 @@ mod tests {
             val_0x_caps: HexStr<u32>,
             val_no_0x_caps: HexStr<u32>,
             val_0x_small_case: HexStr<u32>,
-            val_no_0x_small_case: HexStr<u32>
+            val_no_0x_small_case: HexStr<u32>,
         }
 
         let params = WithHexStr {
             val_0x_caps: HexStr {
                 val: 0xFF00,
                 hex_in_caps: true,
-                add_0x_with_encoding: true
+                add_0x_with_encoding: true,
             },
             val_no_0x_caps: HexStr {
-                val:0x55AA,
+                val: 0x55AA,
                 hex_in_caps: true,
-                add_0x_with_encoding: false
+                add_0x_with_encoding: false,
             },
             val_0x_small_case: HexStr {
                 val: 0x00FF,
                 hex_in_caps: false,
-                add_0x_with_encoding: true
+                add_0x_with_encoding: true,
             },
             val_no_0x_small_case: HexStr {
                 val: 0xAA55,
                 hex_in_caps: false,
-                add_0x_with_encoding: false
-            }
+                add_0x_with_encoding: false,
+            },
         };
 
         let s: String<100> = to_string(&params, "+CMD", SerializeOptions::default()).unwrap();

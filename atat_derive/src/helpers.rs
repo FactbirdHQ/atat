@@ -88,9 +88,9 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
     let field_names_bytestr = field_names_str
         .iter()
         .map(|a| Literal::byte_string(a.as_bytes()));
-    let invalid_len_err = format!("struct {} with {} elements", ident, len);
-    let invalid_val_err = format!("field index {} <= i < {}", 0, len);
-    let struct_name = format!("struct {}", ident);
+    let invalid_len_err = format!("struct {ident} with {len} elements");
+    let invalid_val_err = format!("field index 0 <= i < {len}");
+    let struct_name = format!("struct {ident}");
 
     let (_, ty_generics, _) = generics.split_for_impl();
     let mut serde_generics = generics.clone();

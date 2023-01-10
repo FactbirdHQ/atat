@@ -18,16 +18,18 @@ pub struct HexStr<T> {
     /// Flag to add 0x when serializing the value
     pub add_0x_with_encoding: bool,
     /// Flag to serialize the hex in capital letters
-    pub hex_in_caps: bool
+    pub hex_in_caps: bool,
 }
 
-impl <T> Default for HexStr<T>
-    where T: Default {
+impl<T> Default for HexStr<T>
+where
+    T: Default,
+{
     fn default() -> Self {
         HexStr {
             val: T::default(),
             add_0x_with_encoding: false,
-            hex_in_caps: false
+            hex_in_caps: false,
         }
     }
 }
@@ -107,7 +109,8 @@ mod tests {
         assert_eq!(*val, 0xd3adb3ef);
         let val: HexStr<u64> = crate::from_str("+CCID: 0xFeedfACECAfeBE3F").unwrap();
         assert_eq!(*val, 0xFeedfACECAfeBE3F);
-        let val: HexStr<u128> = crate::from_str("+CCID: 0x1234567890abcdef1234567890abcdef").unwrap();
+        let val: HexStr<u128> =
+            crate::from_str("+CCID: 0x1234567890abcdef1234567890abcdef").unwrap();
         assert_eq!(*val, 0x1234567890abcdef1234567890abcdef);
     }
 }
