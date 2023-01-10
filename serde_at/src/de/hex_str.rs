@@ -2,17 +2,17 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Deref, Shl};
 use serde::de::Visitor;
-use serde::*;
+use serde::{de, Deserialize};
 
 struct HexLiteralVisitor<T> {
     _ty: PhantomData<T>,
 }
 
-/// HexStr<T>
+/// `HexStr<T>`
 /// A hex string. Has fields used in serializing whether to add a 0x to the encoding
 /// and to make the hex value in capital letters or not.
 /// Can be dereferenced to its value.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct HexStr<T> {
     /// Value of the hex string. Can be dereferenced
     pub val: T,
@@ -27,7 +27,7 @@ where
     T: Default,
 {
     fn default() -> Self {
-        HexStr {
+        Self {
             val: T::default(),
             add_0x_with_encoding: false,
             hex_in_caps: true,

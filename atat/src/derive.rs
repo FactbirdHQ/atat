@@ -72,7 +72,7 @@ mod tests {
     use atat::{derive::AtatLen, AtatCmd};
     use atat_derive::{AtatCmd, AtatEnum, AtatResp};
     use heapless::{String, Vec};
-    use serde_at::{from_str, to_string, SerializeOptions};
+    use serde_at::{from_str, to_string, HexStr, SerializeOptions};
 
     macro_rules! assert_not_impl {
         ($x:ty, $($t:path),+ $(,)*) => {
@@ -171,11 +171,11 @@ mod tests {
         assert_eq!(<SimpleEnum as AtatLen>::LEN, 3);
         assert_eq!(<SimpleEnumU32 as AtatLen>::LEN, 10);
 
-        assert_eq!(<Hex<u8> as AtatLen>::LEN, 8);
-        assert_eq!(<Hex<u16> as AtatLen>::LEN, 12);
-        assert_eq!(<Hex<u32> as AtatLen>::LEN, 20);
-        assert_eq!(<Hex<u64> as AtatLen>::LEN, 36);
-        assert_eq!(<Hex<u128> as AtatLen>::LEN, 68);
+        assert_eq!(<HexStr<u8> as AtatLen>::LEN, 8);
+        assert_eq!(<HexStr<u16> as AtatLen>::LEN, 12);
+        assert_eq!(<HexStr<u32> as AtatLen>::LEN, 20);
+        assert_eq!(<HexStr<u64> as AtatLen>::LEN, 36);
+        assert_eq!(<HexStr<u128> as AtatLen>::LEN, 68);
 
         // (fields) + (n_fields - 1)
         // (3 + 128 + 2 + 150 + 3 + 10 + 3 + (10*5)) + 7
