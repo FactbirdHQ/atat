@@ -9,8 +9,9 @@ struct HexLiteralVisitor<T> {
 }
 
 /// HexStr<T>
-/// A hex string. Has phantom data used in serializing whether to add a 0x to the encoding
+/// A hex string. Has fields used in serializing whether to add a 0x to the encoding
 /// and to make the hex value in capital letters or not.
+/// Can be dereferenced to its value.
 #[derive(Clone, PartialEq)]
 pub struct HexStr<T> {
     /// Value of the hex string. Can be dereferenced
