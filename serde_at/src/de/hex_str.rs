@@ -1,4 +1,5 @@
 use core::fmt;
+use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::ops::{Deref, Shl};
 use serde::de::Visitor;
