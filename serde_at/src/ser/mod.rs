@@ -8,6 +8,7 @@ use heapless::{String, Vec};
 
 mod enum_;
 mod struct_;
+mod hex_str;
 
 use self::enum_::{SerializeStructVariant, SerializeTupleVariant};
 use self::struct_::SerializeStruct;
@@ -83,20 +84,6 @@ impl<'a, const B: usize> Serializer<'a, B> {
             options,
         }
     }
-}
-
-/// Upper-case hex for value in 0..16, encoded as ASCII bytes
-fn hex_4bit(c: u8) -> u8 {
-    if c <= 9 {
-        0x30 + c
-    } else {
-        0x41 + (c - 10)
-    }
-}
-
-/// Upper-case hex for value in 0..256, encoded as ASCII bytes
-fn hex(c: u8) -> (u8, u8) {
-    (hex_4bit(c >> 4), hex_4bit(c & 0x0F))
 }
 
 // NOTE(serialize_*signed) This is basically the numtoa implementation minus the lookup tables,
@@ -235,74 +222,18 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok> {
-        self.buf.push(b'"')?;
-        self.buf.push(v as u8)?;
-        self.buf.push(b'"')?;
+        let mut encoding_tmp = [0_u8; 4];
+        let encoded = v.encode_utf8(&mut encoding_tmp as &mut [u8]);
+        self.buf.extend_from_slice(encoded.as_bytes())?;
         Ok(())
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
-        self.buf.push(b'"')?;
-
-        // Do escaping according to "6. MUST represent all strings (including object member names) in
-        // their minimal-length UTF-8 encoding": https://gibson042.github.io/canonicaljson-spec/
-        //
-        // We don't need to escape lone surrogates because surrogate pairs do not exist in valid UTF-8,
-        // even if they can exist in JSON or JavaScript strings (UCS-2 based). As a result, lone surrogates
-        // cannot exist in a Rust String. If they do, the bug is in the String constructor.
-        // An excellent explanation is available at https://www.youtube.com/watch?v=HhIEDWmQS3w
-
-        // Temporary storage for encoded a single char.
-        // A char is up to 4 bytes long wehn encoded to UTF-8.
         let mut encoding_tmp = [0_u8; 4];
-
         for c in v.chars() {
-            match c {
-                '\\' => {
-                    self.buf.push(b'\\')?;
-                    self.buf.push(b'\\')?;
-                }
-                '"' => {
-                    self.buf.push(b'\\')?;
-                    self.buf.push(b'"')?;
-                }
-                '\u{0008}' => {
-                    self.buf.push(b'\\')?;
-                    self.buf.push(b'b')?;
-                }
-                '\u{0009}' => {
-                    self.buf.push(b'\\')?;
-                    self.buf.push(b't')?;
-                }
-                '\u{000A}' => {
-                    self.buf.push(b'\\')?;
-                    self.buf.push(b'n')?;
-                }
-                '\u{000C}' => {
-                    self.buf.push(b'\\')?;
-                    self.buf.push(b'f')?;
-                }
-                '\u{000D}' => {
-                    self.buf.push(b'\\')?;
-                    self.buf.push(b'r')?;
-                }
-                '\u{0000}'..='\u{001F}' => {
-                    self.buf.push(b'\\')?;
-                    self.buf.push(b'u')?;
-                    self.buf.push(b'0')?;
-                    self.buf.push(b'0')?;
-                    let (hex1, hex2) = hex(c as u8);
-                    self.buf.push(hex1)?;
-                    self.buf.push(hex2)?;
-                }
-                _ => {
-                    let encoded = c.encode_utf8(&mut encoding_tmp as &mut [u8]);
-                    self.buf.extend_from_slice(encoded.as_bytes())?;
-                }
-            }
+            let encoded = c.encode_utf8(&mut encoding_tmp as &mut [u8]);
+            self.buf.extend_from_slice(encoded.as_bytes())?;
         }
-
-        self.buf.push(b'"')?;
         Ok(())
     }
 
@@ -532,6 +463,7 @@ mod tests {
     use heapless::String;
     use serde_bytes::Bytes;
     use serde_derive::{Deserialize, Serialize};
+    use crate::HexStr;
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
     pub enum PacketSwitchedParam {
@@ -551,6 +483,7 @@ mod tests {
 
         QoSDelay3G(u32),
         CurrentProfileMap(u8),
+        AppEui(HexStr<u32>),
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -608,5 +541,42 @@ mod tests {
         };
         let s: String<32> = to_string(&b, "+CMD", SerializeOptions::default()).unwrap();
         assert_eq!(s, String::<32>::from("AT+CMD=Some bytes\r\n"));
+    }
+
+    #[test]
+    fn hex_str_serialize() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct WithHexStr {
+            val_0x_caps: HexStr<u32>,
+            val_no_0x_caps: HexStr<u32>,
+            val_0x_small_case: HexStr<u32>,
+            val_no_0x_small_case: HexStr<u32>
+        }
+
+        let params = WithHexStr {
+            val_0x_caps: HexStr {
+                val: 0xFF00,
+                hex_in_caps: true,
+                add_0x_with_encoding: true
+            },
+            val_no_0x_caps: HexStr {
+                val:0x55AA,
+                hex_in_caps: true,
+                add_0x_with_encoding: false
+            },
+            val_0x_small_case: HexStr {
+                val: 0x00FF,
+                hex_in_caps: false,
+                add_0x_with_encoding: true
+            },
+            val_no_0x_small_case: HexStr {
+                val: 0xAA55,
+                hex_in_caps: false,
+                add_0x_with_encoding: false
+            }
+        };
+
+        let s: String<100> = to_string(&params, "+CMD", SerializeOptions::default()).unwrap();
+        assert_eq!(s, String::<100>::from("AT+CMD=0xFF00,55AA,0xff,aa55\r\n"));
     }
 }
