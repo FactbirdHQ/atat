@@ -483,7 +483,7 @@ mod test {
         #[at_urc(b"+UMWI")]
         MessageWaitingIndication(MessageWaitingIndication),
         #[at_urc(b"CONNECT OK")]
-        ConnectOk
+        ConnectOk,
     }
 
     macro_rules! setup {
