@@ -470,7 +470,7 @@ mod test {
         pub data: String<64>,
     }
 
-    #[derive(Clone, AtatResp)]
+    #[derive(Debug, Clone, AtatResp, PartialEq)]
     pub struct MessageWaitingIndication {
         #[at_arg(position = 0)]
         pub status: u8,
@@ -478,10 +478,12 @@ mod test {
         pub code: u8,
     }
 
-    #[derive(Clone, AtatUrc)]
+    #[derive(Debug, Clone, AtatUrc, PartialEq)]
     pub enum Urc {
         #[at_urc(b"+UMWI")]
         MessageWaitingIndication(MessageWaitingIndication),
+        #[at_urc(b"CONNECT OK")]
+        ConnectOk
     }
 
     macro_rules! setup {
@@ -698,6 +700,21 @@ mod test {
 
         assert_eq!(client.state, ClientState::Idle);
         assert!(client.check_urc::<Urc>().is_some());
+        assert_eq!(client.state, ClientState::Idle);
+    }
+
+    #[test]
+    fn urc_keyword() {
+        let (mut client, _, mut urc_p) = setup!(Config::new(Mode::NonBlocking));
+
+        let response = b"CONNECT OK";
+
+        let mut grant = urc_p.grant(response.len()).unwrap();
+        grant.copy_from_slice(response.as_ref());
+        grant.commit(response.len());
+
+        assert_eq!(client.state, ClientState::Idle);
+        assert_eq!(Urc::ConnectOk, client.check_urc::<Urc>().unwrap());
         assert_eq!(client.state, ClientState::Idle);
     }
 
