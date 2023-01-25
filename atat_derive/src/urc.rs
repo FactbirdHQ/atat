@@ -64,16 +64,13 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
             #[inline]
             fn parse(resp: &[u8]) -> Option<Self::Response> {
                 // FIXME: this should be more generic than ':' (Split using #code?)
-                if let Some(index) = resp.iter().position(|&x| x == b':') {
-                    Some(match &resp[..index] {
-                        #(
-                            #match_arms
-                        )*
-                        _ => return None
-                    })
-                } else {
-                    None
-                }
+                let index = resp.iter().position(|&x| x == b':').unwrap_or(resp.len());
+                Some(match &resp[..index] {
+                    #(
+                        #match_arms
+                    )*
+                    _ => return None
+                })
             }
         }
 
