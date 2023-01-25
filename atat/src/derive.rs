@@ -169,7 +169,10 @@ mod tests {
             <LengthTester<'_> as AtatLen>::LEN,
             (3 + (1 + 128 + 1) + 2 + (1 + 150 + 1) + 3 + 10 + 3) + 6
         );
-        assert_eq!(<MixedEnum<'_> as AtatLen>::LEN, (3 + 3 + (1 + 10 + 1) + 20 + 10) + 4);
+        assert_eq!(
+            <MixedEnum<'_> as AtatLen>::LEN,
+            (3 + 3 + (1 + 10 + 1) + 20 + 10) + 4
+        );
     }
 
     #[test]
