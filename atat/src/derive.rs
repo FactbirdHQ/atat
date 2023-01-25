@@ -39,7 +39,7 @@ impl_length!(f32, 42);
 impl_length!(f64, 312);
 
 impl<const T: usize> AtatLen for String<T> {
-    const LEN: usize = T;
+    const LEN: usize = 1 + T + 1;
 }
 
 impl<T: AtatLen> AtatLen for Option<T> {
@@ -164,12 +164,15 @@ mod tests {
         assert_eq!(<SimpleEnum as AtatLen>::LEN, 3);
         assert_eq!(<SimpleEnumU32 as AtatLen>::LEN, 10);
         // (fields) + (n_fields - 1)
-        // (3 + 128 + 2 + 150 + 3 + 10 + 3 + (10*5)) + 7
+        // (3 + (1 + 128 + 1) + 2 + (1 + 150 + 1) + 3 + 10 + 3 + (10*5)) + 7
         assert_eq!(
             <LengthTester<'_> as AtatLen>::LEN,
-            (3 + 128 + 2 + 150 + 3 + 10 + 3) + 6
+            (3 + (1 + 128 + 1) + 2 + (1 + 150 + 1) + 3 + 10 + 3) + 6
         );
-        assert_eq!(<MixedEnum<'_> as AtatLen>::LEN, (3 + 3 + 10 + 20 + 10) + 4);
+        assert_eq!(
+            <MixedEnum<'_> as AtatLen>::LEN,
+            (3 + 3 + (1 + 10 + 1) + 20 + 10) + 4
+        );
     }
 
     #[test]
