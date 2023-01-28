@@ -115,25 +115,36 @@ impl<P: Parser> Digester for AtDigester<P> {
             Err(_) => panic!("NOM ERROR - opt(echo)"),
         };
 
+        // Incomplete. Eat the echo and do nothing else.
+        let incomplete = (DigestResult::None, echo_bytes);
+
         // 2. Match for URC's
-        if let Ok((urc, len)) = P::parse(input) {
-            return (DigestResult::Urc(urc), len);
+        match P::parse(input) {
+            Ok((urc, len)) => return (DigestResult::Urc(urc), len),
+            Err(ParseError::Incomplete) => return incomplete,
+            _ => {}
         }
 
         // 3. Parse for success responses
         // Custom successful replies first, if any
-        if let Ok((response, len)) = (self.custom_success)(buf) {
-            return (DigestResult::Response(Ok(response)), len + echo_bytes);
+        match (self.custom_success)(buf) {
+            Ok((response, len)) => return (DigestResult::Response(Ok(response)), len + echo_bytes),
+            Err(ParseError::Incomplete) => return incomplete,
+            _ => {}
         }
 
         // Generic success replies
-        if let Ok((_, (result, len))) = parser::success_response(buf) {
-            return (result, len + echo_bytes);
+        match parser::success_response(buf) {
+            Ok((_, (result, len))) => return (result, len + echo_bytes),
+            Err(nom::Err::Incomplete(_)) => return incomplete,
+            _ => {}
         }
 
         // Custom prompts for data replies first, if any
-        if let Ok((response, len)) = (self.custom_prompt)(buf) {
-            return (DigestResult::Prompt(response), len + echo_bytes);
+        match (self.custom_prompt)(buf) {
+            Ok((response, len)) => return (DigestResult::Prompt(response), len + echo_bytes),
+            Err(ParseError::Incomplete) => return incomplete,
+            _ => {}
         }
 
         // Generic prompts for data
@@ -143,11 +154,15 @@ impl<P: Parser> Digester for AtDigester<P> {
 
         // 4. Parse for error responses
         // Custom error matches first, if any
-        if let Ok((response, len)) = (self.custom_error)(buf) {
-            return (
-                DigestResult::Response(Err(InternalError::Custom(response))),
-                len + echo_bytes,
-            );
+        match (self.custom_error)(buf) {
+            Ok((response, len)) => {
+                return (
+                    DigestResult::Response(Err(InternalError::Custom(response))),
+                    len + echo_bytes,
+                )
+            }
+            Err(ParseError::Incomplete) => return incomplete,
+            _ => {}
         }
 
         // Generic error matches
@@ -155,8 +170,8 @@ impl<P: Parser> Digester for AtDigester<P> {
             return (result, len + echo_bytes);
         }
 
-        // No matches at all. Just eat the echo and do nothing else.
-        (DigestResult::None, echo_bytes)
+        // No matches at all.
+        incomplete
     }
 }
 
@@ -439,6 +454,8 @@ pub mod parser {
 }
 #[cfg(test)]
 mod test {
+    use nom::{branch, bytes, character, combinator, sequence};
+
     use super::parser::{echo, urc_helper};
     use super::*;
     use crate::{
@@ -1157,5 +1174,39 @@ mod test {
         buf.truncate(buf.len() - bytes);
 
         assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn custom_success_with_prompt() {
+        let mut digester = AtDigester::<UrcTestParser>::new().with_custom_success(|buf| {
+            let (_reminder, (head, data, tail)) = branch::alt((sequence::tuple((
+                bytes::streaming::tag(b"\r\n"),
+                combinator::recognize(sequence::tuple((
+                    bytes::streaming::tag(b"+CIPRXGET: 2,"),
+                    character::streaming::u8,
+                    bytes::streaming::tag(","),
+                    combinator::flat_map(character::streaming::u16, |data_len| {
+                        combinator::recognize(sequence::tuple((
+                            bytes::streaming::tag(","),
+                            character::streaming::u16,
+                            bytes::streaming::tag("\r\n"),
+                            bytes::streaming::take(data_len),
+                        )))
+                    }),
+                ))),
+                bytes::streaming::tag(b"\r\nOK\r\n"),
+            )),))(buf)?;
+
+            Ok((data, head.len() + data.len() + tail.len()))
+        });
+
+        assert_eq!(
+            (DigestResult::None, 0),
+            digester.digest(b"\r\n+CIPRXGET: 2,0,2,0\r\n> ")
+        );
+        assert_eq!(
+            (DigestResult::Response(Ok(b"+CIPRXGET: 2,0,2,0\r\n> ")), 30),
+            digester.digest(b"\r\n+CIPRXGET: 2,0,2,0\r\n> \r\nOK\r\n")
+        );
     }
 }
