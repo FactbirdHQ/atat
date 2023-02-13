@@ -673,12 +673,13 @@ impl fmt::Display for Error {
 }
 
 fn trim_ascii_whitespace(x: &[u8]) -> &[u8] {
-    if let Some(from) = x.iter().position(|x| !x.is_ascii_whitespace()) {
-        let to = x.iter().rposition(|x| !x.is_ascii_whitespace()).unwrap();
-        &x[from..=to]
-    } else {
-        &x[0..0]
-    }
+    x.iter().position(|x| !x.is_ascii_whitespace()).map_or_else(
+        || &x[0..0],
+        |from| {
+            let to = x.iter().rposition(|x| !x.is_ascii_whitespace()).unwrap();
+            &x[from..=to]
+        },
+    )
 }
 
 /// Deserializes an instance of type `T` from bytes of AT Response text
