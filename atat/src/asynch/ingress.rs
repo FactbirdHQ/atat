@@ -1,4 +1,8 @@
-use crate::{helpers::LossyStr, DigestResult, Digester, frame::{Frame, FrameProducerExt}};
+use crate::{
+    frame::{Frame, FrameProducerExt},
+    helpers::LossyStr,
+    DigestResult, Digester,
+};
 use bbqueue::framed::FrameProducer;
 use embedded_io::asynch::Read;
 use embedded_io::Error;
@@ -36,8 +40,7 @@ impl<
     fn write(&mut self, buffer: &[u8]) {
         if self.buffer.extend_from_slice(buffer).is_err() {
             error!("DATA OVERFLOW! Buffer: {:?}", LossyStr(&self.buffer));
-            if self.res_writer.enqueue(Frame::OverflowError).is_err()
-            {
+            if self.res_writer.enqueue(Frame::OverflowError).is_err() {
                 error!("Response queue full!");
             }
         }

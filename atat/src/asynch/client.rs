@@ -1,4 +1,4 @@
-use crate::{Config, helpers::LossyStr, AtatCmd, AtatUrc, Error, Response, frame::Frame};
+use crate::{frame::Frame, helpers::LossyStr, AtatCmd, AtatUrc, Config, Error, Response};
 use bbqueue::framed::FrameConsumer;
 use embedded_hal_async::delay::DelayUs;
 use embedded_io::asynch::Write;

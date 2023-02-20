@@ -2,12 +2,12 @@ use bbqueue::framed::FrameConsumer;
 use embedded_hal_nb::{nb, serial};
 use fugit::ExtU32;
 
+use super::AtatClient;
 use crate::error::{Error, Response};
 use crate::frame::Frame;
 use crate::helpers::LossyStr;
-use crate::{Config, AtatUrc};
 use crate::AtatCmd;
-use super::AtatClient;
+use crate::{AtatUrc, Config};
 
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -232,10 +232,10 @@ where
 
 #[cfg(test)]
 mod test {
+    use crate::frame::FrameProducerExt;
     use std::sync::mpsc;
     use std::thread::{self, JoinHandle};
     use std::time::{Duration, Instant};
-    use crate::frame::FrameProducerExt;
 
     use super::*;
     use crate::{self as atat, InternalError};

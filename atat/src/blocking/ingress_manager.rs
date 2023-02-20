@@ -56,8 +56,7 @@ where
 
         if self.buf.extend_from_slice(data).is_err() {
             error!("OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
-            if self.res_p.enqueue(Frame::OverflowError).is_err()
-            {
+            if self.res_p.enqueue(Frame::OverflowError).is_err() {
                 error!("Response queue full!");
             }
         }
@@ -140,7 +139,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{digest::ParseError, error::Response, AtDigester, Parser, InternalError};
+    use crate::{digest::ParseError, error::Response, AtDigester, InternalError, Parser};
     use bbqueue::BBBuffer;
 
     const TEST_RX_BUF_LEN: usize = 256;

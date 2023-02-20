@@ -1,6 +1,6 @@
 use bbqueue::BBBuffer;
 
-use crate::{Digester, Config};
+use crate::{Config, Digester};
 
 pub struct Buffers<
     const INGRESS_BUF_SIZE: usize,

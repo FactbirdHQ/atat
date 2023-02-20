@@ -9,7 +9,7 @@ use embedded_hal_nb::nb;
 pub use ingress_manager::IngressManager;
 pub use queues::Queues;
 
-use crate::{AtatCmd, Error, AtatUrc};
+use crate::{AtatCmd, AtatUrc, Error};
 
 pub trait AtatClient {
     /// Send an AT command.
