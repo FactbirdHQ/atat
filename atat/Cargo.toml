@@ -63,7 +63,7 @@ embassy-stm32 = { git = "https://github.com/embassy-rs/embassy", rev = "99284b8"
 ] }
 
 [features]
-default = ["derive", "bytes", "async"]
+default = ["derive", "bytes"]
 derive = ["atat_derive", "serde_at"]
 custom-error-messages = []
 async = ["embedded-io/async", "embedded-hal-async", "futures", "embedded-time"]
