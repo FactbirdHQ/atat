@@ -1,4 +1,6 @@
-use crate::{digest::Digester, Client, Config, IngressManager, Queues};
+use crate::{digest::Digester, Config};
+
+use super::{Client, IngressManager, Queues};
 
 type ClientParser<
     Tx,

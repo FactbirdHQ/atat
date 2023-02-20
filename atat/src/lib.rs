@@ -221,18 +221,16 @@
 // This mod MUST go first, so that the others see its macros.
 pub(crate) mod fmt;
 
-mod builder;
-mod client;
 pub mod clock;
+mod config;
 pub mod digest;
 mod error;
 pub mod helpers;
-mod ingress_manager;
-mod queues;
 mod traits;
-
 pub use bbqueue;
 pub use nom;
+
+pub mod blocking;
 
 #[cfg(feature = "bytes")]
 pub use serde_bytes;
@@ -254,65 +252,10 @@ pub use serde_at;
 #[cfg(feature = "derive")]
 pub use heapless;
 
-pub use builder::ClientBuilder;
-pub use client::{Client, Mode};
+pub use config::Config;
 pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
 pub use error::{Error, InternalError, Response};
-pub use ingress_manager::IngressManager;
-pub use queues::Queues;
-pub use traits::{AtatClient, AtatCmd, AtatResp, AtatUrc};
-
-/// Configuration of both the ingress manager, and the AT client. Some of these
-/// parameters can be changed on the fly, through issuing a [`Command`] from the
-/// client.
-///
-/// [`Command`]: enum.Command.html
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct Config {
-    mode: Mode,
-    cmd_cooldown: u32,
-    tx_timeout: u32,
-    flush_timeout: u32,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            mode: Mode::Blocking,
-            cmd_cooldown: 20,
-            tx_timeout: 0,
-            flush_timeout: 0,
-        }
-    }
-}
-
-impl Config {
-    #[must_use]
-    pub fn new(mode: Mode) -> Self {
-        Self {
-            mode,
-            ..Self::default()
-        }
-    }
-
-    #[must_use]
-    pub const fn tx_timeout(mut self, ms: u32) -> Self {
-        self.tx_timeout = ms;
-        self
-    }
-
-    #[must_use]
-    pub const fn flush_timeout(mut self, ms: u32) -> Self {
-        self.flush_timeout = ms;
-        self
-    }
-
-    #[must_use]
-    pub const fn cmd_cooldown(mut self, ms: u32) -> Self {
-        self.cmd_cooldown = ms;
-        self
-    }
-}
+pub use traits::{AtatCmd, AtatResp, AtatUrc};
 
 #[cfg(test)]
 #[cfg(feature = "defmt")]
