@@ -15,7 +15,7 @@ pub trait AtatClient {
     /// longer returns `nb::Error::WouldBlock`, or `self.check_response(cmd)` can
     /// be called, with the same result.
     ///
-    /// This function will also make sure that atleast `self.config.cmd_cooldown`
+    /// This function will also make sure that at least `self.config.cmd_cooldown`
     /// has passed since the last response or URC has been received, to allow
     /// the slave AT device time to deliver URC's.
     fn send<A: AtatCmd<LEN>, const LEN: usize>(
