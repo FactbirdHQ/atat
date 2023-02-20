@@ -33,7 +33,7 @@ pub enum Mode {
 /// some spsc queue consumers, where any received responses can be dequeued. The
 /// Client also has an spsc producer, to allow signaling commands like
 /// `reset` to the ingress-manager.
-pub struct Client<
+pub struct Client<'a,
     Tx,
     CLK,
     const TIMER_HZ: u32,
@@ -47,25 +47,25 @@ pub struct Client<
     tx: Tx,
 
     /// The response consumer receives responses from the ingress manager
-    res_c: FrameConsumer<'static, RES_CAPACITY>,
+    res_c: FrameConsumer<'a, RES_CAPACITY>,
     /// The URC consumer receives URCs from the ingress manager
-    urc_c: FrameConsumer<'static, URC_CAPACITY>,
+    urc_c: FrameConsumer<'a, URC_CAPACITY>,
 
     state: ClientState,
     timer: CLK,
     config: Config,
 }
 
-impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    Client<Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
+impl<'a, Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
+    Client<'a, Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
 where
     Tx: serial::Write<u8>,
     CLK: fugit_timer::Timer<TIMER_HZ>,
 {
     pub fn new(
         tx: Tx,
-        res_c: FrameConsumer<'static, RES_CAPACITY>,
-        urc_c: FrameConsumer<'static, URC_CAPACITY>,
+        res_c: FrameConsumer<'a, RES_CAPACITY>,
+        urc_c: FrameConsumer<'a, URC_CAPACITY>,
         mut timer: CLK,
         config: Config,
     ) -> Self {
@@ -116,7 +116,7 @@ macro_rules! block_timeout {
 }
 
 impl<Tx, CLK, const TIMER_HZ: u32, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
-    for Client<Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
+    for Client<'_, Tx, CLK, TIMER_HZ, RES_CAPACITY, URC_CAPACITY>
 where
     Tx: serial::Write<u8>,
     CLK: fugit_timer::Timer<TIMER_HZ>,

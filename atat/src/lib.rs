@@ -229,6 +229,7 @@ mod config;
 pub mod digest;
 mod error;
 mod frame;
+mod ingress;
 pub mod helpers;
 mod traits;
 pub use bbqueue;
@@ -263,6 +264,7 @@ pub use buffers::Buffers;
 pub use config::Config;
 pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
 pub use error::{Error, InternalError, Response};
+pub use ingress::{AtatIngress, Ingress};
 pub use traits::{AtatCmd, AtatResp, AtatUrc};
 
 #[cfg(test)]

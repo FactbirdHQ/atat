@@ -1,13 +1,7 @@
-mod builder;
 mod client;
-mod ingress_manager;
-mod queues;
 
-pub use builder::ClientBuilder;
 pub use client::{Client, Mode};
 use embedded_hal_nb::nb;
-pub use ingress_manager::IngressManager;
-pub use queues::Queues;
 
 use crate::{AtatCmd, AtatUrc, Error};
 
