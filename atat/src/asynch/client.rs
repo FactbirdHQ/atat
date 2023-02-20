@@ -11,46 +11,7 @@ use futures::{
     future::{select, Either},
     pin_mut,
 };
-
-pub trait AtatClient {
-    async fn send<Cmd: AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        cmd: &Cmd,
-    ) -> Result<Cmd::Response, Error>;
-
-    async fn send_retry<Cmd: AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        cmd: &Cmd,
-    ) -> Result<Cmd::Response, Error> {
-        for attempt in 1..=Cmd::ATTEMPTS {
-            if attempt > 1 {
-                debug!("Attempt {}:", attempt);
-            }
-
-            match self.send(cmd).await {
-                Err(Error::Timeout) => {}
-                r => return r,
-            }
-        }
-        Err(Error::Timeout)
-    }
-
-    fn try_read_urc<Urc: AtatUrc>(&mut self) -> Option<Urc::Response> {
-        let mut first = None;
-        self.try_read_urc_with::<Urc, _>(|urc, _| {
-            first = Some(urc);
-            true
-        });
-        first
-    }
-
-    fn try_read_urc_with<Urc: AtatUrc, F: for<'b> FnOnce(Urc::Response, &'b [u8]) -> bool>(
-        &mut self,
-        handle: F,
-    ) -> bool;
-
-    fn max_urc_len() -> usize;
-}
+use super::AtatClient;
 
 pub struct Client<
     'a,
