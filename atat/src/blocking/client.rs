@@ -5,8 +5,8 @@ use fugit::ExtU32;
 use crate::error::{Error, Response};
 use crate::helpers::LossyStr;
 use crate::{Config, AtatUrc};
-
-use super::{AtatCmd, AtatClient};
+use crate::AtatCmd;
+use super::AtatClient;
 
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
