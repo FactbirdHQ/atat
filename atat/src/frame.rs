@@ -24,7 +24,7 @@ const BINCODE_CONFIG: bincode::config::Configuration =
     bincode::config::standard().with_variable_int_encoding();
 
 impl Frame<'_> {
-    pub const fn max_len(&self) -> usize {
+    pub fn max_len(&self) -> usize {
         // bincode enum discrimonator is 1 byte when variable_int_encoding is specified
         1 + match self {
             Frame::Response(b) => variable_int_encoding_length(b.len()) + b.len(),
@@ -43,7 +43,7 @@ impl Frame<'_> {
     }
 }
 
-const fn variable_int_encoding_length(len: usize) -> usize {
+fn variable_int_encoding_length(len: usize) -> usize {
     // See https://docs.rs/bincode/2.0.0-rc.2/bincode/config/struct.Configuration.html#method.with_variable_int_encoding
     if len < 251 {
         1
