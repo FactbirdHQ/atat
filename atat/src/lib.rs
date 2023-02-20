@@ -223,6 +223,7 @@
 // This mod MUST go first, so that the others see its macros.
 pub(crate) mod fmt;
 
+mod buffers;
 pub mod clock;
 mod config;
 pub mod digest;
@@ -258,6 +259,7 @@ pub use serde_at;
 #[cfg(feature = "derive")]
 pub use heapless;
 
+pub use buffers::Buffers;
 pub use config::Config;
 pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
 pub use error::{Error, InternalError, Response};
