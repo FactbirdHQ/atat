@@ -3,6 +3,7 @@ use embedded_hal_nb::{nb, serial};
 use fugit::ExtU32;
 
 use crate::error::{Error, Response};
+use crate::frame::Frame;
 use crate::helpers::LossyStr;
 use crate::{Config, AtatUrc};
 use crate::AtatCmd;
@@ -184,7 +185,8 @@ where
         if let Some(mut res_grant) = self.res_c.read() {
             res_grant.auto_release(true);
 
-            let res = match Response::from(res_grant.as_ref()) {
+            let frame = Frame::decode(res_grant.as_ref());
+            let res = match Response::from(frame) {
                 Response::Result(r) => r,
                 Response::Prompt(_) => Ok(&[][..]),
             };
@@ -233,6 +235,7 @@ mod test {
     use std::sync::mpsc;
     use std::thread::{self, JoinHandle};
     use std::time::{Duration, Instant};
+    use crate::frame::FrameProducerExt;
 
     use super::*;
     use crate::{self as atat, InternalError};
@@ -240,7 +243,6 @@ mod test {
         atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc},
         clock::Clock,
     };
-    use bbqueue::framed::FrameProducer;
     use bbqueue::BBBuffer;
     use heapless::String;
 
@@ -513,38 +515,13 @@ mod test {
         }};
     }
 
-    pub fn enqueue_res(
-        producer: &mut FrameProducer<'static, TEST_RES_CAPACITY>,
-        res: Result<&[u8], InternalError>,
-    ) {
-        let header: crate::error::Encoded = res.into();
-
-        let mut grant = producer.grant(header.len()).unwrap();
-        match header {
-            crate::error::Encoded::Simple(h) => grant[..1].copy_from_slice(&[h]),
-            crate::error::Encoded::Nested(h, b) => {
-                grant[..1].copy_from_slice(&[h]);
-                grant[1..2].copy_from_slice(&[b]);
-            }
-            crate::error::Encoded::Array(h, b) => {
-                grant[..1].copy_from_slice(&[h]);
-                grant[1..header.len()].copy_from_slice(&b);
-            }
-            crate::error::Encoded::Slice(h, b) => {
-                grant[..1].copy_from_slice(&[h]);
-                grant[1..header.len()].copy_from_slice(b);
-            }
-        };
-        grant.commit(header.len());
-    }
-
     #[test]
     fn error_response() {
         let (mut client, mut p, _) = setup!(Config::new(Mode::Blocking));
 
         let cmd = ErrorTester { x: 7 };
 
-        enqueue_res(&mut p, Err(InternalError::Error));
+        p.enqueue(Err(InternalError::Error).into()).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(nb::block!(client.send(&cmd)), Err(Error::Error));
@@ -560,7 +537,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Err(InternalError::Error));
+        p.enqueue(Err(InternalError::Error).into()).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(nb::block!(client.send(&cmd)), Err(Error::Error));
@@ -576,7 +553,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Ok(&[]));
+        p.enqueue(Frame::Response(&[])).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -588,7 +565,7 @@ mod test {
             "Wrong encoding of string"
         );
 
-        enqueue_res(&mut p, Ok(&[]));
+        p.enqueue(Frame::Response(&[])).unwrap();
 
         let cmd = Test2Cmd {
             fun: Functionality::DM,
@@ -612,7 +589,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Ok(&[]));
+        p.enqueue(Frame::Response(&[])).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -635,7 +612,7 @@ mod test {
 
         assert_eq!(client.check_response(&cmd), Err(nb::Error::WouldBlock));
 
-        enqueue_res(&mut p, Ok(&[]));
+        p.enqueue(Frame::Response(&[])).unwrap();
 
         assert_eq!(client.state, ClientState::AwaitingResponse);
 
@@ -655,7 +632,7 @@ mod test {
         };
 
         let response = b"+CUN: 22,16,\"0123456789012345\"";
-        enqueue_res(&mut p, Ok(response));
+        p.enqueue(Frame::Response(response)).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
 
@@ -676,7 +653,7 @@ mod test {
         };
 
         let response = b"+CUN: \"0123456789012345\",22,16";
-        enqueue_res(&mut p, Ok(response));
+        p.enqueue(Frame::Response(response)).unwrap();
 
         assert_eq!(
             client.send(&cmd),
@@ -730,7 +707,7 @@ mod test {
         };
 
         let response = b"+CUN: 22,16,22";
-        enqueue_res(&mut p, Ok(response));
+        p.enqueue(Frame::Response(response)).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Parse)));
@@ -747,7 +724,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Ok(&[]));
+        p.enqueue(Frame::Response(&[])).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Timeout)));
@@ -764,7 +741,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        enqueue_res(&mut p, Ok(&[]));
+        p.enqueue(Frame::Response(&[])).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Timeout)));

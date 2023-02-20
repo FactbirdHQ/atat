@@ -225,6 +225,7 @@ pub mod clock;
 mod config;
 pub mod digest;
 mod error;
+mod frame;
 pub mod helpers;
 mod traits;
 pub use bbqueue;

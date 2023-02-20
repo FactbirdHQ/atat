@@ -79,71 +79,9 @@ impl<'a> defmt::Format for InternalError<'a> {
     }
 }
 
-pub enum Encoded<'a> {
-    Simple(u8),
-    Nested(u8, u8),
-    Array(u8, [u8; 2]),
-    Slice(u8, &'a [u8]),
-}
-
-impl<'a> From<Result<&'a [u8], InternalError<'a>>> for Encoded<'a> {
-    fn from(v: Result<&'a [u8], InternalError<'a>>) -> Self {
-        match v {
-            Ok(r) => Self::Slice(0xFF, r),
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl<'a> From<InternalError<'a>> for Encoded<'a> {
-    fn from(v: InternalError<'a>) -> Self {
-        match v {
-            InternalError::Read => Encoded::Simple(0x00),
-            InternalError::Write => Encoded::Simple(0x01),
-            InternalError::Timeout => Encoded::Simple(0x02),
-            InternalError::InvalidResponse => Encoded::Simple(0x03),
-            InternalError::Aborted => Encoded::Simple(0x04),
-            InternalError::Overflow => Encoded::Simple(0x05),
-            InternalError::Parse => Encoded::Simple(0x06),
-            InternalError::Error => Encoded::Simple(0x07),
-            InternalError::CmeError(e) => Encoded::Array(0x08, (e as u16).to_le_bytes()),
-            InternalError::CmsError(e) => Encoded::Array(0x09, (e as u16).to_le_bytes()),
-            InternalError::ConnectionError(e) => Encoded::Nested(0x10, e as u8),
-            InternalError::Custom(e) => Encoded::Slice(0x11, e),
-        }
-    }
-}
-
-impl<'a> From<u8> for Encoded<'a> {
-    fn from(v: u8) -> Self {
-        Self::Nested(0xFE, v)
-    }
-}
-
-impl<'a> Encoded<'a> {
-    pub const fn len(&self) -> usize {
-        match self {
-            Encoded::Simple(_) => 1,
-            Encoded::Nested(_, _) => 2,
-            Encoded::Array(_, _) => 3,
-            Encoded::Slice(_, b) => 1 + b.len(),
-        }
-    }
-}
-
 pub enum Response<'a> {
     Result(Result<&'a [u8], InternalError<'a>>),
     Prompt(u8),
-}
-
-impl<'a> From<&'a [u8]> for Response<'a> {
-    fn from(b: &'a [u8]) -> Self {
-        match b[0] {
-            0xFF => Response::Result(Ok(&b[1..])),
-            0xFE => Response::Prompt(b[1]),
-            _ => Response::Result(Err(InternalError::from(b))),
-        }
-    }
 }
 
 /// Errors returned by the crate

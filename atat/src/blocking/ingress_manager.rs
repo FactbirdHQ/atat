@@ -2,7 +2,7 @@ use bbqueue::framed::FrameProducer;
 use heapless::Vec;
 
 use crate::digest::{DigestResult, Digester};
-use crate::error::InternalError;
+use crate::frame::{Frame, FrameProducerExt};
 use crate::helpers::LossyStr;
 
 pub struct IngressManager<
@@ -43,34 +43,6 @@ where
         }
     }
 
-    fn enqueue_encoded_header<'a, const N: usize>(
-        producer: &mut FrameProducer<'static, N>,
-        header: impl Into<crate::error::Encoded<'a>>,
-    ) -> Result<(), ()> {
-        let header = header.into();
-        if let Ok(mut grant) = producer.grant(header.len()) {
-            match header {
-                crate::error::Encoded::Simple(h) => grant[..1].copy_from_slice(&[h]),
-                crate::error::Encoded::Nested(h, b) => {
-                    grant[..1].copy_from_slice(&[h]);
-                    grant[1..2].copy_from_slice(&[b]);
-                }
-                crate::error::Encoded::Array(h, b) => {
-                    grant[..1].copy_from_slice(&[h]);
-                    grant[1..header.len()].copy_from_slice(&b);
-                }
-                crate::error::Encoded::Slice(h, b) => {
-                    grant[..1].copy_from_slice(&[h]);
-                    grant[1..header.len()].copy_from_slice(b);
-                }
-            };
-            grant.commit(header.len());
-            Ok(())
-        } else {
-            Err(())
-        }
-    }
-
     /// Write data into the internal buffer raw bytes being the core type allows
     /// the ingress manager to be abstracted over the communication medium.
     ///
@@ -84,7 +56,7 @@ where
 
         if self.buf.extend_from_slice(data).is_err() {
             error!("OVERFLOW DATA! Buffer: {:?}", LossyStr(&self.buf));
-            if Self::enqueue_encoded_header(&mut self.res_p, Err(InternalError::Overflow)).is_err()
+            if self.res_p.enqueue(Frame::OverflowError).is_err()
             {
                 error!("Response queue full!");
             }
@@ -116,7 +88,7 @@ where
         if let Ok(swallowed) = match self.digester.digest(&self.buf) {
             (DigestResult::None, swallowed) => Ok(swallowed),
             (DigestResult::Prompt(prompt), swallowed) => {
-                if Self::enqueue_encoded_header(&mut self.res_p, prompt).is_ok() {
+                if self.res_p.enqueue(Frame::Prompt(prompt)).is_ok() {
                     Ok(swallowed)
                 } else {
                     error!("Response queue full!");
@@ -148,7 +120,7 @@ where
                     }
                 };
 
-                if Self::enqueue_encoded_header(&mut self.res_p, resp).is_ok() {
+                if self.res_p.enqueue(resp.into()).is_ok() {
                     Ok(swallowed)
                 } else {
                     error!("Response queue full!");
@@ -168,7 +140,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{digest::ParseError, error::Response, AtDigester, Parser};
+    use crate::{digest::ParseError, error::Response, AtDigester, Parser, InternalError};
     use bbqueue::BBBuffer;
 
     const TEST_RX_BUF_LEN: usize = 256;
@@ -207,7 +179,8 @@ mod test {
         let mut grant = res_c.read().unwrap();
         grant.auto_release(true);
 
-        let res = match Response::from(grant.as_ref()) {
+        let frame = Frame::decode(grant.as_ref());
+        let res = match Response::from(frame) {
             Response::Result(r) => r,
             Response::Prompt(_) => Ok(&[][..]),
         };
