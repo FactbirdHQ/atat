@@ -46,6 +46,8 @@ log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.3", optional = true }
 
 [dev-dependencies]
+embassy-time = { version = "0.1.0", features = ["std", "generic-queue"] }
+critical-section = { version = "1.1", features = ["std"] }
 cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7.1"
 cortex-m-rtic = "1.0.0"
