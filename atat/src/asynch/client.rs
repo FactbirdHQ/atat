@@ -1,3 +1,4 @@
+use super::AtatClient;
 use crate::{frame::Frame, helpers::LossyStr, AtatCmd, AtatUrc, Config, Error, Response};
 use bbqueue::framed::FrameConsumer;
 use embedded_hal_async::delay::DelayUs;
@@ -11,7 +12,6 @@ use futures::{
     future::{select, Either},
     pin_mut,
 };
-use super::AtatClient;
 
 pub struct Client<
     'a,

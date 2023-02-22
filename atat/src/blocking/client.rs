@@ -33,7 +33,8 @@ pub enum Mode {
 /// some spsc queue consumers, where any received responses can be dequeued. The
 /// Client also has an spsc producer, to allow signaling commands like
 /// `reset` to the ingress-manager.
-pub struct Client<'a,
+pub struct Client<
+    'a,
     Tx,
     CLK,
     const TIMER_HZ: u32,
@@ -521,7 +522,7 @@ mod test {
 
         let cmd = ErrorTester { x: 7 };
 
-        p.enqueue(Err(InternalError::Error).into()).unwrap();
+        p.try_enqueue(Err(InternalError::Error).into()).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(nb::block!(client.send(&cmd)), Err(Error::Error));
@@ -537,7 +538,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Err(InternalError::Error).into()).unwrap();
+        p.try_enqueue(Err(InternalError::Error).into()).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(nb::block!(client.send(&cmd)), Err(Error::Error));
@@ -553,7 +554,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Frame::Response(&[])).unwrap();
+        p.try_enqueue(Frame::Response(&[])).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -565,7 +566,7 @@ mod test {
             "Wrong encoding of string"
         );
 
-        p.enqueue(Frame::Response(&[])).unwrap();
+        p.try_enqueue(Frame::Response(&[])).unwrap();
 
         let cmd = Test2Cmd {
             fun: Functionality::DM,
@@ -589,7 +590,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Frame::Response(&[])).unwrap();
+        p.try_enqueue(Frame::Response(&[])).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Ok(NoResponse));
@@ -612,7 +613,7 @@ mod test {
 
         assert_eq!(client.check_response(&cmd), Err(nb::Error::WouldBlock));
 
-        p.enqueue(Frame::Response(&[])).unwrap();
+        p.try_enqueue(Frame::Response(&[])).unwrap();
 
         assert_eq!(client.state, ClientState::AwaitingResponse);
 
@@ -632,7 +633,7 @@ mod test {
         };
 
         let response = b"+CUN: 22,16,\"0123456789012345\"";
-        p.enqueue(Frame::Response(response)).unwrap();
+        p.try_enqueue(Frame::Response(response)).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
 
@@ -653,7 +654,7 @@ mod test {
         };
 
         let response = b"+CUN: \"0123456789012345\",22,16";
-        p.enqueue(Frame::Response(response)).unwrap();
+        p.try_enqueue(Frame::Response(response)).unwrap();
 
         assert_eq!(
             client.send(&cmd),
@@ -707,7 +708,7 @@ mod test {
         };
 
         let response = b"+CUN: 22,16,22";
-        p.enqueue(Frame::Response(response)).unwrap();
+        p.try_enqueue(Frame::Response(response)).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Parse)));
@@ -724,7 +725,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Frame::Response(&[])).unwrap();
+        p.try_enqueue(Frame::Response(&[])).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Timeout)));
@@ -741,7 +742,7 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        p.enqueue(Frame::Response(&[])).unwrap();
+        p.try_enqueue(Frame::Response(&[])).unwrap();
 
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Timeout)));
