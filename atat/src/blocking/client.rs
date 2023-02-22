@@ -87,6 +87,7 @@ where
 
         if !A::EXPECTS_RESPONSE_CODE {
             debug!("Command does not expect a response");
+            self.start_cooldown_timer();
             return cmd.parse(Ok(&[]));
         }
 
