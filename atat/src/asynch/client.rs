@@ -1,56 +1,28 @@
 use super::AtatClient;
 use crate::{frame::Frame, helpers::LossyStr, AtatCmd, AtatUrc, Config, Error, Response};
 use bbqueue::framed::FrameConsumer;
-use embedded_hal_async::delay::DelayUs;
+use embassy_time::{with_timeout, Duration, Timer};
 use embedded_io::asynch::Write;
-use embedded_time::{
-    duration::Milliseconds,
-    timer::param::{OneShot, Running},
-    Clock, Timer,
-};
-use futures::{
-    future::{select, Either},
-    pin_mut,
-};
 
-pub struct Client<
-    'a,
-    W: Write,
-    Clk: Clock,
-    Delay: DelayUs,
-    const RES_CAPACITY: usize,
-    const URC_CAPACITY: usize,
-> {
+pub struct Client<'a, W: Write, const RES_CAPACITY: usize, const URC_CAPACITY: usize> {
     writer: W,
-    clock: &'a Clk,
-    delay: Delay,
     res_reader: FrameConsumer<'a, RES_CAPACITY>,
     urc_reader: FrameConsumer<'a, URC_CAPACITY>,
     config: Config,
-    cooldown_timer: Option<Timer<'a, OneShot, Running, Clk, Milliseconds>>,
+    cooldown_timer: Option<Timer>,
 }
 
-impl<
-        'a,
-        W: Write,
-        Clk: Clock,
-        Delay: DelayUs,
-        const RES_CAPACITY: usize,
-        const URC_CAPACITY: usize,
-    > Client<'a, W, Clk, Delay, RES_CAPACITY, URC_CAPACITY>
+impl<'a, W: Write, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
+    Client<'a, W, RES_CAPACITY, URC_CAPACITY>
 {
     pub(crate) fn new(
         writer: W,
-        clock: &'a Clk,
-        delay: Delay,
         res_reader: FrameConsumer<'a, RES_CAPACITY>,
         urc_reader: FrameConsumer<'a, URC_CAPACITY>,
         config: Config,
     ) -> Self {
         Self {
             writer,
-            clock,
-            delay,
             res_reader,
             urc_reader,
             config,
@@ -59,40 +31,24 @@ impl<
     }
 }
 
-impl<
-        W: Write,
-        Clk: Clock<T = u64>,
-        Delay: DelayUs,
-        const RES_CAPACITY: usize,
-        const URC_CAPACITY: usize,
-    > Client<'_, W, Clk, Delay, RES_CAPACITY, URC_CAPACITY>
+impl<W: Write, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
+    Client<'_, W, RES_CAPACITY, URC_CAPACITY>
 {
     fn start_cooldown_timer(&mut self) {
-        self.cooldown_timer = Some(
-            self.clock
-                .new_timer(Milliseconds(self.config.cmd_cooldown))
-                .into_oneshot()
-                .start()
-                .unwrap(),
-        );
+        self.cooldown_timer = Some(Timer::after(Duration::from_millis(
+            self.config.cmd_cooldown.into(),
+        )));
     }
 
     async fn wait_cooldown_timer(&mut self) {
         if let Some(cooldown) = self.cooldown_timer.take() {
-            if let Ok(remaining) = cooldown.remaining() {
-                self.delay.delay_ms(remaining.0).await.unwrap();
-            }
+            cooldown.await
         }
     }
 }
 
-impl<
-        W: Write,
-        Clk: Clock<T = u64>,
-        Delay: DelayUs,
-        const RES_CAPACITY: usize,
-        const URC_CAPACITY: usize,
-    > AtatClient for Client<'_, W, Clk, Delay, RES_CAPACITY, URC_CAPACITY>
+impl<W: Write, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
+    for Client<'_, W, RES_CAPACITY, URC_CAPACITY>
 {
     async fn send<Cmd: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
@@ -121,33 +77,30 @@ impl<
         if !Cmd::EXPECTS_RESPONSE_CODE {
             debug!("Command does not expect a response");
             self.start_cooldown_timer();
-            return cmd.parse(Ok(&[])).map_err(|_| Error::Error);
+            return cmd.parse(Ok(&[]));
         }
 
-        let response = {
-            let res_future = self.res_reader.read_async();
-            pin_mut!(res_future);
+        let response = match with_timeout(
+            Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()),
+            self.res_reader.read_async(),
+        )
+        .await
+        {
+            Ok(res) => {
+                let mut grant = res.unwrap();
+                grant.auto_release(true);
 
-            let timeout_future = self.delay.delay_ms(Cmd::MAX_TIMEOUT_MS);
-            pin_mut!(timeout_future);
+                let frame = Frame::decode(grant.as_ref());
+                let resp = match Response::from(frame) {
+                    Response::Result(r) => r,
+                    Response::Prompt(_) => Ok(&[][..]),
+                };
 
-            match select(res_future, timeout_future).await {
-                Either::Left((res, _)) => {
-                    let mut grant = res.unwrap();
-                    grant.auto_release(true);
-
-                    let frame = Frame::decode(grant.as_ref());
-                    let resp = match Response::from(frame) {
-                        Response::Result(r) => r,
-                        Response::Prompt(_) => Ok(&[][..]),
-                    };
-
-                    cmd.parse(resp)
-                }
-                Either::Right(_) => {
-                    warn!("Received timeout after {}ms", Cmd::MAX_TIMEOUT_MS);
-                    Err(Error::Timeout)
-                }
+                cmd.parse(resp)
+            }
+            Err(_) => {
+                warn!("Received timeout after {}ms", Cmd::MAX_TIMEOUT_MS);
+                Err(Error::Timeout)
             }
         };
 
