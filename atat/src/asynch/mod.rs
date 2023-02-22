@@ -60,7 +60,7 @@ pub trait AtatClient {
     /// //         // Do something to act on `+UMWI` URC
     /// //     }
     /// // }
-    /// ``
+    /// ```
     fn try_read_urc<Urc: AtatUrc>(&mut self) -> Option<Urc::Response> {
         let mut first = None;
         self.try_read_urc_with::<Urc, _>(|urc, _| {

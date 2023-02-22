@@ -4,26 +4,15 @@ use crate::{
     DigestResult, Digester,
 };
 use bbqueue::framed::FrameProducer;
-use heapless::Vec;
 
 pub trait AtatIngress {
-    /// Return the current length of the internal buffer
-    ///
-    /// This can be useful for custom flowcontrol implementations
-    fn len(&self) -> usize;
+    /// Get the write buffer of the ingress
+    /// 
+    /// Bytes written to the buffer must be committed by calling advance.
+    fn write_buf(&mut self) -> &mut [u8];
 
-    /// Returns whether the internal buffer is empty
-    ///
-    /// This can be useful for custom flowcontrol implementations
-    fn is_empty(&self) -> bool;
-
-    /// Return the capacity of the internal buffer
-    ///
-    /// This can be useful for custom flowcontrol implementations
-    fn capacity(&self) -> usize;
-
-    /// Write bytes to the ingress
-    fn write(&mut self, buf: &[u8]);
+    /// Commit written bytes to the ingress and make them visible to the digester.
+    fn advance(&mut self, commit: usize);
 
     /// Read all bytes from the provided serial and ingest the read bytes into
     /// the ingress from where they will be processed
@@ -31,11 +20,11 @@ pub trait AtatIngress {
     async fn read_from(&mut self, serial: &mut impl embedded_io::asynch::Read) -> ! {
         use embedded_io::Error;
         loop {
-            let mut buf = [0; 32];
-            match serial.read(&mut buf).await {
+            let buf = self.write_buf();
+            match serial.read(buf).await {
                 Ok(received) => {
                     if received > 0 {
-                        self.write(&buf[..received])
+                        self.advance(received);
                     }
                 }
                 Err(e) => {
@@ -54,7 +43,8 @@ pub struct Ingress<
     const URC_CAPACITY: usize,
 > {
     digester: D,
-    buf: Vec<u8, INGRESS_BUF_SIZE>,
+    buf: [u8; INGRESS_BUF_SIZE],
+    pos: usize,
     res_writer: FrameProducer<'a, RES_CAPACITY>,
     urc_writer: FrameProducer<'a, URC_CAPACITY>,
 }
@@ -74,15 +64,28 @@ impl<
     ) -> Self {
         Self {
             digester,
-            buf: Vec::new(),
+            buf: [0; INGRESS_BUF_SIZE],
+            pos: 0,
             res_writer,
             urc_writer,
         }
     }
+}
 
-    /// Process all bytes currently in the ingress buffer
-    fn process(&mut self) {
-        trace!("Digesting: {:?}", LossyStr(&self.buf));
+impl<
+        D: Digester,
+        const INGRESS_BUF_SIZE: usize,
+        const RES_CAPACITY: usize,
+        const URC_CAPACITY: usize,
+    > AtatIngress for Ingress<'_, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>
+{
+    fn write_buf(&mut self) -> &mut [u8] {
+        &mut self.buf[self.pos..]
+    }
+
+    fn advance(&mut self, commit: usize) {
+        self.pos += commit;
+        assert!(self.pos <= self.buf.len());
 
         while !self.buf.is_empty() {
             let swallowed = match self.digester.digest(&self.buf) {
@@ -135,91 +138,8 @@ impl<
                 break;
             }
 
-            self.buf.rotate_left(used);
-            self.buf.truncate(self.buf.len() - used);
+            self.buf.copy_within(used..self.pos, 0);
+            self.pos -= used;
         }
-    }
-}
-
-impl<
-        D: Digester,
-        const INGRESS_BUF_SIZE: usize,
-        const RES_CAPACITY: usize,
-        const URC_CAPACITY: usize,
-    > AtatIngress for Ingress<'_, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>
-{
-    fn len(&self) -> usize {
-        self.buf.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    fn capacity(&self) -> usize {
-        self.buf.capacity()
-    }
-    
-    fn write(&mut self, buf: &[u8]) {
-        if self.buf.extend_from_slice(buf).is_err() {
-            error!("DATA OVERFLOW! Buffer: {:?}", LossyStr(&self.buf));
-            if self.res_writer.enqueue(Frame::OverflowError).is_err() {
-                error!("Response queue full!");
-            }
-        }
-
-        self.process()
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::{digest::ParseError, error::Response, AtDigester, InternalError, Parser};
-    use bbqueue::BBBuffer;
-
-    const TEST_RX_BUF_LEN: usize = 256;
-    const TEST_URC_CAPACITY: usize = 10;
-    const TEST_RES_CAPACITY: usize = 10;
-
-    enum UrcTestParser {}
-
-    impl Parser for UrcTestParser {
-        fn parse<'a>(_buf: &'a [u8]) -> Result<(&'a [u8], usize), ParseError> {
-            Err(ParseError::NoMatch)
-        }
-    }
-
-    #[test]
-    fn overflow() {
-        static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer::new();
-        let (res_p, mut res_c) = unsafe { RES_Q.try_split_framed().unwrap() };
-
-        static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer::new();
-        let (urc_p, _urc_c) = unsafe { URC_Q.try_split_framed().unwrap() };
-
-        let mut ingress =
-            IngressManager::<_, TEST_RX_BUF_LEN, TEST_RES_CAPACITY, TEST_URC_CAPACITY>::new(
-                res_p,
-                urc_p,
-                AtDigester::<UrcTestParser>::new(),
-            );
-
-        ingress.write(b"+USORD: 3,266,\"");
-        for _ in 0..266 {
-            ingress.write(b"s");
-        }
-        ingress.write(b"\"\r\n");
-        ingress.digest();
-        let mut grant = res_c.read().unwrap();
-        grant.auto_release(true);
-
-        let frame = Frame::decode(grant.as_ref());
-        let res = match Response::from(frame) {
-            Response::Result(r) => r,
-            Response::Prompt(_) => Ok(&[][..]),
-        };
-
-        assert_eq!(res, Err(InternalError::Overflow));
     }
 }
