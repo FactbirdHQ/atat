@@ -30,8 +30,6 @@ bincode = { version = "2.0.0-rc.2", default-features = false, features = [
     "derive",
 ] }
 embedded-io = "0.4"
-embedded-hal-async = { version = "0.2.0-alpha.0", optional = true }
-embedded-hal = { version = "=1.0.0-alpha.9" }
 embedded-time = { version = "0.12", optional = true }
 futures = { version = "0.3", default-features = false, optional = true }
 embassy-time = "0.1.0"
@@ -66,7 +64,7 @@ default = ["derive", "bytes"]
 defmt = ["dep:defmt", "embedded-io/defmt"]
 derive = ["atat_derive", "serde_at"]
 custom-error-messages = []
-async = ["embedded-io/async", "embedded-hal-async", "futures", "embedded-time"]
+async = ["embedded-io/async", "futures", "embedded-time"]
 
 bytes = ["heapless-bytes", "serde_bytes"]
 
