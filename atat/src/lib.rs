@@ -224,7 +224,6 @@
 pub(crate) mod fmt;
 
 mod buffers;
-pub mod clock;
 mod config;
 pub mod digest;
 mod error;

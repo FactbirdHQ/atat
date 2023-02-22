@@ -1,7 +1,7 @@
 mod client;
+mod timer;
 
-pub use client::{Client, Mode};
-use embedded_hal_nb::nb;
+pub use client::Client;
 
 use crate::{AtatCmd, AtatUrc, Error};
 
@@ -18,26 +18,23 @@ pub trait AtatClient {
     /// This function will also make sure that at least `self.config.cmd_cooldown`
     /// has passed since the last response or URC has been received, to allow
     /// the slave AT device time to deliver URC's.
-    fn send<A: AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        cmd: &A,
-    ) -> nb::Result<A::Response, Error>;
+    fn send<A: AtatCmd<LEN>, const LEN: usize>(&mut self, cmd: &A) -> Result<A::Response, Error>;
 
     fn send_retry<A: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
         cmd: &A,
-    ) -> nb::Result<A::Response, Error> {
+    ) -> Result<A::Response, Error> {
         for attempt in 1..=A::ATTEMPTS {
             if attempt > 1 {
                 debug!("Attempt {}:", attempt);
             }
 
             match self.send(cmd) {
-                Err(nb::Error::Other(Error::Timeout)) => {}
+                Err(Error::Timeout) => {}
                 r => return r,
             }
         }
-        Err(nb::Error::Other(Error::Timeout))
+        Err(Error::Timeout)
     }
 
     /// Checks if there are any URC's (Unsolicited Response Code) in
@@ -67,38 +64,19 @@ pub trait AtatClient {
     /// //     }
     /// // }
     /// ```
-    fn check_urc<URC: AtatUrc>(&mut self) -> Option<URC::Response> {
-        let mut return_urc = None;
-        self.peek_urc_with::<URC, _>(|urc| {
-            return_urc = Some(urc);
+    fn try_read_urc<Urc: AtatUrc>(&mut self) -> Option<Urc::Response> {
+        let mut first = None;
+        self.try_read_urc_with::<Urc, _>(|urc, _| {
+            first = Some(urc);
             true
         });
-        return_urc
+        first
     }
 
-    fn peek_urc_with<URC: AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F);
-
-    /// Check if there are any responses enqueued from the ingress manager.
-    ///
-    /// The function will return `nb::Error::WouldBlock` until a response or an
-    /// error is available, or a timeout occurs and `config.mode` is Timeout.
-    ///
-    /// This function is usually only called through [`send`].
-    ///
-    /// [`send`]: #method.send
-    fn check_response<A: AtatCmd<LEN>, const LEN: usize>(
+    fn try_read_urc_with<Urc: AtatUrc, F: for<'b> FnOnce(Urc::Response, &'b [u8]) -> bool>(
         &mut self,
-        cmd: &A,
-    ) -> nb::Result<A::Response, Error>;
+        handle: F,
+    ) -> bool;
 
-    /// Get the configured mode of the client.
-    ///
-    /// Options are:
-    /// - `NonBlocking`
-    /// - `Blocking`
-    /// - `Timeout`
-    fn get_mode(&self) -> Mode;
-
-    /// Reset the client, queues and ingress buffer, discarding any contents
-    fn reset(&mut self);
+    fn max_urc_len() -> usize;
 }
