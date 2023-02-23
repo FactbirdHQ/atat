@@ -25,6 +25,19 @@ pub trait AtatIngress {
     #[cfg(feature = "async")]
     async fn advance(&mut self, commit: usize);
 
+    /// Write a buffer to the ingress
+    #[cfg(feature = "async")]
+    async fn write(&mut self, buf: &[u8]) {
+        let mut buf = buf;
+        while !buf.is_empty() {
+            let ingress_buf = self.write_buf();
+            let len = usize::min(buf.len(), ingress_buf.len());
+            ingress_buf[..len].copy_from_slice(&buf[..len]);
+            self.advance(len).await;
+            buf = &buf[len..];
+        }
+    }
+
     /// Read all bytes from the provided serial and ingest the read bytes into
     /// the ingress from where they will be processed
     #[cfg(feature = "async")]
