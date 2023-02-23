@@ -98,7 +98,7 @@ impl<
         self.pos += commit;
         assert!(self.pos <= self.buf.len());
 
-        while !self.buf.is_empty() {
+        while self.pos > 0 {
             let swallowed = match self.digester.digest(&self.buf) {
                 (DigestResult::None, used) => used,
                 (DigestResult::Prompt(prompt), swallowed) => {
@@ -155,7 +155,7 @@ impl<
         self.pos += commit;
         assert!(self.pos <= self.buf.len());
 
-        while !self.buf.is_empty() {
+        while self.pos > 0 {
             let swallowed = match self.digester.digest(&self.buf) {
                 (DigestResult::None, used) => used,
                 (DigestResult::Prompt(prompt), swallowed) => {
