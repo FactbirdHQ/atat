@@ -11,11 +11,11 @@ use crate::{Config, Digester, Ingress};
 /// a binconde dispatch byte is also appended (we use variable int encoding).
 /// This means that to write an N byte response, we need a (3 + N) byte grant from the (non-framed) BBQueue.
 /// URC's are not wrapped in a [`crate::frame::Frame`] and hence does not need the dispatch byte.
-/// 
+///
 /// The reason why this is behind the async feature flag is that it requires rust nightly.
 /// Also, [`crate::AtatIngress.try_advance()`] (the non-async version) can return error if there is no room in the queues,
 /// where the async equivalent simply returns () as it assumes that there at some point will be room in the queue.
-/// 
+///
 /// One more additional note: We assume in the conditions that the digest result is never larger than the bytes that were input to the digester.
 #[cfg(feature = "async")]
 mod buf_safety {
