@@ -118,3 +118,26 @@ impl<const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize, const URC_CAPACIT
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn show_why_we_need_two_times_bbqueue_capacity() {
+        // If this test starts to fail in the future, then it may be because
+        // bbqueue has relaxed its granting strategy, in which case the
+        // buffer size safety checks should be revisisted.
+
+        let buffer = bbqueue::BBBuffer::<16>::new();
+        let (mut producer, mut consumer) = buffer.try_split().unwrap();
+        let grant = producer.grant_exact(9).unwrap();
+        grant.commit(9);
+        let grant = consumer.read().unwrap();
+        grant.release(9);
+
+        assert_eq!(
+            Err(bbqueue::Error::InsufficientSize),
+            producer.grant_exact(9)
+        );
+        assert!(producer.grant_exact(8).is_ok());
+    }
+}
