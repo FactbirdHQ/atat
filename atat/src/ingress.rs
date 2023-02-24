@@ -112,7 +112,7 @@ impl<
         assert!(self.pos <= self.buf.len());
 
         while self.pos > 0 {
-            let swallowed = match self.digester.digest(&self.buf) {
+            let swallowed = match self.digester.digest(&self.buf[..self.pos]) {
                 (DigestResult::None, used) => used,
                 (DigestResult::Prompt(prompt), swallowed) => {
                     self.res_writer
@@ -169,7 +169,7 @@ impl<
         assert!(self.pos <= self.buf.len());
 
         while self.pos > 0 {
-            let swallowed = match self.digester.digest(&self.buf) {
+            let swallowed = match self.digester.digest(&self.buf[..self.pos]) {
                 (DigestResult::None, used) => used,
                 (DigestResult::Prompt(prompt), swallowed) => {
                     self.res_writer.enqueue(Frame::Prompt(prompt)).await;
