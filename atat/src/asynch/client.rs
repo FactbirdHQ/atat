@@ -35,9 +35,7 @@ impl<W: Write, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
     Client<'_, W, RES_CAPACITY, URC_CAPACITY>
 {
     fn start_cooldown_timer(&mut self) {
-        self.cooldown_timer = Some(Timer::after(Duration::from_millis(
-            self.config.cmd_cooldown.into(),
-        )));
+        self.cooldown_timer = Some(Timer::after(self.config.cmd_cooldown));
     }
 
     async fn wait_cooldown_timer(&mut self) {

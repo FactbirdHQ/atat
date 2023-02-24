@@ -49,9 +49,7 @@ where
     }
 
     fn start_cooldown_timer(&mut self) {
-        self.cooldown_timer = Some(Timer::after(Duration::from_millis(
-            self.config.cmd_cooldown.into(),
-        )));
+        self.cooldown_timer = Some(Timer::after(self.config.cmd_cooldown));
     }
 
     fn wait_cooldown_timer(&mut self) {
