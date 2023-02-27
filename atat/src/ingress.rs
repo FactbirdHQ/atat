@@ -141,7 +141,7 @@ impl<
                             }
                         }
                         Err(e) => {
-                            error!("Received error response {:?}", e);
+                            warn!("Received error response {:?}", e);
                         }
                     }
 
@@ -193,7 +193,7 @@ impl<
                             }
                         }
                         Err(e) => {
-                            error!("Received error response {:?}", e);
+                            warn!("Received error response {:?}", e);
                         }
                     }
 
