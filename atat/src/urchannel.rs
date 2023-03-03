@@ -5,8 +5,14 @@ use crate::AtatUrc;
 
 pub type UrcSubscription<'sub, Urc> = DynSubscriber<'sub, <Urc as AtatUrc>::Response>;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum Error {
+    MaximumSubscribersReached,
+}
+
 pub trait AtatUrcChannel<Urc: AtatUrc> {
-    fn subscribe<'sub>(&'sub self) -> UrcSubscription<'sub, Urc>;
+    fn subscribe<'sub>(&'sub self) -> Result<UrcSubscription<'sub, Urc>, Error>;
 
     fn max_urc_len() -> usize;
 }
@@ -50,8 +56,10 @@ impl<
         const SUBSCRIBERS: usize,
     > AtatUrcChannel<Urc> for UrcChannel<'a, Urc, INGRESS_BUF_SIZE, CAPACITY, SUBSCRIBERS>
 {
-    fn subscribe<'sub>(&'sub self) -> UrcSubscription<'sub, Urc> {
-        self.channel.dyn_subscriber().unwrap()
+    fn subscribe<'sub>(&'sub self) -> Result<UrcSubscription<'sub, Urc>, Error> {
+        self.channel
+            .dyn_subscriber()
+            .map_err(|_| Error::MaximumSubscribersReached)
     }
 
     fn max_urc_len() -> usize {
