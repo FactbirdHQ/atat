@@ -232,6 +232,7 @@ mod frame;
 pub mod helpers;
 mod ingress;
 mod traits;
+mod urchannel;
 pub use bbqueue;
 pub use nom;
 
@@ -266,6 +267,7 @@ pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digest
 pub use error::{Error, InternalError, Response};
 pub use ingress::{AtatIngress, Ingress};
 pub use traits::{AtatCmd, AtatResp, AtatUrc};
+pub use urchannel::{AtatUrcChannel, UrcChannel};
 
 #[cfg(test)]
 #[cfg(feature = "defmt")]

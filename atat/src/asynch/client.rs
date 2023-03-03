@@ -1,39 +1,32 @@
 use super::AtatClient;
-use crate::{frame::Frame, helpers::LossyStr, AtatCmd, AtatUrc, Config, Error, Response};
+use crate::{frame::Frame, helpers::LossyStr, AtatCmd, Config, Error, Response};
 use bbqueue::framed::FrameConsumer;
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_io::asynch::Write;
 
-pub struct Client<'a, W: Write, const RES_CAPACITY: usize, const URC_CAPACITY: usize> {
+pub struct Client<'a, W: Write, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize> {
     writer: W,
     res_reader: FrameConsumer<'a, RES_CAPACITY>,
-    urc_reader: FrameConsumer<'a, URC_CAPACITY>,
     config: Config,
     cooldown_timer: Option<Timer>,
 }
 
-impl<'a, W: Write, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    Client<'a, W, RES_CAPACITY, URC_CAPACITY>
+impl<'a, W: Write, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize>
+    Client<'a, W, INGRESS_BUF_SIZE, RES_CAPACITY>
 {
     pub(crate) fn new(
         writer: W,
         res_reader: FrameConsumer<'a, RES_CAPACITY>,
-        urc_reader: FrameConsumer<'a, URC_CAPACITY>,
         config: Config,
     ) -> Self {
         Self {
             writer,
             res_reader,
-            urc_reader,
             config,
             cooldown_timer: None,
         }
     }
-}
 
-impl<W: Write, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    Client<'_, W, RES_CAPACITY, URC_CAPACITY>
-{
     fn start_cooldown_timer(&mut self) {
         self.cooldown_timer = Some(Timer::after(self.config.cmd_cooldown));
     }
@@ -45,8 +38,8 @@ impl<W: Write, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
     }
 }
 
-impl<W: Write, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
-    for Client<'_, W, RES_CAPACITY, URC_CAPACITY>
+impl<W: Write, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize> AtatClient
+    for Client<'_, W, INGRESS_BUF_SIZE, RES_CAPACITY>
 {
     async fn send<Cmd: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
@@ -106,29 +99,7 @@ impl<W: Write, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
         response
     }
 
-    fn try_read_urc_with<Urc: AtatUrc, F: for<'b> FnOnce(Urc::Response, &'b [u8]) -> bool>(
-        &mut self,
-        handle: F,
-    ) -> bool {
-        if let Some(urc_grant) = self.urc_reader.read() {
-            self.start_cooldown_timer();
-            if let Some(urc) = Urc::parse(&urc_grant) {
-                if handle(urc, &urc_grant) {
-                    urc_grant.release();
-                    return true;
-                }
-            } else {
-                error!("Parsing URC FAILED: {:?}", LossyStr(&urc_grant));
-                urc_grant.release();
-            }
-        }
-
-        false
-    }
-
-    fn max_urc_len() -> usize {
-        // bbqueue can only guarantee grant sizes of half its capacity if the queue is empty.
-        // A _frame_ grant returned by bbqueue has a header. Assume that it is 2 bytes.
-        (URC_CAPACITY / 2) - 2
+    fn max_response_len() -> usize {
+        INGRESS_BUF_SIZE
     }
 }

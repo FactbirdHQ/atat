@@ -1,7 +1,8 @@
 use bbqueue::BBBuffer;
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::PubSubChannel};
 use embedded_io::blocking::Write;
 
-use crate::{Config, Digester, Ingress};
+use crate::{urchannel::UrcChannel, AtatUrc, Config, Digester, Ingress};
 
 /// Buffer size safety
 ///
@@ -10,7 +11,6 @@ use crate::{Config, Digester, Ingress};
 /// We expect no larger frames than what can fit in a u16. For each [`crate::frame::Frame`] that is enqueued in the response queue,
 /// a binconde dispatch byte is also appended (we use variable int encoding).
 /// This means that to write an N byte response, we need a (3 + N) byte grant from the (non-framed) BBQueue.
-/// URC's are not wrapped in a [`crate::frame::Frame`] and hence does not need the dispatch byte.
 ///
 /// The reason why this is behind the async feature flag is that it requires rust nightly.
 /// Also, [`crate::AtatIngress.try_advance()`] (the non-async version) can return error if there is no room in the queues,
@@ -31,55 +31,65 @@ mod buf_safety {
     ) -> bool {
         RES_CAPACITY >= 2 * (BBQUEUE_FRAME_HEADER_SIZE + RES_FRAME_DISPATCH_SIZE + INGRESS_BUF_SIZE)
     }
-
-    pub const fn is_valid_urc_capacity<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>(
-    ) -> bool {
-        URC_CAPACITY == 0 || URC_CAPACITY >= 2 * (BBQUEUE_FRAME_HEADER_SIZE + INGRESS_BUF_SIZE)
-    }
 }
 
 pub struct Buffers<
+    Urc: AtatUrc,
     const INGRESS_BUF_SIZE: usize,
     const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
+    const URC_SUBSCRIBERS: usize,
 > {
     res_queue: BBBuffer<RES_CAPACITY>,
-    urc_queue: BBBuffer<URC_CAPACITY>,
+    urc_channel:
+        PubSubChannel<CriticalSectionRawMutex, Urc::Response, URC_CAPACITY, URC_SUBSCRIBERS, 1>,
 }
 
 #[cfg(feature = "async")]
-impl<const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    Buffers<INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>
+impl<
+        Urc: AtatUrc,
+        const INGRESS_BUF_SIZE: usize,
+        const RES_CAPACITY: usize,
+        const URC_CAPACITY: usize,
+        const URC_SUBSCRIBERS: usize,
+    > Buffers<Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
 where
     buf_safety::ConstCheck<
         { buf_safety::is_valid_res_capacity::<INGRESS_BUF_SIZE, RES_CAPACITY>() },
-    >: buf_safety::True,
-    buf_safety::ConstCheck<
-        { buf_safety::is_valid_urc_capacity::<INGRESS_BUF_SIZE, URC_CAPACITY>() },
     >: buf_safety::True,
 {
     pub const fn new() -> Self {
         Self {
             res_queue: BBBuffer::new(),
-            urc_queue: BBBuffer::new(),
+            urc_channel: PubSubChannel::new(),
         }
     }
 }
 
 #[cfg(not(feature = "async"))]
-impl<const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    Buffers<INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>
+impl<
+        Urc: AtatUrc,
+        const INGRESS_BUF_SIZE: usize,
+        const RES_CAPACITY: usize,
+        const URC_CAPACITY: usize,
+        const URC_SUBSCRIBERS: usize,
+    > Buffers<Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     pub const fn new() -> Self {
         Self {
             res_queue: BBBuffer::new(),
-            urc_queue: BBBuffer::new(),
+            urc_channel: PubSubChannel::new(),
         }
     }
 }
 
-impl<const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    Buffers<INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>
+impl<
+        Urc: AtatUrc,
+        const INGRESS_BUF_SIZE: usize,
+        const RES_CAPACITY: usize,
+        const URC_CAPACITY: usize,
+        const URC_SUBSCRIBERS: usize,
+    > Buffers<Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     #[cfg(feature = "async")]
     pub fn split<'a, W: embedded_io::asynch::Write, D: Digester>(
@@ -88,15 +98,16 @@ impl<const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize, const URC_CAPACIT
         digester: D,
         config: Config,
     ) -> (
-        Ingress<'a, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>,
-        crate::asynch::Client<'a, W, RES_CAPACITY, URC_CAPACITY>,
+        Ingress<'a, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>,
+        crate::asynch::Client<'a, W, INGRESS_BUF_SIZE, RES_CAPACITY>,
+        UrcChannel<'a, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) {
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
-        let (urc_writer, urc_reader) = self.urc_queue.try_split_framed().unwrap();
 
         (
-            Ingress::new(digester, res_writer, urc_writer),
-            crate::asynch::Client::new(writer, res_reader, urc_reader, config),
+            Ingress::new(digester, res_writer, self.urc_channel.publisher().unwrap()),
+            crate::asynch::Client::new(writer, res_reader, config),
+            UrcChannel::new(&self.urc_channel),
         )
     }
 
@@ -106,15 +117,16 @@ impl<const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize, const URC_CAPACIT
         digester: D,
         config: Config,
     ) -> (
-        Ingress<'a, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>,
-        crate::blocking::Client<'a, W, RES_CAPACITY, URC_CAPACITY>,
+        Ingress<'a, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>,
+        crate::blocking::Client<'a, W, INGRESS_BUF_SIZE, RES_CAPACITY>,
+        UrcChannel<'a, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) {
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
-        let (urc_writer, urc_reader) = self.urc_queue.try_split_framed().unwrap();
 
         (
-            Ingress::new(digester, res_writer, urc_writer),
-            crate::blocking::Client::new(writer, res_reader, urc_reader, config),
+            Ingress::new(digester, res_writer, self.urc_channel.publisher().unwrap()),
+            crate::blocking::Client::new(writer, res_reader, config),
+            UrcChannel::new(&self.urc_channel),
         )
     }
 }

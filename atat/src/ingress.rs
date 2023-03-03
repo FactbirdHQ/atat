@@ -1,15 +1,16 @@
 use crate::{
     frame::{Frame, FrameProducerExt},
     helpers::LossyStr,
-    DigestResult, Digester,
+    AtatUrc, DigestResult, Digester,
 };
 use bbqueue::framed::FrameProducer;
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::Publisher};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     ResponseQueueFull,
-    UrcQueueFull,
+    UrcChannelFull,
 }
 
 pub trait AtatIngress {
@@ -62,46 +63,61 @@ pub trait AtatIngress {
 pub struct Ingress<
     'a,
     D: Digester,
+    Urc: AtatUrc,
     const INGRESS_BUF_SIZE: usize,
     const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
+    const URC_SUBSCRIBERS: usize,
 > {
     digester: D,
     buf: [u8; INGRESS_BUF_SIZE],
     pos: usize,
     res_writer: FrameProducer<'a, RES_CAPACITY>,
-    urc_writer: FrameProducer<'a, URC_CAPACITY>,
+    urc_publisher:
+        Publisher<'a, CriticalSectionRawMutex, Urc::Response, URC_CAPACITY, URC_SUBSCRIBERS, 1>,
 }
 
 impl<
         'a,
         D: Digester,
+        Urc: AtatUrc,
         const INGRESS_BUF_SIZE: usize,
         const RES_CAPACITY: usize,
         const URC_CAPACITY: usize,
-    > Ingress<'a, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>
+        const URC_SUBSCRIBERS: usize,
+    > Ingress<'a, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     pub(crate) fn new(
         digester: D,
         res_writer: FrameProducer<'a, RES_CAPACITY>,
-        urc_writer: FrameProducer<'a, URC_CAPACITY>,
+        urc_publisher: Publisher<
+            'a,
+            CriticalSectionRawMutex,
+            Urc::Response,
+            URC_CAPACITY,
+            URC_SUBSCRIBERS,
+            1,
+        >,
     ) -> Self {
         Self {
             digester,
             buf: [0; INGRESS_BUF_SIZE],
             pos: 0,
             res_writer,
-            urc_writer,
+            urc_publisher,
         }
     }
 }
 
 impl<
         D: Digester,
+        Urc: AtatUrc,
         const INGRESS_BUF_SIZE: usize,
         const RES_CAPACITY: usize,
         const URC_CAPACITY: usize,
-    > AtatIngress for Ingress<'_, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>
+        const URC_SUBSCRIBERS: usize,
+    > AtatIngress
+    for Ingress<'_, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     fn write_buf(&mut self) -> &mut [u8] {
         &mut self.buf[self.pos..]
@@ -115,20 +131,21 @@ impl<
             let swallowed = match self.digester.digest(&self.buf[..self.pos]) {
                 (DigestResult::None, used) => used,
                 (DigestResult::Prompt(prompt), swallowed) => {
+                    debug!("Received prompt");
                     self.res_writer
                         .try_enqueue(Frame::Prompt(prompt))
                         .map_err(|_| Error::ResponseQueueFull)?;
-                    debug!("Received prompt");
                     swallowed
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
-                    let mut grant = self
-                        .urc_writer
-                        .grant(urc_line.len())
-                        .map_err(|_| Error::UrcQueueFull)?;
-                    debug!("Received URC: {:?}", LossyStr(urc_line));
-                    grant.copy_from_slice(urc_line);
-                    grant.commit(urc_line.len());
+                    if let Some(urc) = Urc::parse(urc_line) {
+                        debug!("Received URC: {:?}", LossyStr(urc_line));
+                        self.urc_publisher
+                            .try_publish(urc)
+                            .map_err(|_| Error::UrcChannelFull)?;
+                    } else {
+                        error!("Parsing URC FAILED: {:?}", LossyStr(urc_line));
+                    }
                     swallowed
                 }
                 (DigestResult::Response(resp), swallowed) => {
@@ -172,15 +189,17 @@ impl<
             let swallowed = match self.digester.digest(&self.buf[..self.pos]) {
                 (DigestResult::None, used) => used,
                 (DigestResult::Prompt(prompt), swallowed) => {
-                    self.res_writer.enqueue(Frame::Prompt(prompt)).await;
                     debug!("Received prompt");
+                    self.res_writer.enqueue(Frame::Prompt(prompt)).await;
                     swallowed
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
-                    let mut grant = self.urc_writer.grant_async(urc_line.len()).await.unwrap();
-                    debug!("Received URC: {:?}", LossyStr(urc_line));
-                    grant.copy_from_slice(urc_line);
-                    grant.commit(urc_line.len());
+                    if let Some(urc) = Urc::parse(urc_line) {
+                        debug!("Received URC: {:?}", LossyStr(urc_line));
+                        self.urc_publisher.publish(urc).await;
+                    } else {
+                        error!("Parsing URC FAILED: {:?}", LossyStr(urc_line));
+                    }
                     swallowed
                 }
                 (DigestResult::Response(resp), swallowed) => {
@@ -196,7 +215,6 @@ impl<
                             warn!("Received error response {:?}", e);
                         }
                     }
-
                     self.res_writer.enqueue(resp.into()).await;
                     swallowed
                 }
