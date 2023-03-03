@@ -3,8 +3,10 @@ use embassy_sync::pubsub::{DynSubscriber, PubSubChannel};
 
 use crate::AtatUrc;
 
+pub type UrcSubscription<'sub, Urc> = DynSubscriber<'sub, <Urc as AtatUrc>::Response>;
+
 pub trait AtatUrcChannel<Urc: AtatUrc> {
-    fn subscribe<'sub>(&'sub self) -> DynSubscriber<'sub, Urc::Response>;
+    fn subscribe<'sub>(&'sub self) -> UrcSubscription<'sub, Urc>;
 
     fn max_urc_len() -> usize;
 }
@@ -48,7 +50,7 @@ impl<
         const SUBSCRIBERS: usize,
     > AtatUrcChannel<Urc> for UrcChannel<'a, Urc, INGRESS_BUF_SIZE, CAPACITY, SUBSCRIBERS>
 {
-    fn subscribe<'sub>(&'sub self) -> DynSubscriber<'sub, Urc::Response> {
+    fn subscribe<'sub>(&'sub self) -> UrcSubscription<'sub, Urc> {
         self.channel.dyn_subscriber().unwrap()
     }
 

@@ -267,7 +267,7 @@ pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digest
 pub use error::{Error, InternalError, Response};
 pub use ingress::{AtatIngress, Ingress};
 pub use traits::{AtatCmd, AtatResp, AtatUrc};
-pub use urchannel::{AtatUrcChannel, UrcChannel};
+pub use urchannel::{AtatUrcChannel, UrcChannel, UrcSubscription};
 
 #[cfg(test)]
 #[cfg(feature = "defmt")]
