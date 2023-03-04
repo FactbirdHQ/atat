@@ -1,7 +1,7 @@
 use crate::HexStr;
-use core::fmt::{Write};
-use core::ops::{ Deref };
+use core::fmt::Write;
 use core::fmt::{LowerHex, UpperHex};
+use core::ops::Deref;
 use serde::ser::Serialize;
 use serde::Serializer;
 
@@ -51,6 +51,5 @@ where
             }
             serializer.serialize_str(string.as_str())
         }
-
     }
 }

@@ -563,60 +563,65 @@ mod tests {
                 hex_in_caps: true,
                 add_0x_with_encoding: true,
                 delimiter: ' ',
-                delimiter_after_nibble_count: 0
+                delimiter_after_nibble_count: 0,
             },
             val_no_0x_caps: HexStr {
                 val: 0x55AA,
                 hex_in_caps: true,
                 add_0x_with_encoding: false,
                 delimiter: ' ',
-                delimiter_after_nibble_count: 0
+                delimiter_after_nibble_count: 0,
             },
             val_0x_small_case: HexStr {
                 val: 0x00FF,
                 hex_in_caps: false,
                 add_0x_with_encoding: true,
                 delimiter: ' ',
-                delimiter_after_nibble_count: 0
+                delimiter_after_nibble_count: 0,
             },
             val_no_0x_small_case: HexStr {
                 val: 0xAA55,
                 hex_in_caps: false,
                 add_0x_with_encoding: false,
                 delimiter: ' ',
-                delimiter_after_nibble_count: 0
+                delimiter_after_nibble_count: 0,
             },
             val_0x_caps_delimiter: HexStr {
                 val: 0xFF00,
                 hex_in_caps: true,
                 add_0x_with_encoding: true,
                 delimiter: ':',
-                delimiter_after_nibble_count: 1
+                delimiter_after_nibble_count: 1,
             },
             val_no_0x_caps_delimiter: HexStr {
                 val: 0x55AA,
                 hex_in_caps: true,
                 add_0x_with_encoding: false,
                 delimiter: '-',
-                delimiter_after_nibble_count: 2
+                delimiter_after_nibble_count: 2,
             },
             val_0x_small_case_delimiter: HexStr {
                 val: 0x00FF,
                 hex_in_caps: false,
                 add_0x_with_encoding: true,
                 delimiter: ':',
-                delimiter_after_nibble_count: 1
+                delimiter_after_nibble_count: 1,
             },
             val_no_0x_small_case_delimiter: HexStr {
                 val: 0xAA5500FF,
                 hex_in_caps: false,
                 add_0x_with_encoding: false,
                 delimiter: '-',
-                delimiter_after_nibble_count: 2
+                delimiter_after_nibble_count: 2,
             },
         };
 
         let s: String<200> = to_string(&params, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<100>::from("AT+CMD=0xFF00,55AA,0xff,aa55,0xF:F:0:0,55-AA,0xf:f,aa-55-00-ff\r\n"));
+        assert_eq!(
+            s,
+            String::<100>::from(
+                "AT+CMD=0xFF00,55AA,0xff,aa55,0xF:F:0:0,55-AA,0xf:f,aa-55-00-ff\r\n"
+            )
+        );
     }
 }

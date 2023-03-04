@@ -37,7 +37,7 @@ where
             add_0x_with_encoding: false,
             hex_in_caps: true,
             delimiter_after_nibble_count: 0,
-            delimiter: ' '
+            delimiter: ' ',
         }
     }
 }
