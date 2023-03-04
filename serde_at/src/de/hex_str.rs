@@ -21,6 +21,10 @@ pub struct HexStr<T> {
     pub add_0x_with_encoding: bool,
     /// Flag to serialize the hex in capital letters
     pub hex_in_caps: bool,
+    /// Flag to split every n amount of bytes with a delimiter
+    pub delimiter_after_nibble_count: usize,
+    /// Split every n amount of bytes with this delimiter
+    pub delimiter: char,
 }
 
 impl<T> Default for HexStr<T>
@@ -32,6 +36,8 @@ where
             val: T::default(),
             add_0x_with_encoding: false,
             hex_in_caps: true,
+            delimiter_after_nibble_count: 0,
+            delimiter: ' '
         }
     }
 }
@@ -59,16 +65,18 @@ macro_rules! impl_hex_literal_visitor {
 
                 for c in s.chars() {
                     let v = match c {
-                        '0'..='9' => (c as $int_type) - ('0' as $int_type),
-                        'A'..='F' => 0xA + ((c as $int_type) - ('A' as $int_type)),
-                        'a'..='f' => 0xa + ((c as $int_type) - ('a' as $int_type)),
-                        _ => 0
+                        '0'..='9' => Some((c as $int_type) - ('0' as $int_type)),
+                        'A'..='F' => Some(0xA + ((c as $int_type) - ('A' as $int_type))),
+                        'a'..='f' => Some(0xa + ((c as $int_type) - ('a' as $int_type))),
+                        _ => None
                     };
 
-                    ret = ret
-                        .shl(4i32)
-                        .checked_add(v)
-                        .ok_or(serde::de::Error::custom("Invalid number"))?;
+                    if let Some(v) = v {
+                        ret = ret
+                            .shl(4i32)
+                            .checked_add(v)
+                            .ok_or(serde::de::Error::custom("Invalid number"))?;
+                    }
                 }
 
                 Ok(ret)
@@ -105,14 +113,21 @@ mod tests {
     pub fn test_parsing_a_hex_string() {
         let val: HexStr<u8> = crate::from_str("+CCID: 0x8d").unwrap();
         assert_eq!(*val, 0x8d);
+        let val: HexStr<u8> = crate::from_str("+CCID: 8:d").unwrap();
+        assert_eq!(*val, 0x8d);
         let val: HexStr<u16> = crate::from_str("+CCID: 0x0B00").unwrap();
         assert_eq!(*val, 0x0B00);
         let val: HexStr<u32> = crate::from_str("+CCID: D3AdB3ef").unwrap();
         assert_eq!(*val, 0xd3adb3ef);
         let val: HexStr<u64> = crate::from_str("+CCID: 0xFeedfACECAfeBE3F").unwrap();
         assert_eq!(*val, 0xFeedfACECAfeBE3F);
+        let val: HexStr<u64> = crate::from_str("+CCID: 0xFee-dfA-CE-C-Afe-BE-3F").unwrap();
+        assert_eq!(*val, 0xFeedfACECAfeBE3F);
         let val: HexStr<u128> =
             crate::from_str("+CCID: 0x1234567890abcdef1234567890abcdef").unwrap();
+        assert_eq!(*val, 0x1234567890abcdef1234567890abcdef);
+        let val: HexStr<u128> =
+            crate::from_str("+CCID: 0x12:34:56:78:90:ab:cd:ef:12:34:56:78:90:ab:cd:ef").unwrap();
         assert_eq!(*val, 0x1234567890abcdef1234567890abcdef);
     }
 }
