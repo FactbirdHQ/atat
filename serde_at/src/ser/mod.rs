@@ -34,7 +34,7 @@ pub struct SerializeOptions<'a> {
     /// Whether to add quotes before a string when serializing a string
     ///
     /// **default**: true
-    pub quote_escape_strings: bool
+    pub quote_escape_strings: bool,
 }
 
 impl<'a> Default for SerializeOptions<'a> {
@@ -43,7 +43,7 @@ impl<'a> Default for SerializeOptions<'a> {
             value_sep: true,
             cmd_prefix: "AT",
             termination: "\r\n",
-            quote_escape_strings: true
+            quote_escape_strings: true,
         }
     }
 }
@@ -628,7 +628,7 @@ mod tests {
         };
         let options = SerializeOptions {
             quote_escape_strings: false,
-            .. Default::default()
+            ..Default::default()
         };
         let s: String<200> = to_string(&params, "+CMD", options).unwrap();
         assert_eq!(

@@ -260,7 +260,7 @@ impl Parse for CmdAttributes {
             value_sep: true,
             cmd_prefix: String::from("AT"),
             termination: String::from("\r\n"),
-            quote_escape_strings: None
+            quote_escape_strings: None,
         };
 
         while input.parse::<syn::token::Comma>().is_ok() {
