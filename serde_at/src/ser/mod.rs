@@ -18,7 +18,7 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 
 /// Options used by the serializer, to customize the resulting string
 pub struct SerializeOptions<'a> {
-    /// Wether or not to include `=` as a seperator between the at command, and
+    /// Whether or not to include `=` as a seperator between the at command, and
     /// the parameters (serialized struct fields)
     ///
     /// **default**: true
@@ -31,6 +31,10 @@ pub struct SerializeOptions<'a> {
     ///
     /// **default**: "\r\n"
     pub termination: &'a str,
+    /// Whether to add quotes before a string when serializing a string
+    ///
+    /// **default**: true
+    pub quote_escape_strings: bool
 }
 
 impl<'a> Default for SerializeOptions<'a> {
@@ -39,6 +43,7 @@ impl<'a> Default for SerializeOptions<'a> {
             value_sep: true,
             cmd_prefix: "AT",
             termination: "\r\n",
+            quote_escape_strings: true
         }
     }
 }
@@ -229,10 +234,16 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
+        if self.options.quote_escape_strings {
+            self.buf.push(b'"')?
+        }
         let mut encoding_tmp = [0_u8; 4];
         for c in v.chars() {
             let encoded = c.encode_utf8(&mut encoding_tmp as &mut [u8]);
             self.buf.extend_from_slice(encoded.as_bytes())?;
+        }
+        if self.options.quote_escape_strings {
+            self.buf.push(b'"')?
         }
         Ok(())
     }
@@ -615,8 +626,11 @@ mod tests {
                 delimiter_after_nibble_count: 2,
             },
         };
-
-        let s: String<200> = to_string(&params, "+CMD", SerializeOptions::default()).unwrap();
+        let options = SerializeOptions {
+            quote_escape_strings: false,
+            .. Default::default()
+        };
+        let s: String<200> = to_string(&params, "+CMD", options).unwrap();
         assert_eq!(
             s,
             String::<100>::from(

@@ -25,6 +25,7 @@ pub struct CmdAttributes {
     pub value_sep: bool,
     pub cmd_prefix: String,
     pub termination: String,
+    pub quote_escape_strings: Option<bool>,
 }
 /// Parsed attributes of `#[at_arg(..)]`
 #[derive(Clone)]
@@ -259,6 +260,7 @@ impl Parse for CmdAttributes {
             value_sep: true,
             cmd_prefix: String::from("AT"),
             termination: String::from("\r\n"),
+            quote_escape_strings: None
         };
 
         while input.parse::<syn::token::Comma>().is_ok() {

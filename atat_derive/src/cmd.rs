@@ -23,6 +23,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         value_sep,
         cmd_prefix,
         termination,
+        quote_escape_strings,
     } = at_cmd.expect("missing #[at_cmd(...)] attribute");
 
     let ident_str = ident.to_string();
@@ -58,9 +59,14 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         None => quote! {},
     };
 
+    let quote_escape_strings = !matches!(quote_escape_strings, Some(false));
+
     let mut cmd_len = cmd_prefix.len() + cmd.len() + termination.len();
     if value_sep {
         cmd_len += 1;
+    }
+    if quote_escape_strings {
+        cmd_len += 2;
     }
 
     let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants
@@ -98,7 +104,8 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
                 match atat::serde_at::to_vec(self, #cmd, atat::serde_at::SerializeOptions {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,
-                    termination: #termination
+                    termination: #termination,
+                    quote_escape_strings: #quote_escape_strings
                 }) {
                     Ok(s) => s,
                     Err(_) => panic!("Failed to serialize command")
