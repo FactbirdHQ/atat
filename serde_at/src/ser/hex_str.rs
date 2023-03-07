@@ -37,7 +37,7 @@ where
                 string.push('x').unwrap();
             }
             for c in placeholder.chars().rev() {
-                string.push(c).unwrap()
+                string.push(c).unwrap();
             }
 
             serializer.serialize_str(string.as_str())
