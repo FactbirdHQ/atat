@@ -235,7 +235,7 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
         if self.options.quote_escape_strings {
-            self.buf.push(b'"')?
+            self.buf.push(b'"')?;
         }
         let mut encoding_tmp = [0_u8; 4];
         for c in v.chars() {
