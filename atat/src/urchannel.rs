@@ -18,46 +18,33 @@ pub trait AtatUrcChannel<Urc: AtatUrc> {
 }
 
 pub struct UrcChannel<
-    'a,
     Urc: AtatUrc,
     const INGRESS_BUF_SIZE: usize,
     const CAPACITY: usize,
     const SUBSCRIBERS: usize,
-> {
-    channel: &'a PubSubChannel<CriticalSectionRawMutex, Urc::Response, CAPACITY, SUBSCRIBERS, 1>,
-}
+>(pub(crate) PubSubChannel<CriticalSectionRawMutex, Urc::Response, CAPACITY, SUBSCRIBERS, 1>);
 
 impl<
-        'a,
         Urc: AtatUrc,
         const INGRESS_BUF_SIZE: usize,
         const CAPACITY: usize,
         const SUBSCRIBERS: usize,
-    > UrcChannel<'a, Urc, INGRESS_BUF_SIZE, CAPACITY, SUBSCRIBERS>
+    > UrcChannel<Urc, INGRESS_BUF_SIZE, CAPACITY, SUBSCRIBERS>
 {
-    pub(crate) fn new(
-        channel: &'a PubSubChannel<
-            CriticalSectionRawMutex,
-            Urc::Response,
-            CAPACITY,
-            SUBSCRIBERS,
-            1,
-        >,
-    ) -> Self {
-        Self { channel }
+    pub(crate) const fn new() -> Self {
+        Self(PubSubChannel::new())
     }
 }
 
 impl<
-        'a,
         Urc: AtatUrc,
         const INGRESS_BUF_SIZE: usize,
         const CAPACITY: usize,
         const SUBSCRIBERS: usize,
-    > AtatUrcChannel<Urc> for UrcChannel<'a, Urc, INGRESS_BUF_SIZE, CAPACITY, SUBSCRIBERS>
+    > AtatUrcChannel<Urc> for UrcChannel<Urc, INGRESS_BUF_SIZE, CAPACITY, SUBSCRIBERS>
 {
     fn subscribe<'sub>(&'sub self) -> Result<UrcSubscription<'sub, Urc>, Error> {
-        self.channel
+        self.0
             .dyn_subscriber()
             .map_err(|_| Error::MaximumSubscribersReached)
     }

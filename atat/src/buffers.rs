@@ -1,5 +1,4 @@
 use bbqueue::BBBuffer;
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::PubSubChannel};
 use embedded_io::blocking::Write;
 
 use crate::{urchannel::UrcChannel, AtatUrc, Config, Digester, Ingress};
@@ -41,8 +40,8 @@ pub struct Buffers<
     const URC_SUBSCRIBERS: usize,
 > {
     res_queue: BBBuffer<RES_CAPACITY>,
-    urc_channel:
-        PubSubChannel<CriticalSectionRawMutex, Urc::Response, URC_CAPACITY, URC_SUBSCRIBERS, 1>,
+    /// The URC pub/sub channel
+    pub urc_channel: UrcChannel<Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
 
 #[cfg(feature = "async")]
@@ -61,7 +60,7 @@ where
     pub const fn new() -> Self {
         Self {
             res_queue: BBBuffer::new(),
-            urc_channel: PubSubChannel::new(),
+            urc_channel: UrcChannel::new(),
         }
     }
 }
@@ -78,7 +77,7 @@ impl<
     pub const fn new() -> Self {
         Self {
             res_queue: BBBuffer::new(),
-            urc_channel: PubSubChannel::new(),
+            urc_channel: UrcChannel::new(),
         }
     }
 }
@@ -91,13 +90,6 @@ impl<
         const URC_SUBSCRIBERS: usize,
     > Buffers<Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
 {
-    /// Get the URC pub/sub channel
-    pub fn urc_channel<'a>(
-        &'a self,
-    ) -> UrcChannel<'a, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS> {
-        UrcChannel::new(&self.urc_channel)
-    }
-
     #[cfg(feature = "async")]
     pub fn split<'a, W: embedded_io::asynch::Write, D: Digester>(
         &'a self,
@@ -111,7 +103,11 @@ impl<
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
 
         (
-            Ingress::new(digester, res_writer, self.urc_channel.publisher().unwrap()),
+            Ingress::new(
+                digester,
+                res_writer,
+                self.urc_channel.0.publisher().unwrap(),
+            ),
             crate::asynch::Client::new(writer, res_reader, config),
         )
     }
@@ -128,7 +124,11 @@ impl<
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
 
         (
-            Ingress::new(digester, res_writer, self.urc_channel.publisher().unwrap()),
+            Ingress::new(
+                digester,
+                res_writer,
+                self.urc_channel.0.publisher().unwrap(),
+            ),
             crate::blocking::Client::new(writer, res_reader, config),
         )
     }
