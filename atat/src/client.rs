@@ -242,6 +242,7 @@ mod test {
     use bbqueue::framed::FrameProducer;
     use bbqueue::BBBuffer;
     use heapless::String;
+    use serde_at::HexStr;
 
     const TEST_RX_BUF_LEN: usize = 256;
     const TEST_RES_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
@@ -751,5 +752,38 @@ mod test {
         assert_eq!(client.state, ClientState::Idle);
         assert_eq!(client.send(&cmd), Err(nb::Error::Other(Error::Timeout)));
         assert_eq!(client.state, ClientState::Idle);
+    }
+
+    #[test]
+    fn quote_and_no_quote_strings() {
+        #[derive(Clone, PartialEq, AtatCmd)]
+        #[at_cmd("+DEVEUI", NoResponse, quote_escape_strings = true)]
+        pub struct WithQuoteHexStr {
+            pub val: HexStr<u16>,
+        }
+
+        let val = HexStr {
+            val: 0xA0F5,
+            .. Default::default()
+        };
+        let val = WithQuoteHexStr { val };
+        let b = val.as_bytes();
+        let s = core::str::from_utf8(&b).unwrap();
+        assert_eq!(s, "AT+DEVEUI=\"A0F5\"\r\n");
+
+        #[derive(Clone, PartialEq, AtatCmd)]
+        #[at_cmd("+DEVEUI", NoResponse, quote_escape_strings = false)]
+        pub struct WithoutQuoteHexStr {
+            pub val: HexStr<u16>,
+        }
+
+        let val = HexStr {
+            val: 0xA0F5,
+            .. Default::default()
+        };
+        let val = WithoutQuoteHexStr { val };
+        let b = val.as_bytes();
+        let s = core::str::from_utf8(&b).unwrap();
+        assert_eq!(s, "AT+DEVEUI=A0F5\r\n");
     }
 }

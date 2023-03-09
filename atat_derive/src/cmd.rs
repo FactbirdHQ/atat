@@ -101,6 +101,9 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
             #[inline]
             fn as_bytes(&self) -> atat::heapless::Vec<u8, { #ident_len + #cmd_len }> {
+                if !#quote_escape_strings {
+                    panic!("As bytes false");
+                }
                 match atat::serde_at::to_vec(self, #cmd, atat::serde_at::SerializeOptions {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,
