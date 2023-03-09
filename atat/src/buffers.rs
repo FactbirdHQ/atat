@@ -91,6 +91,13 @@ impl<
         const URC_SUBSCRIBERS: usize,
     > Buffers<Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
 {
+    /// Get the URC pub/sub channel
+    pub fn urc_channel<'a>(
+        &'a self,
+    ) -> UrcChannel<'a, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS> {
+        UrcChannel::new(&self.urc_channel)
+    }
+
     #[cfg(feature = "async")]
     pub fn split<'a, W: embedded_io::asynch::Write, D: Digester>(
         &'a self,
@@ -100,14 +107,12 @@ impl<
     ) -> (
         Ingress<'a, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>,
         crate::asynch::Client<'a, W, INGRESS_BUF_SIZE, RES_CAPACITY>,
-        UrcChannel<'a, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) {
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
 
         (
             Ingress::new(digester, res_writer, self.urc_channel.publisher().unwrap()),
             crate::asynch::Client::new(writer, res_reader, config),
-            UrcChannel::new(&self.urc_channel),
         )
     }
 
@@ -119,14 +124,12 @@ impl<
     ) -> (
         Ingress<'a, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>,
         crate::blocking::Client<'a, W, INGRESS_BUF_SIZE, RES_CAPACITY>,
-        UrcChannel<'a, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) {
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
 
         (
             Ingress::new(digester, res_writer, self.urc_channel.publisher().unwrap()),
             crate::blocking::Client::new(writer, res_reader, config),
-            UrcChannel::new(&self.urc_channel),
         )
     }
 }
