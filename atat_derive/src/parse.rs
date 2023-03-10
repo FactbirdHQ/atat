@@ -25,7 +25,8 @@ pub struct CmdAttributes {
     pub value_sep: bool,
     pub cmd_prefix: String,
     pub termination: String,
-    pub quote_escape_strings: Option<bool>,
+    // pub quote_escape_strings: Option<bool>,
+    pub quote_escape_strings: bool,
 }
 /// Parsed attributes of `#[at_arg(..)]`
 #[derive(Clone)]
@@ -260,7 +261,7 @@ impl Parse for CmdAttributes {
             value_sep: true,
             cmd_prefix: String::from("AT"),
             termination: String::from("\r\n"),
-            quote_escape_strings: None,
+            quote_escape_strings: true,
         };
 
         while input.parse::<syn::token::Comma>().is_ok() {
@@ -324,6 +325,18 @@ impl Parse for CmdAttributes {
                         return Err(Error::new(
                             call_site,
                             "expected string value for 'termination'",
+                        ))
+                    }
+                }
+            } else if optional.path.is_ident("quote_escape_strings") {
+                match optional.lit {
+                    Lit::Bool(v) => {
+                        at_cmd.quote_escape_strings = v.value;
+                    }
+                    _ => {
+                        return Err(Error::new(
+                            call_site,
+                            "expected bool value for 'quote_escape_strings'",
                         ))
                     }
                 }

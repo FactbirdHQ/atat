@@ -757,6 +757,21 @@ mod test {
     #[test]
     fn quote_and_no_quote_strings() {
         #[derive(Clone, PartialEq, AtatCmd)]
+        #[at_cmd("+DEVEUI", NoResponse)]
+        pub struct WithQuoteNoValHexStr {
+            pub val: HexStr<u16>,
+        }
+
+        let val = HexStr {
+            val: 0xA0F5,
+            ..Default::default()
+        };
+        let val = WithQuoteNoValHexStr { val };
+        let b = val.as_bytes();
+        let s = core::str::from_utf8(&b).unwrap();
+        assert_eq!(s, "AT+DEVEUI=\"A0F5\"\r\n");
+
+        #[derive(Clone, PartialEq, AtatCmd)]
         #[at_cmd("+DEVEUI", NoResponse, quote_escape_strings = true)]
         pub struct WithQuoteHexStr {
             pub val: HexStr<u16>,
@@ -764,7 +779,7 @@ mod test {
 
         let val = HexStr {
             val: 0xA0F5,
-            .. Default::default()
+            ..Default::default()
         };
         let val = WithQuoteHexStr { val };
         let b = val.as_bytes();
@@ -779,7 +794,7 @@ mod test {
 
         let val = HexStr {
             val: 0xA0F5,
-            .. Default::default()
+            ..Default::default()
         };
         let val = WithoutQuoteHexStr { val };
         let b = val.as_bytes();
