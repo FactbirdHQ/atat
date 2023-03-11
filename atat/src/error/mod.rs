@@ -7,7 +7,7 @@ pub use cms_error::CmsError;
 pub use connection_error::ConnectionError;
 
 /// Errors returned used internally within the crate
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InternalError<'a> {
     /// Serial read error
     Read,
@@ -147,7 +147,7 @@ impl<'a> From<&'a [u8]> for Response<'a> {
 }
 
 /// Errors returned by the crate
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     /// Serial read error
