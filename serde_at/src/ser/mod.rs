@@ -243,7 +243,7 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
             self.buf.extend_from_slice(encoded.as_bytes())?;
         }
         if self.options.quote_escape_strings {
-            self.buf.push(b'"')?
+            self.buf.push(b'"')?;
         }
         Ok(())
     }

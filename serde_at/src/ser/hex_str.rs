@@ -5,8 +5,7 @@ use serde::Serializer;
 
 macro_rules! impl_hex_str_serialize {
     ($type:ty, $len:expr, $len_delimited:expr) => {
-        impl Serialize for HexStr<$type>
-        {
+        impl Serialize for HexStr<$type> {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
