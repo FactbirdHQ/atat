@@ -21,9 +21,9 @@ pub struct HexStr<T> {
     pub add_0x_with_encoding: bool,
     /// Flag to serialize the hex in capital letters
     pub hex_in_caps: bool,
-    /// Flag to split every n amount of bytes with a delimiter
+    /// Flag to split every n amount of nibbles with a delimiter
     pub delimiter_after_nibble_count: usize,
-    /// Split every n amount of bytes with this delimiter
+    /// Split every n amount of nibbles with this delimiter
     pub delimiter: char,
 }
 
