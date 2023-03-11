@@ -153,6 +153,7 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 ///   'AT'). Can also be set to '' (empty).
 /// - `termination`: **string** Overwrite the line termination of the command
 ///   (default '\r\n'). Can also be set to '' (empty).
+/// - `quote_escape_strings`: **bool** Whether to escape strings in commands (default true).
 ///
 /// ### Field attribute (`#[at_arg(..)]`)
 /// The `AtatCmd` derive macro comes with an optional field attribute
