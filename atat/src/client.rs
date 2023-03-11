@@ -789,16 +789,16 @@ mod test {
         #[derive(Clone, PartialEq, AtatCmd)]
         #[at_cmd("+DEVEUI", NoResponse, quote_escape_strings = false)]
         pub struct WithoutQuoteHexStr {
-            pub val: HexStr<u16>,
+            pub val: HexStr<u128>,
         }
 
         let val = HexStr {
-            val: 0xA0F5,
+            val: 0xA0F5_A0F5_A0F5_A0F5_A0F5_A0F5_A0F5_A0F5,
             ..Default::default()
         };
         let val = WithoutQuoteHexStr { val };
         let b = val.as_bytes();
         let s = core::str::from_utf8(&b).unwrap();
-        assert_eq!(s, "AT+DEVEUI=A0F5\r\n");
+        assert_eq!(s, "AT+DEVEUI=A0F5A0F5A0F5A0F5A0F5A0F5A0F5A0F5\r\n");
     }
 }

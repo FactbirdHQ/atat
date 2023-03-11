@@ -39,11 +39,13 @@ impl_length!(i128, 40);
 impl_length!(f32, 42);
 impl_length!(f64, 312);
 
-impl_length!(HexStr<u8>, 8);
-impl_length!(HexStr<u16>, 12);
-impl_length!(HexStr<u32>, 20);
-impl_length!(HexStr<u64>, 36);
-impl_length!(HexStr<u128>, 68);
+//       0x   F:F:F:F
+// uN = (2 + (N/2) - 1) * 2 bytes
+impl_length!(HexStr<u8>, 10);
+impl_length!(HexStr<u16>, 18);
+impl_length!(HexStr<u32>, 30);
+impl_length!(HexStr<u64>, 66);
+impl_length!(HexStr<u128>, 130);
 
 impl<const T: usize> AtatLen for String<T> {
     const LEN: usize = T;
@@ -171,11 +173,11 @@ mod tests {
         assert_eq!(<SimpleEnum as AtatLen>::LEN, 3);
         assert_eq!(<SimpleEnumU32 as AtatLen>::LEN, 10);
 
-        assert_eq!(<HexStr<u8> as AtatLen>::LEN, 8);
-        assert_eq!(<HexStr<u16> as AtatLen>::LEN, 12);
-        assert_eq!(<HexStr<u32> as AtatLen>::LEN, 20);
-        assert_eq!(<HexStr<u64> as AtatLen>::LEN, 36);
-        assert_eq!(<HexStr<u128> as AtatLen>::LEN, 68);
+        assert_eq!(<HexStr<u8> as AtatLen>::LEN, 10);
+        assert_eq!(<HexStr<u16> as AtatLen>::LEN, 18);
+        assert_eq!(<HexStr<u32> as AtatLen>::LEN, 30);
+        assert_eq!(<HexStr<u64> as AtatLen>::LEN, 66);
+        assert_eq!(<HexStr<u128> as AtatLen>::LEN, 130);
 
         // (fields) + (n_fields - 1)
         // (3 + 128 + 2 + 150 + 3 + 10 + 3 + (10*5)) + 7
