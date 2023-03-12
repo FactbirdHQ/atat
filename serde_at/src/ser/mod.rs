@@ -660,6 +660,7 @@ mod tests {
     fn hex_str_serialize_byte_array() {
         #[derive(Clone, PartialEq, Serialize)]
         pub struct WithHexStr {
+            val_no_0x_small_caps_drop_last_0s: HexStr<[u8; 16]>,
             val_0x_caps_array: HexStr<[u8; 8]>,
             val_0x_small_caps_array: HexStr<[u8; 8]>,
             val_no_0x_caps_array: HexStr<[u8; 8]>,
@@ -675,6 +676,14 @@ mod tests {
             ..Default::default()
         };
         let params = WithHexStr {
+            val_no_0x_small_caps_drop_last_0s: HexStr {
+                val: [0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+                hex_in_caps: false,
+                add_0x_with_encoding: false,
+                delimiter: ' ',
+                delimiter_after_nibble_count: 0,
+                skip_last_0_values: true,
+            },
             val_0x_caps_array: HexStr {
                 val: [0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55],
                 hex_in_caps: true,
@@ -743,7 +752,7 @@ mod tests {
         assert_eq!(
             s,
             String::<600>::from(
-                "AT+CMD=0xFF00AA55FF00AA55,0xff00aa55ff00aa55,FF00AA55FF00AA55,ff00aa55ff00aa55,0xFF-00-AA-55-FF-00-AA-55,0xf:f:0:0:a:a:5:5:f:f:0:0:a:a:5:5,FF_00_AA_55_FF_00_AA_55,f#f#0#0#a#a#5#5#f#f#0#0#a#a#5#5\r\n"
+                "AT+CMD=ff00aa55ff00aa55,0xFF00AA55FF00AA55,0xff00aa55ff00aa55,FF00AA55FF00AA55,ff00aa55ff00aa55,0xFF-00-AA-55-FF-00-AA-55,0xf:f:0:0:a:a:5:5:f:f:0:0:a:a:5:5,FF_00_AA_55_FF_00_AA_55,f#f#0#0#a#a#5#5#f#f#0#0#a#a#5#5\r\n"
             )
         );
     }

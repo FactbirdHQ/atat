@@ -75,13 +75,13 @@ mod unstable {
         {
             let val: &[u8] = if self.skip_last_0_values {
                 let mut index = 0;
-                for i in (N - 1)..=0 {
+                for i in (0..(N - 1)).rev() {
                     index = i;
                     if self.val[i] != 0 {
                         break;
                     }
                 }
-                &self.val[0..index]
+                &self.val[0..=index]
             } else {
                 &self.val
             };
