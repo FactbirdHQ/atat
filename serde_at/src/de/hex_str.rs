@@ -25,6 +25,9 @@ pub struct HexStr<T> {
     pub delimiter_after_nibble_count: usize,
     /// Split every n amount of nibbles with this delimiter
     pub delimiter: char,
+    #[cfg(feature = "hex_str_arrays")]
+    /// Skip last 0 values. Whether or not to include 0 values
+    pub skip_last_0_values: bool,
 }
 
 impl<T> Default for HexStr<T>
@@ -38,6 +41,8 @@ where
             hex_in_caps: true,
             delimiter_after_nibble_count: 0,
             delimiter: ' ',
+            #[cfg(feature = "hex_str_arrays")]
+            skip_last_0_values: false,
         }
     }
 }
@@ -129,5 +134,6 @@ mod tests {
         let val: HexStr<u128> =
             crate::from_str("+CCID: 0x12:34:56:78:90:ab:cd:ef:12:34:56:78:90:ab:cd:ef").unwrap();
         assert_eq!(*val, 0x1234567890abcdef1234567890abcdef);
+        // let val: HexStr<[u8; 16] >
     }
 }

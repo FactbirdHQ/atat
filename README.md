@@ -100,6 +100,7 @@ The following dependent crates provide platform-agnostic device drivers built on
 - `log`: Disabled by default. Enable log statements on various log levels to aid debugging. Powered by `log`.
 - `defmt`: Disabled by default. Enable defmt log statements on various log levels to aid debugging. Powered by `defmt`.
 - `custom-error-messages`: Disabled by default. Allows errors to contain custom error messages up to 64 characters, parsed by `AtDigest::custom_error`.
+- `hex_str_arrays`: Disabled by default. Needs `#![feature(generic_const_exprs)]` Nightly feature. This allows for hex strings to be serialized to a fix-width byte array. 
 
 ## Chat / Getting Help
 

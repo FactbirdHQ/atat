@@ -565,7 +565,7 @@ mod tests {
             val_0x_caps_delimiter: HexStr<u32>,
             val_no_0x_caps_delimiter: HexStr<u32>,
             val_0x_small_case_delimiter: HexStr<u32>,
-            val_no_0x_small_case_delimiter: HexStr<u64>,
+            val_no_0x_small_case_delimiter: HexStr<u64>
         }
 
         let params = WithHexStr {
@@ -575,6 +575,8 @@ mod tests {
                 add_0x_with_encoding: true,
                 delimiter: ' ',
                 delimiter_after_nibble_count: 0,
+                #[cfg(feature = "hex_str_arrays")]
+                skip_last_0_values: false,
             },
             val_no_0x_caps: HexStr {
                 val: 0x55AA,
@@ -582,6 +584,8 @@ mod tests {
                 add_0x_with_encoding: false,
                 delimiter: ' ',
                 delimiter_after_nibble_count: 0,
+                #[cfg(feature = "hex_str_arrays")]
+                skip_last_0_values: false,
             },
             val_0x_small_case: HexStr {
                 val: 0x00FF,
@@ -589,6 +593,8 @@ mod tests {
                 add_0x_with_encoding: true,
                 delimiter: ' ',
                 delimiter_after_nibble_count: 0,
+                #[cfg(feature = "hex_str_arrays")]
+                skip_last_0_values: false,
             },
             val_no_0x_small_case: HexStr {
                 val: 0xAA55,
@@ -596,6 +602,8 @@ mod tests {
                 add_0x_with_encoding: false,
                 delimiter: ' ',
                 delimiter_after_nibble_count: 0,
+                #[cfg(feature = "hex_str_arrays")]
+                skip_last_0_values: false,
             },
             val_0x_caps_delimiter: HexStr {
                 val: 0xFF00,
@@ -603,6 +611,8 @@ mod tests {
                 add_0x_with_encoding: true,
                 delimiter: ':',
                 delimiter_after_nibble_count: 1,
+                #[cfg(feature = "hex_str_arrays")]
+                skip_last_0_values: false,
             },
             val_no_0x_caps_delimiter: HexStr {
                 val: 0x55AA,
@@ -610,6 +620,8 @@ mod tests {
                 add_0x_with_encoding: false,
                 delimiter: '-',
                 delimiter_after_nibble_count: 2,
+                #[cfg(feature = "hex_str_arrays")]
+                skip_last_0_values: false,
             },
             val_0x_small_case_delimiter: HexStr {
                 val: 0x00FF,
@@ -617,6 +629,8 @@ mod tests {
                 add_0x_with_encoding: true,
                 delimiter: ':',
                 delimiter_after_nibble_count: 1,
+                #[cfg(feature = "hex_str_arrays")]
+                skip_last_0_values: false,
             },
             val_no_0x_small_case_delimiter: HexStr {
                 val: 0xAA5500FF,
@@ -624,17 +638,112 @@ mod tests {
                 add_0x_with_encoding: false,
                 delimiter: '-',
                 delimiter_after_nibble_count: 2,
-            },
+                #[cfg(feature = "hex_str_arrays")]
+                skip_last_0_values: false,
+            }
         };
         let options = SerializeOptions {
             quote_escape_strings: false,
             ..Default::default()
         };
-        let s: String<200> = to_string(&params, "+CMD", options).unwrap();
+        let s: String<600> = to_string(&params, "+CMD", options).unwrap();
         assert_eq!(
             s,
-            String::<100>::from(
+            String::<600>::from(
                 "AT+CMD=0xFF00,55AA,0xff,aa55,0xF:F:0:0,55-AA,0xf:f,aa-55-00-ff\r\n"
+            )
+        );
+    }
+
+    #[cfg(feature = "hex_str_arrays")]
+    #[test]
+    fn hex_str_serialize_byte_array() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct WithHexStr {
+            val_0x_caps_array: HexStr<[u8; 8]>,
+            val_0x_small_caps_array: HexStr<[u8; 8]>,
+            val_no_0x_caps_array: HexStr<[u8; 8]>,
+            val_no_0x_small_caps_array: HexStr<[u8; 8]>,
+            val_0x_caps_array_delimiter: HexStr<[u8; 8]>,
+            val_0x_small_caps_array_delimiter: HexStr<[u8; 8]>,
+            val_no_0x_caps_array_delimiter: HexStr<[u8; 8]>,
+            val_no_0x_small_caps_array_delimiter: HexStr<[u8; 8]>,
+        }
+
+        let options = SerializeOptions {
+            quote_escape_strings: false,
+            ..Default::default()
+        };
+        let params = WithHexStr {
+            val_0x_caps_array: HexStr {
+                val: [0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55],
+                hex_in_caps: true,
+                add_0x_with_encoding: true,
+                delimiter: ' ',
+                delimiter_after_nibble_count: 0,
+                skip_last_0_values: false,
+            },
+            val_0x_small_caps_array: HexStr {
+                val: [0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55],
+                hex_in_caps: false,
+                add_0x_with_encoding: true,
+                delimiter: ' ',
+                delimiter_after_nibble_count: 0,
+                skip_last_0_values: false,
+            },
+            val_no_0x_caps_array: HexStr {
+                val: [0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55],
+                hex_in_caps: true,
+                add_0x_with_encoding: false,
+                delimiter: ' ',
+                delimiter_after_nibble_count: 0,
+                skip_last_0_values: false,
+            },
+            val_no_0x_small_caps_array: HexStr {
+                val: [0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55],
+                hex_in_caps: false,
+                add_0x_with_encoding: false,
+                delimiter: ' ',
+                delimiter_after_nibble_count: 0,
+                skip_last_0_values: false,
+            },
+            val_0x_caps_array_delimiter: HexStr {
+                val: [0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55],
+                hex_in_caps: true,
+                add_0x_with_encoding: true,
+                delimiter: '-',
+                delimiter_after_nibble_count: 2,
+                skip_last_0_values: false,
+            },
+            val_0x_small_caps_array_delimiter: HexStr {
+                val: [0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55],
+                hex_in_caps: false,
+                add_0x_with_encoding: true,
+                delimiter: ':',
+                delimiter_after_nibble_count: 1,
+                skip_last_0_values: false,
+            },
+            val_no_0x_caps_array_delimiter: HexStr {
+                val: [0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55],
+                hex_in_caps: true,
+                add_0x_with_encoding: false,
+                delimiter: '_',
+                delimiter_after_nibble_count: 2,
+                skip_last_0_values: false,
+            },
+            val_no_0x_small_caps_array_delimiter: HexStr {
+                val: [0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55],
+                hex_in_caps: false,
+                add_0x_with_encoding: false,
+                delimiter: '#',
+                delimiter_after_nibble_count: 1,
+                skip_last_0_values: false,
+            }
+        };let s: String<600> = to_string(&params, "+CMD", options).unwrap();
+        assert_eq!(
+            s,
+            String::<600>::from(
+                "AT+CMD=0xFF00AA55FF00AA55,0xff00aa55ff00aa55,FF00AA55FF00AA55,ff00aa55ff00aa55,0xFF-00-AA-55-FF-00-AA-55,0xf:f:0:0:a:a:5:5:f:f:0:0:a:a:5:5,FF_00_AA_55_FF_00_AA_55,f#f#0#0#a#a#5#5#f#f#0#0#a#a#5#5\r\n"
             )
         );
     }

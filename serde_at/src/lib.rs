@@ -3,7 +3,10 @@
 #![deny(missing_docs)]
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
-#![deny(warnings)]
+#![allow(unstable_features)]
+#![feature(generic_const_exprs)]
+// Can't have unstable features + !warnings
+// #![deny(warnings)]
 #![allow(deprecated)]
 #![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::missing_errors_doc)]

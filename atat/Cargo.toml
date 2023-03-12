@@ -55,10 +55,11 @@ embassy-stm32 = { git = "https://github.com/embassy-rs/embassy", rev = "99284b8"
 ] }
 
 [features]
-default = ["derive", "bytes"]
+default = ["derive", "bytes", "hex_str_arrays"]
 derive = ["atat_derive", "serde_at"]
 custom-error-messages = []
 
 bytes = ["heapless-bytes", "serde_bytes"]
 
 std = ["serde_at/std", "nom/std"]
+hex_str_arrays = []

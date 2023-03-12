@@ -57,3 +57,62 @@ impl_hex_str_serialize!(u16, 12, 18);
 impl_hex_str_serialize!(u32, 20, 30);
 impl_hex_str_serialize!(u64, 36, 66);
 impl_hex_str_serialize!(u128, 68, 130);
+
+#[cfg(feature = "hex_str_arrays")]
+mod unstable {
+
+    use serde::{Serialize, Serializer};
+    use crate::HexStr;
+    use core::fmt::Write;
+
+    impl <const N: usize> Serialize for HexStr<[u8; N]>
+        where
+            heapless::String::<{ (1 + N*4)*2 }>: Sized
+    {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+        {
+            let val: &[u8] = if self.skip_last_0_values {
+                let mut index = 0;
+                for i in (N - 1)..=0 {
+                    index = i;
+                    if self.val[i] != 0 {
+                        break;
+                    }
+                }
+                &self.val[0..index]
+            } else {
+                &self.val
+            };
+
+            let mut string = heapless::String::<{ (1 + N*4)*2 }>::new();
+            let mut nibble_count = 0;
+            if self.add_0x_with_encoding {
+                string.push_str("0x").unwrap();
+            }
+            for byte in val.iter() {
+                let mut byte_string = heapless::String::<4>::new();
+                if self.hex_in_caps {
+                    write!(byte_string, "{:02X}", *byte).unwrap();
+                } else {
+                    write!(byte_string, "{:02x}", *byte).unwrap();
+                }
+                if self.delimiter_after_nibble_count != 0 {
+                    for v in byte_string.as_str().chars() {
+                        if nibble_count != 0 && nibble_count % self.delimiter_after_nibble_count == 0 {
+                            string.push(self.delimiter).unwrap();
+                        }
+                        nibble_count += 1;
+                        string.push(v).unwrap();
+                    }
+                } else {
+                    for v in byte_string.as_str().chars() {
+                        string.push(v).unwrap();
+                    }
+                }
+            }
+            serializer.serialize_str(string.as_str())
+        }
+    }
+}
