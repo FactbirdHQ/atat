@@ -68,8 +68,8 @@ where
 
 //       0x   F:F:F:F
 // uN = (2 + (N*4) - 1) * 2 bytes
-impl <const L: usize> AtatLen for HexStr<[u8; L]> {
-    const LEN: usize = (2 + L*4 -1)*2;
+impl<const L: usize> AtatLen for HexStr<[u8; L]> {
+    const LEN: usize = (2 + L * 4 - 1) * 2;
 }
 
 #[cfg(test)]
@@ -178,7 +178,6 @@ mod tests {
 
         assert_eq!(<SimpleEnum as AtatLen>::LEN, 3);
         assert_eq!(<SimpleEnumU32 as AtatLen>::LEN, 10);
-
 
         assert_eq!(<HexStr<u8> as AtatLen>::LEN, 10);
         assert_eq!(<HexStr<u16> as AtatLen>::LEN, 18);

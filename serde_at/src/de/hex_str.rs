@@ -112,13 +112,13 @@ impl_hex_literal_visitor! { u8 u16 u32 u64 u128 }
 
 #[cfg(feature = "hex_str_arrays")]
 mod unstable {
-    use core::fmt;
-    use core::marker::PhantomData;
-    use core::ops::{Deref};
-    use serde::de::Visitor;
-    use serde::{de, Deserialize};
     use crate::de::hex_str::HexLiteralVisitor;
     use crate::HexStr;
+    use core::fmt;
+    use core::marker::PhantomData;
+    use core::ops::Deref;
+    use serde::de::Visitor;
+    use serde::{de, Deserialize};
 
     impl<'de, const N: usize> Visitor<'de> for HexLiteralVisitor<[u8; N]> {
         type Value = [u8; N];
@@ -128,11 +128,10 @@ mod unstable {
         }
 
         fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-            where
-                E: de::Error,
+        where
+            E: de::Error,
         {
-            let mut s = core::str::from_utf8(v)
-                .map_err(serde::de::Error::custom)?;
+            let mut s = core::str::from_utf8(v).map_err(serde::de::Error::custom)?;
             if s.starts_with("0x") || s.starts_with("0X") {
                 s = &s[2..];
             }
@@ -144,10 +143,10 @@ mod unstable {
 
             for c in s.chars() {
                 let v = match c {
-                    '0'..='9' => Some((c as u8) - ('0' as u8)),
-                    'A'..='F' => Some(0xA + ((c as u8) - ('A' as u8))),
-                    'a'..='f' => Some(0xa + ((c as u8) - ('a' as u8))),
-                    _ => None
+                    '0'..='9' => Some((c as u8) - (b'0')),
+                    'A'..='F' => Some(0xA + ((c as u8) - (b'A'))),
+                    'a'..='f' => Some(0xa + ((c as u8) - (b'a'))),
+                    _ => None,
                 };
 
                 if let Some(v) = v {
@@ -173,10 +172,11 @@ mod unstable {
 
     impl<'de, const N: usize> Deserialize<'de> for HexStr<[u8; N]> {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: serde::Deserializer<'de>,
+        where
+            D: serde::Deserializer<'de>,
         {
-            let val: [u8; N] = deserializer.deserialize_bytes(HexLiteralVisitor::<[u8; N]> { _ty: PhantomData })?;
+            let val: [u8; N] = deserializer
+                .deserialize_bytes(HexLiteralVisitor::<[u8; N]> { _ty: PhantomData })?;
             Ok(HexStr {
                 val,
                 add_0x_with_encoding: false,
@@ -228,6 +228,12 @@ mod tests {
     pub fn test_hex_str_arrays() {
         let val: HexStr<[u8; 16]> =
             crate::from_str("+CCID: 0x12:34:56:78:90:ab:cd:ef:12:34:56:78:90:ab:cd:ef").unwrap();
-        assert_eq!(*val, [0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef]);
+        assert_eq!(
+            *val,
+            [
+                0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab,
+                0xcd, 0xef
+            ]
+        );
     }
 }

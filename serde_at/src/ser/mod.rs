@@ -565,7 +565,7 @@ mod tests {
             val_0x_caps_delimiter: HexStr<u32>,
             val_no_0x_caps_delimiter: HexStr<u32>,
             val_0x_small_case_delimiter: HexStr<u32>,
-            val_no_0x_small_case_delimiter: HexStr<u64>
+            val_no_0x_small_case_delimiter: HexStr<u64>,
         }
 
         let params = WithHexStr {
@@ -640,7 +640,7 @@ mod tests {
                 delimiter_after_nibble_count: 2,
                 #[cfg(feature = "hex_str_arrays")]
                 skip_last_0_values: false,
-            }
+            },
         };
         let options = SerializeOptions {
             quote_escape_strings: false,
@@ -677,7 +677,10 @@ mod tests {
         };
         let params = WithHexStr {
             val_no_0x_small_caps_drop_last_0s: HexStr {
-                val: [0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+                val: [
+                    0xFF, 0x00, 0xAA, 0x55, 0xFF, 0x00, 0xAA, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00,
+                ],
                 hex_in_caps: false,
                 add_0x_with_encoding: false,
                 delimiter: ' ',
@@ -747,8 +750,9 @@ mod tests {
                 delimiter: '#',
                 delimiter_after_nibble_count: 1,
                 skip_last_0_values: false,
-            }
-        };let s: String<600> = to_string(&params, "+CMD", options).unwrap();
+            },
+        };
+        let s: String<600> = to_string(&params, "+CMD", options).unwrap();
         assert_eq!(
             s,
             String::<600>::from(

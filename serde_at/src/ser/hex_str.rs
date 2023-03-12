@@ -61,17 +61,17 @@ impl_hex_str_serialize!(u128, 68, 130);
 #[cfg(feature = "hex_str_arrays")]
 mod unstable {
 
-    use serde::{Serialize, Serializer};
     use crate::HexStr;
     use core::fmt::Write;
+    use serde::{Serialize, Serializer};
 
-    impl <const N: usize> Serialize for HexStr<[u8; N]>
-        where
-            heapless::String::<{ (1 + N*4)*2 }>: Sized
+    impl<const N: usize> Serialize for HexStr<[u8; N]>
+    where
+        heapless::String<{ (1 + N * 4) * 2 }>: Sized,
     {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: Serializer,
+        where
+            S: Serializer,
         {
             let val: &[u8] = if self.skip_last_0_values {
                 let mut index = 0;
@@ -86,7 +86,7 @@ mod unstable {
                 &self.val
             };
 
-            let mut string = heapless::String::<{ (1 + N*4)*2 }>::new();
+            let mut string = heapless::String::<{ (1 + N * 4) * 2 }>::new();
             let mut nibble_count = 0;
             if self.add_0x_with_encoding {
                 string.push_str("0x").unwrap();
@@ -100,7 +100,9 @@ mod unstable {
                 }
                 if self.delimiter_after_nibble_count != 0 {
                     for v in byte_string.as_str().chars() {
-                        if nibble_count != 0 && nibble_count % self.delimiter_after_nibble_count == 0 {
+                        if nibble_count != 0
+                            && nibble_count % self.delimiter_after_nibble_count == 0
+                        {
                             string.push(self.delimiter).unwrap();
                         }
                         nibble_count += 1;
