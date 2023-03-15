@@ -131,7 +131,11 @@ impl<
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
                     if let Some(urc) = Urc::parse(urc_line) {
-                        debug!("Received URC: {:?}", LossyStr(urc_line));
+                        debug!(
+                            "Received URC/{}: {:?}",
+                            self.urc_publisher.space(),
+                            LossyStr(urc_line)
+                        );
                         self.urc_publisher
                             .try_publish(urc)
                             .map_err(|_| Error::UrcChannelFull)?;
@@ -187,7 +191,11 @@ impl<
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
                     if let Some(urc) = Urc::parse(urc_line) {
-                        debug!("Received URC: {:?}", LossyStr(urc_line));
+                        debug!(
+                            "Received URC/{}: {:?}",
+                            self.urc_publisher.space(),
+                            LossyStr(urc_line)
+                        );
                         self.urc_publisher.publish(urc).await;
                     } else {
                         error!("Parsing URC FAILED: {:?}", LossyStr(urc_line));
