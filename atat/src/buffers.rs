@@ -41,7 +41,7 @@ pub struct Buffers<
 > {
     res_queue: BBBuffer<RES_CAPACITY>,
     /// The URC pub/sub channel
-    pub urc_channel: UrcChannel<Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
+    pub urc_channel: UrcChannel<Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
 
 #[cfg(feature = "async")]
