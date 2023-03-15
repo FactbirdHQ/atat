@@ -228,7 +228,7 @@ mod buffers;
 mod config;
 pub mod digest;
 mod error;
-pub mod frame;
+mod frame;
 pub mod helpers;
 mod ingress;
 mod traits;
