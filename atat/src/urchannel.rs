@@ -1,8 +1,10 @@
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::pubsub::{DynSubscriber, PubSubChannel};
+use embassy_sync::pubsub::{DynSubscriber, PubSubChannel, Publisher};
 
 use crate::AtatUrc;
 
+pub type UrcPublisher<'sub, Urc, const CAPACITY: usize, const SUBSCRIBERS: usize> =
+    Publisher<'sub, CriticalSectionRawMutex, <Urc as AtatUrc>::Response, CAPACITY, SUBSCRIBERS, 1>;
 pub type UrcSubscription<'sub, Urc> = DynSubscriber<'sub, <Urc as AtatUrc>::Response>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -22,7 +24,7 @@ pub struct UrcChannel<
     const INGRESS_BUF_SIZE: usize,
     const CAPACITY: usize,
     const SUBSCRIBERS: usize,
->(pub(crate) PubSubChannel<CriticalSectionRawMutex, Urc::Response, CAPACITY, SUBSCRIBERS, 1>);
+>(PubSubChannel<CriticalSectionRawMutex, Urc::Response, CAPACITY, SUBSCRIBERS, 1>);
 
 impl<
         Urc: AtatUrc,
@@ -33,6 +35,10 @@ impl<
 {
     pub(crate) const fn new() -> Self {
         Self(PubSubChannel::new())
+    }
+
+    pub fn publisher(&self) -> UrcPublisher<Urc, CAPACITY, SUBSCRIBERS> {
+        self.0.publisher().unwrap()
     }
 }
 

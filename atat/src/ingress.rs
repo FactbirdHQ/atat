@@ -1,10 +1,10 @@
 use crate::{
     frame::{Frame, FrameProducerExt},
     helpers::LossyStr,
+    urchannel::UrcPublisher,
     AtatUrc, DigestResult, Digester,
 };
 use bbqueue::framed::FrameProducer;
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::Publisher};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -73,8 +73,7 @@ pub struct Ingress<
     buf: [u8; INGRESS_BUF_SIZE],
     pos: usize,
     res_writer: FrameProducer<'a, RES_CAPACITY>,
-    urc_publisher:
-        Publisher<'a, CriticalSectionRawMutex, Urc::Response, URC_CAPACITY, URC_SUBSCRIBERS, 1>,
+    urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
 
 impl<
@@ -90,14 +89,7 @@ impl<
     pub(crate) fn new(
         digester: D,
         res_writer: FrameProducer<'a, RES_CAPACITY>,
-        urc_publisher: Publisher<
-            'a,
-            CriticalSectionRawMutex,
-            Urc::Response,
-            URC_CAPACITY,
-            URC_SUBSCRIBERS,
-            1,
-        >,
+        urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) -> Self {
         Self {
             digester,

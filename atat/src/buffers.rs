@@ -103,11 +103,7 @@ impl<
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
 
         (
-            Ingress::new(
-                digester,
-                res_writer,
-                self.urc_channel.0.publisher().unwrap(),
-            ),
+            Ingress::new(digester, res_writer, self.urc_channel.publisher()),
             crate::asynch::Client::new(writer, res_reader, config),
         )
     }
@@ -124,11 +120,7 @@ impl<
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
 
         (
-            Ingress::new(
-                digester,
-                res_writer,
-                self.urc_channel.0.publisher().unwrap(),
-            ),
+            Ingress::new(digester, res_writer, self.urc_channel.publisher()),
             crate::blocking::Client::new(writer, res_reader, config),
         )
     }
