@@ -33,7 +33,7 @@ impl<
         const SUBSCRIBERS: usize,
     > UrcChannel<Urc, INGRESS_BUF_SIZE, CAPACITY, SUBSCRIBERS>
 {
-    pub(crate) const fn new() -> Self {
+    pub const fn new() -> Self {
         Self(PubSubChannel::new())
     }
 

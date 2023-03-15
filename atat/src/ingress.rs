@@ -86,7 +86,7 @@ impl<
         const URC_SUBSCRIBERS: usize,
     > Ingress<'a, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
 {
-    pub(crate) fn new(
+    pub fn new(
         digester: D,
         res_writer: FrameProducer<'a, RES_CAPACITY>,
         urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
