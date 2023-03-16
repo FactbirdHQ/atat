@@ -274,3 +274,43 @@ impl<
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bbqueue::BBBuffer;
+
+    use crate::{self as atat, atat_derive::AtatUrc, AtDigester, AtatUrcChannel, UrcChannel};
+
+    use super::*;
+
+    #[derive(AtatUrc, Clone, PartialEq, Debug)]
+    enum Urc {
+        #[at_urc(b"CONNECT OK")]
+        ConnectOk,
+        #[at_urc(b"CONNECT FAIL")]
+        ConnectFail,
+    }
+
+    #[test]
+    fn advance_can_processes_multiple_digest_results() {
+        let buffer = BBBuffer::<100>::new();
+        let (producer, mut consumer) = buffer.try_split_framed().unwrap();
+        let channel = UrcChannel::<Urc, 10, 1>::new();
+        let mut ingress: Ingress<_, Urc, 100, 100, 10, 1> =
+            Ingress::new(AtDigester::<Urc>::new(), producer, channel.publisher());
+
+        let mut sub = channel.subscribe().unwrap();
+
+        let buf = ingress.write_buf();
+        let data = b"\r\nCONNECT OK\r\n\r\nCONNECT FAIL\r\n\r\nOK\r\n";
+        buf[..data.len()].copy_from_slice(data);
+        ingress.try_advance(data.len()).unwrap();
+
+        assert_eq!(Urc::ConnectOk, sub.try_next_message_pure().unwrap());
+        assert_eq!(Urc::ConnectFail, sub.try_next_message_pure().unwrap());
+
+        let grant = consumer.read().unwrap();
+        assert_eq!(Frame::Response(&[]), Frame::decode(&grant));
+        grant.release();
+    }
+}
