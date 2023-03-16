@@ -121,9 +121,21 @@ impl<
 
         while self.pos > 0 {
             let swallowed = match self.digester.digest(&self.buf[..self.pos]) {
-                (DigestResult::None, used) => used,
+                (DigestResult::None, swallowed) => {
+                    if swallowed > 0 {
+                        debug!(
+                            "Received echo ({}/{}): {:?}",
+                            swallowed,
+                            self.pos,
+                            LossyStr(&self.buf[..self.pos])
+                        );
+                    }
+
+                    swallowed
+                }
                 (DigestResult::Prompt(prompt), swallowed) => {
-                    debug!("Received prompt");
+                    debug!("Received prompt ({}/{})", swallowed, self.pos);
+
                     self.res_writer
                         .try_enqueue(Frame::Prompt(prompt))
                         .map_err(|_| Error::ResponseQueueFull)?;
@@ -132,10 +144,13 @@ impl<
                 (DigestResult::Urc(urc_line), swallowed) => {
                     if let Some(urc) = Urc::parse(urc_line) {
                         debug!(
-                            "Received URC/{}: {:?}",
+                            "Received URC/{} ({}/{}): {:?}",
                             self.urc_publisher.space(),
+                            swallowed,
+                            self.pos,
                             LossyStr(urc_line)
                         );
+
                         self.urc_publisher
                             .try_publish(urc)
                             .map_err(|_| Error::UrcChannelFull)?;
@@ -148,13 +163,21 @@ impl<
                     match &resp {
                         Ok(r) => {
                             if r.is_empty() {
-                                debug!("Received OK")
+                                debug!("Received OK ({}/{})", swallowed, self.pos,)
                             } else {
-                                debug!("Received response: {:?}", LossyStr(r));
+                                debug!(
+                                    "Received response ({}/{}): {:?}",
+                                    swallowed,
+                                    self.pos,
+                                    LossyStr(r)
+                                );
                             }
                         }
                         Err(e) => {
-                            warn!("Received error response {:?}", e);
+                            warn!(
+                                "Received error response ({}/{}): {:?}",
+                                swallowed, self.pos, e
+                            );
                         }
                     }
 
@@ -183,17 +206,31 @@ impl<
 
         while self.pos > 0 {
             let swallowed = match self.digester.digest(&self.buf[..self.pos]) {
-                (DigestResult::None, used) => used,
+                (DigestResult::None, swallowed) => {
+                    if swallowed > 0 {
+                        debug!(
+                            "Received echo ({}/{}): {:?}",
+                            swallowed,
+                            self.pos,
+                            LossyStr(&self.buf[..self.pos])
+                        );
+                    }
+
+                    swallowed
+                }
                 (DigestResult::Prompt(prompt), swallowed) => {
-                    debug!("Received prompt");
                     self.res_writer.enqueue(Frame::Prompt(prompt)).await;
+                    debug!("Received prompt ({}/{})", swallowed, self.pos);
+
                     swallowed
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
                     if let Some(urc) = Urc::parse(urc_line) {
                         debug!(
-                            "Received URC/{}: {:?}",
+                            "Received URC/{} ({}/{}): {:?}",
                             self.urc_publisher.space(),
+                            swallowed,
+                            self.pos,
                             LossyStr(urc_line)
                         );
                         self.urc_publisher.publish(urc).await;
@@ -206,13 +243,21 @@ impl<
                     match &resp {
                         Ok(r) => {
                             if r.is_empty() {
-                                debug!("Received OK")
+                                debug!("Received OK ({}/{})", swallowed, self.pos,)
                             } else {
-                                debug!("Received response: {:?}", LossyStr(r));
+                                debug!(
+                                    "Received response ({}/{}): {:?}",
+                                    swallowed,
+                                    self.pos,
+                                    LossyStr(r)
+                                );
                             }
                         }
                         Err(e) => {
-                            warn!("Received error response {:?}", e);
+                            warn!(
+                                "Received error response ({}/{}): {:?}",
+                                swallowed, self.pos, e
+                            );
                         }
                     }
                     self.res_writer.enqueue(resp.into()).await;
