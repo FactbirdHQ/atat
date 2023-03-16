@@ -219,9 +219,11 @@ impl<
                     swallowed
                 }
                 (DigestResult::Prompt(prompt), swallowed) => {
-                    self.res_writer.enqueue(Frame::Prompt(prompt)).await;
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
+                    if let Err(frame) = self.res_writer.try_enqueue(Frame::Prompt(prompt)) {
+                        self.res_writer.enqueue(frame).await;
+                    }
                     swallowed
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
@@ -233,7 +235,10 @@ impl<
                             self.pos,
                             LossyStr(urc_line)
                         );
-                        self.urc_publisher.publish(urc).await;
+
+                        if let Err(urc) = self.urc_publisher.try_publish(urc) {
+                            self.urc_publisher.publish(urc).await;
+                        }
                     } else {
                         error!("Parsing URC FAILED: {:?}", LossyStr(urc_line));
                     }
@@ -260,7 +265,10 @@ impl<
                             );
                         }
                     }
-                    self.res_writer.enqueue(resp.into()).await;
+
+                    if let Err(frame) = self.res_writer.try_enqueue(resp.into()) {
+                        self.res_writer.enqueue(frame).await;
+                    }
                     swallowed
                 }
             };
