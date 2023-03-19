@@ -13,9 +13,7 @@
 
 `#![no_std]` crate for parsing AT commands ([Hayes command set](https://en.wikipedia.org/wiki/Hayes_command_set))
 
-A driver support crate for AT-command based serial modules, using the [embedded-hal] traits.
-
-[embedded-hal]: https://crates.io/crates/embedded-hal
+A driver support crate for AT-command based serial modules.
 
 ## AT Best practices
 
