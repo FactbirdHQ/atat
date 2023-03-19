@@ -91,14 +91,14 @@ impl<
     > Buffers<Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     #[cfg(feature = "async")]
-    pub fn split<'a, W: embedded_io::asynch::Write, D: Digester>(
-        &'a self,
+    pub fn split<W: embedded_io::asynch::Write, D: Digester>(
+        &self,
         writer: W,
         digester: D,
         config: Config,
     ) -> (
-        Ingress<'a, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>,
-        crate::asynch::Client<'a, W, INGRESS_BUF_SIZE, RES_CAPACITY>,
+        Ingress<D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>,
+        crate::asynch::Client<W, INGRESS_BUF_SIZE, RES_CAPACITY>,
     ) {
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
 
@@ -108,14 +108,14 @@ impl<
         )
     }
 
-    pub fn split_blocking<'a, W: Write, D: Digester>(
-        &'a self,
+    pub fn split_blocking<W: Write, D: Digester>(
+        &self,
         writer: W,
         digester: D,
         config: Config,
     ) -> (
-        Ingress<'a, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>,
-        crate::blocking::Client<'a, W, INGRESS_BUF_SIZE, RES_CAPACITY>,
+        Ingress<D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>,
+        crate::blocking::Client<W, INGRESS_BUF_SIZE, RES_CAPACITY>,
     ) {
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
 
@@ -132,7 +132,7 @@ mod tests {
     fn show_why_we_need_two_times_bbqueue_capacity() {
         // If this test starts to fail in the future, then it may be because
         // bbqueue has relaxed its granting strategy, in which case the
-        // buffer size safety checks should be revisisted.
+        // buffer size safety checks should be revisited.
 
         let buffer = bbqueue::BBBuffer::<16>::new();
         let (mut producer, mut consumer) = buffer.try_split().unwrap();

@@ -4,14 +4,14 @@
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
 #![allow(unstable_features)]
-#![feature(generic_const_exprs)]
-// Can't have unstable features + !warnings
+// Can't have unstable (incomplete) features + !warnings
 // #![deny(warnings)]
 #![allow(deprecated)]
 #![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_const_for_fn)]
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
+#![cfg_attr(feature = "hex_str_arrays", feature(generic_const_exprs))]
 
 pub mod de;
 pub mod ser;
