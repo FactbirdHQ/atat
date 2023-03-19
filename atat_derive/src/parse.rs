@@ -25,7 +25,6 @@ pub struct CmdAttributes {
     pub value_sep: bool,
     pub cmd_prefix: String,
     pub termination: String,
-    // pub quote_escape_strings: Option<bool>,
     pub quote_escape_strings: bool,
 }
 /// Parsed attributes of `#[at_arg(..)]`
