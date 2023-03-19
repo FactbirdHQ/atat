@@ -109,21 +109,21 @@ impl<'a> From<Frame<'a>> for Response<'a> {
     }
 }
 
-pub(crate) trait FrameProducerExt<'a> {
-    fn try_enqueue(&mut self, frame: Frame<'a>) -> Result<(), ()>;
+pub(crate) trait FrameProducerExt {
+    fn try_enqueue<'a>(&mut self, frame: Frame<'a>) -> Result<(), Frame<'a>>;
 
     #[cfg(feature = "async")]
-    async fn enqueue(&mut self, frame: Frame<'a>);
+    async fn enqueue(&mut self, frame: Frame<'_>);
 }
 
-impl<const N: usize> FrameProducerExt<'_> for FrameProducer<'_, N> {
-    fn try_enqueue(&mut self, frame: Frame<'_>) -> Result<(), ()> {
+impl<const N: usize> FrameProducerExt for FrameProducer<'_, N> {
+    fn try_enqueue<'a>(&mut self, frame: Frame<'a>) -> Result<(), Frame<'a>> {
         if let Ok(mut grant) = self.grant(frame.max_len()) {
             let len = frame.encode(grant.as_mut());
             grant.commit(len);
             Ok(())
         } else {
-            Err(())
+            Err(frame)
         }
     }
 

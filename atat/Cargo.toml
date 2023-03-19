@@ -31,7 +31,8 @@ bincode = { version = "2.0.0-rc.2", default-features = false, features = [
 ] }
 embedded-io = "0.4"
 futures = { version = "0.3", default-features = false, optional = true }
-embassy-time = "0.1.0"
+embassy-sync = "0.1"
+embassy-time = "0.1"
 heapless = { version = "^0.7", features = ["serde"] }
 # bbqueue = "0.5"
 bbqueue = { git = "https://github.com/jamesmunns/bbqueue", rev = "refs/pull/95/head" }

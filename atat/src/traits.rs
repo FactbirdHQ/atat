@@ -17,7 +17,7 @@ pub trait AtatResp {}
 
 pub trait AtatUrc {
     /// The type of the response. Usually the enum this trait is implemented on.
-    type Response;
+    type Response: Clone;
 
     /// Parse the response into a `Self::Response` instance.
     fn parse(resp: &[u8]) -> Option<Self::Response>;

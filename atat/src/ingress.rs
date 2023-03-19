@@ -1,7 +1,8 @@
 use crate::{
     frame::{Frame, FrameProducerExt},
     helpers::LossyStr,
-    DigestResult, Digester,
+    urchannel::UrcPublisher,
+    AtatUrc, DigestResult, Digester,
 };
 use bbqueue::framed::FrameProducer;
 
@@ -9,7 +10,7 @@ use bbqueue::framed::FrameProducer;
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     ResponseQueueFull,
-    UrcQueueFull,
+    UrcChannelFull,
 }
 
 pub trait AtatIngress {
@@ -62,46 +63,53 @@ pub trait AtatIngress {
 pub struct Ingress<
     'a,
     D: Digester,
+    Urc: AtatUrc,
     const INGRESS_BUF_SIZE: usize,
     const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
+    const URC_SUBSCRIBERS: usize,
 > {
     digester: D,
     buf: [u8; INGRESS_BUF_SIZE],
     pos: usize,
     res_writer: FrameProducer<'a, RES_CAPACITY>,
-    urc_writer: FrameProducer<'a, URC_CAPACITY>,
+    urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
 
 impl<
         'a,
         D: Digester,
+        Urc: AtatUrc,
         const INGRESS_BUF_SIZE: usize,
         const RES_CAPACITY: usize,
         const URC_CAPACITY: usize,
-    > Ingress<'a, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>
+        const URC_SUBSCRIBERS: usize,
+    > Ingress<'a, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
 {
-    pub(crate) fn new(
+    pub fn new(
         digester: D,
         res_writer: FrameProducer<'a, RES_CAPACITY>,
-        urc_writer: FrameProducer<'a, URC_CAPACITY>,
+        urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) -> Self {
         Self {
             digester,
             buf: [0; INGRESS_BUF_SIZE],
             pos: 0,
             res_writer,
-            urc_writer,
+            urc_publisher,
         }
     }
 }
 
 impl<
         D: Digester,
+        Urc: AtatUrc,
         const INGRESS_BUF_SIZE: usize,
         const RES_CAPACITY: usize,
         const URC_CAPACITY: usize,
-    > AtatIngress for Ingress<'_, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>
+        const URC_SUBSCRIBERS: usize,
+    > AtatIngress
+    for Ingress<'_, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     fn write_buf(&mut self) -> &mut [u8] {
         &mut self.buf[self.pos..]
@@ -113,35 +121,63 @@ impl<
 
         while self.pos > 0 {
             let swallowed = match self.digester.digest(&self.buf[..self.pos]) {
-                (DigestResult::None, used) => used,
+                (DigestResult::None, swallowed) => {
+                    if swallowed > 0 {
+                        debug!(
+                            "Received echo ({}/{}): {:?}",
+                            swallowed,
+                            self.pos,
+                            LossyStr(&self.buf[..self.pos])
+                        );
+                    }
+
+                    swallowed
+                }
                 (DigestResult::Prompt(prompt), swallowed) => {
+                    debug!("Received prompt ({}/{})", swallowed, self.pos);
+
                     self.res_writer
                         .try_enqueue(Frame::Prompt(prompt))
                         .map_err(|_| Error::ResponseQueueFull)?;
-                    debug!("Received prompt");
                     swallowed
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
-                    let mut grant = self
-                        .urc_writer
-                        .grant(urc_line.len())
-                        .map_err(|_| Error::UrcQueueFull)?;
-                    debug!("Received URC: {:?}", LossyStr(urc_line));
-                    grant.copy_from_slice(urc_line);
-                    grant.commit(urc_line.len());
+                    if let Some(urc) = Urc::parse(urc_line) {
+                        debug!(
+                            "Received URC/{} ({}/{}): {:?}",
+                            self.urc_publisher.space(),
+                            swallowed,
+                            self.pos,
+                            LossyStr(urc_line)
+                        );
+
+                        self.urc_publisher
+                            .try_publish(urc)
+                            .map_err(|_| Error::UrcChannelFull)?;
+                    } else {
+                        error!("Parsing URC FAILED: {:?}", LossyStr(urc_line));
+                    }
                     swallowed
                 }
                 (DigestResult::Response(resp), swallowed) => {
                     match &resp {
                         Ok(r) => {
                             if r.is_empty() {
-                                debug!("Received OK")
+                                debug!("Received OK ({}/{})", swallowed, self.pos,)
                             } else {
-                                debug!("Received response: {:?}", LossyStr(r));
+                                debug!(
+                                    "Received response ({}/{}): {:?}",
+                                    swallowed,
+                                    self.pos,
+                                    LossyStr(r)
+                                );
                             }
                         }
                         Err(e) => {
-                            warn!("Received error response {:?}", e);
+                            warn!(
+                                "Received error response ({}/{}): {:?}",
+                                swallowed, self.pos, e
+                            );
                         }
                     }
 
@@ -170,34 +206,69 @@ impl<
 
         while self.pos > 0 {
             let swallowed = match self.digester.digest(&self.buf[..self.pos]) {
-                (DigestResult::None, used) => used,
+                (DigestResult::None, swallowed) => {
+                    if swallowed > 0 {
+                        debug!(
+                            "Received echo ({}/{}): {:?}",
+                            swallowed,
+                            self.pos,
+                            LossyStr(&self.buf[..self.pos])
+                        );
+                    }
+
+                    swallowed
+                }
                 (DigestResult::Prompt(prompt), swallowed) => {
-                    self.res_writer.enqueue(Frame::Prompt(prompt)).await;
-                    debug!("Received prompt");
+                    debug!("Received prompt ({}/{})", swallowed, self.pos);
+
+                    if let Err(frame) = self.res_writer.try_enqueue(Frame::Prompt(prompt)) {
+                        self.res_writer.enqueue(frame).await;
+                    }
                     swallowed
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
-                    let mut grant = self.urc_writer.grant_async(urc_line.len()).await.unwrap();
-                    debug!("Received URC: {:?}", LossyStr(urc_line));
-                    grant.copy_from_slice(urc_line);
-                    grant.commit(urc_line.len());
+                    if let Some(urc) = Urc::parse(urc_line) {
+                        debug!(
+                            "Received URC/{} ({}/{}): {:?}",
+                            self.urc_publisher.space(),
+                            swallowed,
+                            self.pos,
+                            LossyStr(urc_line)
+                        );
+
+                        if let Err(urc) = self.urc_publisher.try_publish(urc) {
+                            self.urc_publisher.publish(urc).await;
+                        }
+                    } else {
+                        error!("Parsing URC FAILED: {:?}", LossyStr(urc_line));
+                    }
                     swallowed
                 }
                 (DigestResult::Response(resp), swallowed) => {
                     match &resp {
                         Ok(r) => {
                             if r.is_empty() {
-                                debug!("Received OK")
+                                debug!("Received OK ({}/{})", swallowed, self.pos,)
                             } else {
-                                debug!("Received response: {:?}", LossyStr(r));
+                                debug!(
+                                    "Received response ({}/{}): {:?}",
+                                    swallowed,
+                                    self.pos,
+                                    LossyStr(r)
+                                );
                             }
                         }
                         Err(e) => {
-                            warn!("Received error response {:?}", e);
+                            warn!(
+                                "Received error response ({}/{}): {:?}",
+                                swallowed, self.pos, e
+                            );
                         }
                     }
 
-                    self.res_writer.enqueue(resp.into()).await;
+                    if let Err(frame) = self.res_writer.try_enqueue(resp.into()) {
+                        self.res_writer.enqueue(frame).await;
+                    }
                     swallowed
                 }
             };
@@ -209,5 +280,45 @@ impl<
             self.buf.copy_within(swallowed..self.pos, 0);
             self.pos -= swallowed;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bbqueue::BBBuffer;
+
+    use crate::{self as atat, atat_derive::AtatUrc, AtDigester, AtatUrcChannel, UrcChannel};
+
+    use super::*;
+
+    #[derive(AtatUrc, Clone, PartialEq, Debug)]
+    enum Urc {
+        #[at_urc(b"CONNECT OK")]
+        ConnectOk,
+        #[at_urc(b"CONNECT FAIL")]
+        ConnectFail,
+    }
+
+    #[test]
+    fn advance_can_processes_multiple_digest_results() {
+        let buffer = BBBuffer::<100>::new();
+        let (producer, mut consumer) = buffer.try_split_framed().unwrap();
+        let channel = UrcChannel::<Urc, 10, 1>::new();
+        let mut ingress: Ingress<_, Urc, 100, 100, 10, 1> =
+            Ingress::new(AtDigester::<Urc>::new(), producer, channel.publisher());
+
+        let mut sub = channel.subscribe().unwrap();
+
+        let buf = ingress.write_buf();
+        let data = b"\r\nCONNECT OK\r\n\r\nCONNECT FAIL\r\n\r\nOK\r\n";
+        buf[..data.len()].copy_from_slice(data);
+        ingress.try_advance(data.len()).unwrap();
+
+        assert_eq!(Urc::ConnectOk, sub.try_next_message_pure().unwrap());
+        assert_eq!(Urc::ConnectFail, sub.try_next_message_pure().unwrap());
+
+        let grant = consumer.read().unwrap();
+        assert_eq!(Frame::Response(&[]), Frame::decode(&grant));
+        grant.release();
     }
 }

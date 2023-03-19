@@ -2,47 +2,39 @@ use bbqueue::framed::FrameConsumer;
 use embassy_time::Duration;
 use embedded_io::blocking::Write;
 
-use super::timer::Timer;
-use super::AtatClient;
-use crate::error::{Error, Response};
-use crate::frame::Frame;
-use crate::helpers::LossyStr;
-use crate::AtatCmd;
-use crate::{AtatUrc, Config};
+use super::{timer::Timer, AtatClient};
+use crate::{frame::Frame, helpers::LossyStr, AtatCmd, Config, Error, Response};
 
 /// Client responsible for handling send, receive and timeout from the
 /// userfacing side. The client is decoupled from the ingress-manager through
 /// some spsc queue consumers, where any received responses can be dequeued. The
 /// Client also has an spsc producer, to allow signaling commands like
 /// `reset` to the ingress-manager.
-pub struct Client<'a, W, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
+pub struct Client<'a, W, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize>
 where
     W: Write,
 {
     writer: W,
 
     res_reader: FrameConsumer<'a, RES_CAPACITY>,
-    urc_reader: FrameConsumer<'a, URC_CAPACITY>,
 
     cooldown_timer: Option<Timer>,
     config: Config,
 }
 
-impl<'a, W, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    Client<'a, W, RES_CAPACITY, URC_CAPACITY>
+impl<'a, W, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize>
+    Client<'a, W, INGRESS_BUF_SIZE, RES_CAPACITY>
 where
     W: Write,
 {
     pub(crate) fn new(
         writer: W,
         res_reader: FrameConsumer<'a, RES_CAPACITY>,
-        urc_reader: FrameConsumer<'a, URC_CAPACITY>,
         config: Config,
     ) -> Self {
         Self {
             writer,
             res_reader,
-            urc_reader,
             cooldown_timer: None,
             config,
         }
@@ -59,8 +51,8 @@ where
     }
 }
 
-impl<W, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
-    for Client<'_, W, RES_CAPACITY, URC_CAPACITY>
+impl<W, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize> AtatClient
+    for Client<'_, W, INGRESS_BUF_SIZE, RES_CAPACITY>
 where
     W: Write,
 {
@@ -107,30 +99,8 @@ where
         response
     }
 
-    fn try_read_urc_with<Urc: AtatUrc, F: for<'b> FnOnce(Urc::Response, &'b [u8]) -> bool>(
-        &mut self,
-        handle: F,
-    ) -> bool {
-        if let Some(urc_grant) = self.urc_reader.read() {
-            self.start_cooldown_timer();
-            if let Some(urc) = Urc::parse(&urc_grant) {
-                if handle(urc, &urc_grant) {
-                    urc_grant.release();
-                    return true;
-                }
-            } else {
-                error!("Parsing URC FAILED: {:?}", LossyStr(&urc_grant));
-                urc_grant.release();
-            }
-        }
-
-        false
-    }
-
-    fn max_urc_len() -> usize {
-        // bbqueue can only guarantee grant sizes of half its capacity if the queue is empty.
-        // A _frame_ grant returned by bbqueue has a header. Assume that it is 2 bytes.
-        (URC_CAPACITY / 2) - 2
+    fn max_response_len() -> usize {
+        INGRESS_BUF_SIZE
     }
 }
 
@@ -146,7 +116,6 @@ mod test {
 
     const TEST_RX_BUF_LEN: usize = 256;
     const TEST_RES_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
-    const TEST_URC_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
 
     #[derive(Debug)]
     pub struct IoError;
@@ -308,19 +277,16 @@ mod test {
             static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer::new();
             let (res_p, res_c) = unsafe { RES_Q.try_split_framed().unwrap() };
 
-            static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer::new();
-            let (urc_p, urc_c) = unsafe { URC_Q.try_split_framed().unwrap() };
-
             let tx_mock = TxMock::new(String::new());
-            let client: Client<TxMock, TEST_RES_CAPACITY, TEST_URC_CAPACITY> =
-                Client::new(tx_mock, res_c, urc_c, $config);
-            (client, res_p, urc_p)
+            let client: Client<TxMock, TEST_RX_BUF_LEN, TEST_RES_CAPACITY> =
+                Client::new(tx_mock, res_c, $config);
+            (client, res_p)
         }};
     }
 
     #[test]
     fn error_response() {
-        let (mut client, mut p, _) = setup!(Config::new());
+        let (mut client, mut p) = setup!(Config::new());
 
         let cmd = ErrorTester { x: 7 };
 
@@ -331,7 +297,7 @@ mod test {
 
     #[test]
     fn generic_error_response() {
-        let (mut client, mut p, _) = setup!(Config::new());
+        let (mut client, mut p) = setup!(Config::new());
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
@@ -345,7 +311,7 @@ mod test {
 
     #[test]
     fn string_sent() {
-        let (mut client, mut p, _) = setup!(Config::new());
+        let (mut client, mut p) = setup!(Config::new());
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
@@ -379,7 +345,7 @@ mod test {
 
     #[test]
     fn blocking() {
-        let (mut client, mut p, _) = setup!(Config::new());
+        let (mut client, mut p) = setup!(Config::new());
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
@@ -395,7 +361,7 @@ mod test {
     // Test response containing string
     #[test]
     fn response_string() {
-        let (mut client, mut p, _) = setup!(Config::new());
+        let (mut client, mut p) = setup!(Config::new());
 
         // String last
         let cmd = TestRespStringCmd {
@@ -435,34 +401,8 @@ mod test {
     }
 
     #[test]
-    fn urc() {
-        let (mut client, _, mut urc_p) = setup!(Config::new());
-
-        let response = b"+UMWI: 0, 1";
-
-        let mut grant = urc_p.grant(response.len()).unwrap();
-        grant.copy_from_slice(response.as_ref());
-        grant.commit(response.len());
-
-        assert!(client.try_read_urc::<Urc>().is_some());
-    }
-
-    #[test]
-    fn urc_keyword() {
-        let (mut client, _, mut urc_p) = setup!(Config::new());
-
-        let response = b"CONNECT OK";
-
-        let mut grant = urc_p.grant(response.len()).unwrap();
-        grant.copy_from_slice(response.as_ref());
-        grant.commit(response.len());
-
-        assert_eq!(Urc::ConnectOk, client.try_read_urc::<Urc>().unwrap());
-    }
-
-    #[test]
     fn invalid_response() {
-        let (mut client, mut p, _) = setup!(Config::new());
+        let (mut client, mut p) = setup!(Config::new());
 
         // String last
         let cmd = TestRespStringCmd {
@@ -479,7 +419,7 @@ mod test {
     // #[test]
     // fn tx_timeout() {
     //     let timeout = Duration::from_millis(20);
-    //     let (mut client, mut p, _) = setup!(Config::new().tx_timeout(1));
+    //     let (mut client, mut p) = setup!(Config::new().tx_timeout(1));
 
     //     let cmd = SetModuleFunctionality {
     //         fun: Functionality::APM,
@@ -494,7 +434,7 @@ mod test {
     // #[test]
     // fn flush_timeout() {
     //     let timeout = Duration::from_millis(20);
-    //     let (mut client, mut p, _) = setup!(Config::new().flush_timeout(1));
+    //     let (mut client, mut p) = setup!(Config::new().flush_timeout(1));
 
     //     let cmd = SetModuleFunctionality {
     //         fun: Functionality::APM,
