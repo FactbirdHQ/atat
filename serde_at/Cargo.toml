@@ -25,7 +25,7 @@ heapless-bytes = { version = "0.3.0" }
 serde_bytes = { version = "0.11.5", default-features = false }
 
 [features]
-default = ["hex_str_arrays"]
+default = []
 custom-error-messages = []
 std = []
 hex_str_arrays = []
