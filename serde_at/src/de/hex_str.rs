@@ -25,7 +25,6 @@ pub struct HexStr<T> {
     pub delimiter_after_nibble_count: usize,
     /// Split every n amount of nibbles with this delimiter
     pub delimiter: char,
-    #[cfg(feature = "hex_str_arrays")]
     /// Skip last 0 values. Whether or not to include 0 values
     pub skip_last_0_values: bool,
 }
@@ -41,8 +40,7 @@ where
             hex_in_caps: true,
             delimiter_after_nibble_count: 0,
             delimiter: ' ',
-            #[cfg(feature = "hex_str_arrays")]
-            skip_last_0_values: false,
+            skip_last_0_values: true,
         }
     }
 }

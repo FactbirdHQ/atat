@@ -575,7 +575,6 @@ mod tests {
                 add_0x_with_encoding: true,
                 delimiter: ' ',
                 delimiter_after_nibble_count: 0,
-                #[cfg(feature = "hex_str_arrays")]
                 skip_last_0_values: false,
             },
             val_no_0x_caps: HexStr {
@@ -584,7 +583,6 @@ mod tests {
                 add_0x_with_encoding: false,
                 delimiter: ' ',
                 delimiter_after_nibble_count: 0,
-                #[cfg(feature = "hex_str_arrays")]
                 skip_last_0_values: false,
             },
             val_0x_small_case: HexStr {
@@ -593,7 +591,6 @@ mod tests {
                 add_0x_with_encoding: true,
                 delimiter: ' ',
                 delimiter_after_nibble_count: 0,
-                #[cfg(feature = "hex_str_arrays")]
                 skip_last_0_values: false,
             },
             val_no_0x_small_case: HexStr {
@@ -602,7 +599,6 @@ mod tests {
                 add_0x_with_encoding: false,
                 delimiter: ' ',
                 delimiter_after_nibble_count: 0,
-                #[cfg(feature = "hex_str_arrays")]
                 skip_last_0_values: false,
             },
             val_0x_caps_delimiter: HexStr {
@@ -611,7 +607,6 @@ mod tests {
                 add_0x_with_encoding: true,
                 delimiter: ':',
                 delimiter_after_nibble_count: 1,
-                #[cfg(feature = "hex_str_arrays")]
                 skip_last_0_values: false,
             },
             val_no_0x_caps_delimiter: HexStr {
@@ -620,7 +615,6 @@ mod tests {
                 add_0x_with_encoding: false,
                 delimiter: '-',
                 delimiter_after_nibble_count: 2,
-                #[cfg(feature = "hex_str_arrays")]
                 skip_last_0_values: false,
             },
             val_0x_small_case_delimiter: HexStr {
@@ -629,7 +623,6 @@ mod tests {
                 add_0x_with_encoding: true,
                 delimiter: ':',
                 delimiter_after_nibble_count: 1,
-                #[cfg(feature = "hex_str_arrays")]
                 skip_last_0_values: false,
             },
             val_no_0x_small_case_delimiter: HexStr {
@@ -638,8 +631,85 @@ mod tests {
                 add_0x_with_encoding: false,
                 delimiter: '-',
                 delimiter_after_nibble_count: 2,
-                #[cfg(feature = "hex_str_arrays")]
                 skip_last_0_values: false,
+            },
+        };
+        let options = SerializeOptions {
+            quote_escape_strings: false,
+            ..Default::default()
+        };
+        let s: String<600> = to_string(&params, "+CMD", options).unwrap();
+        assert_eq!(
+            s,
+            String::<600>::from(
+                "AT+CMD=0x0000FF00,000055AA,0x000000ff,0000aa55,0x0:0:0:0:F:F:0:0,00-00-55-AA,0x0:0:0:0:0:0:f:f,00-00-00-00-aa-55-00-ff\r\n"
+            )
+        );
+
+        let params = WithHexStr {
+            val_0x_caps: HexStr {
+                val: 0xFF00,
+                hex_in_caps: true,
+                add_0x_with_encoding: true,
+                delimiter: ' ',
+                delimiter_after_nibble_count: 0,
+                skip_last_0_values: true,
+            },
+            val_no_0x_caps: HexStr {
+                val: 0x55AA,
+                hex_in_caps: true,
+                add_0x_with_encoding: false,
+                delimiter: ' ',
+                delimiter_after_nibble_count: 0,
+                skip_last_0_values: true,
+            },
+            val_0x_small_case: HexStr {
+                val: 0x00FF,
+                hex_in_caps: false,
+                add_0x_with_encoding: true,
+                delimiter: ' ',
+                delimiter_after_nibble_count: 0,
+                skip_last_0_values: true,
+            },
+            val_no_0x_small_case: HexStr {
+                val: 0xAA55,
+                hex_in_caps: false,
+                add_0x_with_encoding: false,
+                delimiter: ' ',
+                delimiter_after_nibble_count: 0,
+                skip_last_0_values: true,
+            },
+            val_0x_caps_delimiter: HexStr {
+                val: 0xFF00,
+                hex_in_caps: true,
+                add_0x_with_encoding: true,
+                delimiter: ':',
+                delimiter_after_nibble_count: 1,
+                skip_last_0_values: true,
+            },
+            val_no_0x_caps_delimiter: HexStr {
+                val: 0x55AA,
+                hex_in_caps: true,
+                add_0x_with_encoding: false,
+                delimiter: '-',
+                delimiter_after_nibble_count: 2,
+                skip_last_0_values: true,
+            },
+            val_0x_small_case_delimiter: HexStr {
+                val: 0x00FF,
+                hex_in_caps: false,
+                add_0x_with_encoding: true,
+                delimiter: ':',
+                delimiter_after_nibble_count: 1,
+                skip_last_0_values: true,
+            },
+            val_no_0x_small_case_delimiter: HexStr {
+                val: 0xAA5500FF,
+                hex_in_caps: false,
+                add_0x_with_encoding: false,
+                delimiter: '-',
+                delimiter_after_nibble_count: 2,
+                skip_last_0_values: true,
             },
         };
         let options = SerializeOptions {

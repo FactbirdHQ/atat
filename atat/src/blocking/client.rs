@@ -71,7 +71,7 @@ where
         }
 
         self.writer
-            .write_all(&cmd_slice)
+            .write_all(cmd_slice)
             .map_err(|_e| Error::Write)?;
         self.writer.flush().map_err(|_e| Error::Write)?;
 
