@@ -26,6 +26,24 @@ pub trait AtatIngress {
     async fn advance(&mut self, commit: usize);
 
     /// Write a buffer to the ingress
+    fn try_write(&mut self, buf: &[u8]) -> Result<usize, Error> {
+        let mut buf = buf;
+        let mut written = 0;
+        while !buf.is_empty() {
+            let ingress_buf = self.write_buf();
+            if ingress_buf.is_empty() {
+                return Ok(written);
+            }
+            let len = usize::min(buf.len(), ingress_buf.len());
+            ingress_buf[..len].copy_from_slice(&buf[..len]);
+            self.try_advance(len)?;
+            buf = &buf[len..];
+            written += len;
+        }
+        Ok(written)
+    }
+
+    /// Write a buffer to the ingress
     #[cfg(feature = "async")]
     async fn write(&mut self, buf: &[u8]) {
         let mut buf = buf;
