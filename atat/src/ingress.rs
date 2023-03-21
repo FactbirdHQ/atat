@@ -1,10 +1,9 @@
 use crate::{
-    frame::{Frame, FrameProducerExt},
     helpers::LossyStr,
+    reschannel::{ResMessage, ResPublisher},
     urchannel::UrcPublisher,
     AtatUrc, DigestResult, Digester,
 };
-use bbqueue::framed::FrameProducer;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -65,14 +64,13 @@ pub struct Ingress<
     D: Digester,
     Urc: AtatUrc,
     const INGRESS_BUF_SIZE: usize,
-    const RES_CAPACITY: usize,
     const URC_CAPACITY: usize,
     const URC_SUBSCRIBERS: usize,
 > {
     digester: D,
     buf: [u8; INGRESS_BUF_SIZE],
     pos: usize,
-    res_writer: FrameProducer<'a, RES_CAPACITY>,
+    res_publisher: ResPublisher<'a, INGRESS_BUF_SIZE>,
     urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
 
@@ -81,21 +79,20 @@ impl<
         D: Digester,
         Urc: AtatUrc,
         const INGRESS_BUF_SIZE: usize,
-        const RES_CAPACITY: usize,
         const URC_CAPACITY: usize,
         const URC_SUBSCRIBERS: usize,
-    > Ingress<'a, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
+    > Ingress<'a, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     pub fn new(
         digester: D,
-        res_writer: FrameProducer<'a, RES_CAPACITY>,
+        res_publisher: ResPublisher<'a, INGRESS_BUF_SIZE>,
         urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) -> Self {
         Self {
             digester,
             buf: [0; INGRESS_BUF_SIZE],
             pos: 0,
-            res_writer,
+            res_publisher,
             urc_publisher,
         }
     }
@@ -105,11 +102,9 @@ impl<
         D: Digester,
         Urc: AtatUrc,
         const INGRESS_BUF_SIZE: usize,
-        const RES_CAPACITY: usize,
         const URC_CAPACITY: usize,
         const URC_SUBSCRIBERS: usize,
-    > AtatIngress
-    for Ingress<'_, D, Urc, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY, URC_SUBSCRIBERS>
+    > AtatIngress for Ingress<'_, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     fn write_buf(&mut self) -> &mut [u8] {
         &mut self.buf[self.pos..]
@@ -124,7 +119,7 @@ impl<
                 (DigestResult::None, swallowed) => {
                     if swallowed > 0 {
                         debug!(
-                            "Received echo ({}/{}): {:?}",
+                            "Received echo or whitespace ({}/{}): {:?}",
                             swallowed,
                             self.pos,
                             LossyStr(&self.buf[..self.pos])
@@ -136,8 +131,8 @@ impl<
                 (DigestResult::Prompt(prompt), swallowed) => {
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
-                    self.res_writer
-                        .try_enqueue(Frame::Prompt(prompt))
+                    self.res_publisher
+                        .try_publish(ResMessage::Prompt(prompt))
                         .map_err(|_| Error::ResponseQueueFull)?;
                     swallowed
                 }
@@ -181,8 +176,8 @@ impl<
                         }
                     }
 
-                    self.res_writer
-                        .try_enqueue(resp.into())
+                    self.res_publisher
+                        .try_publish(resp.into())
                         .map_err(|_| Error::ResponseQueueFull)?;
                     swallowed
                 }
@@ -209,7 +204,7 @@ impl<
                 (DigestResult::None, swallowed) => {
                     if swallowed > 0 {
                         debug!(
-                            "Received echo ({}/{}): {:?}",
+                            "Received echo or whitespace ({}/{}): {:?}",
                             swallowed,
                             self.pos,
                             LossyStr(&self.buf[..self.pos])
@@ -221,8 +216,8 @@ impl<
                 (DigestResult::Prompt(prompt), swallowed) => {
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
-                    if let Err(frame) = self.res_writer.try_enqueue(Frame::Prompt(prompt)) {
-                        self.res_writer.enqueue(frame).await;
+                    if let Err(frame) = self.res_publisher.try_publish(ResMessage::Prompt(prompt)) {
+                        self.res_publisher.publish(frame).await;
                     }
                     swallowed
                 }
@@ -266,8 +261,8 @@ impl<
                         }
                     }
 
-                    if let Err(frame) = self.res_writer.try_enqueue(resp.into()) {
-                        self.res_writer.enqueue(frame).await;
+                    if let Err(frame) = self.res_publisher.try_publish(resp.into()) {
+                        self.res_publisher.publish(frame).await;
                     }
                     swallowed
                 }
@@ -285,9 +280,10 @@ impl<
 
 #[cfg(test)]
 mod tests {
-    use bbqueue::BBBuffer;
-
-    use crate::{self as atat, atat_derive::AtatUrc, AtDigester, AtatUrcChannel, UrcChannel};
+    use crate::{
+        self as atat, atat_derive::AtatUrc, reschannel::ResChannel, AtDigester, AtatUrcChannel,
+        UrcChannel,
+    };
 
     use super::*;
 
@@ -301,13 +297,16 @@ mod tests {
 
     #[test]
     fn advance_can_processes_multiple_digest_results() {
-        let buffer = BBBuffer::<100>::new();
-        let (producer, mut consumer) = buffer.try_split_framed().unwrap();
-        let channel = UrcChannel::<Urc, 10, 1>::new();
-        let mut ingress: Ingress<_, Urc, 100, 100, 10, 1> =
-            Ingress::new(AtDigester::<Urc>::new(), producer, channel.publisher());
+        let res_channel = ResChannel::<100>::new();
+        let mut res_subscription = res_channel.subscriber().unwrap();
+        let urc_channel = UrcChannel::<Urc, 10, 1>::new();
+        let mut ingress: Ingress<_, Urc, 100, 10, 1> = Ingress::new(
+            AtDigester::<Urc>::new(),
+            res_channel.publisher().unwrap(),
+            urc_channel.publisher(),
+        );
 
-        let mut sub = channel.subscribe().unwrap();
+        let mut sub = urc_channel.subscribe().unwrap();
 
         let buf = ingress.write_buf();
         let data = b"\r\nCONNECT OK\r\n\r\nCONNECT FAIL\r\n\r\nOK\r\n";
@@ -317,8 +316,7 @@ mod tests {
         assert_eq!(Urc::ConnectOk, sub.try_next_message_pure().unwrap());
         assert_eq!(Urc::ConnectFail, sub.try_next_message_pure().unwrap());
 
-        let grant = consumer.read().unwrap();
-        assert_eq!(Frame::Response(&[]), Frame::decode(&grant));
-        grant.release();
+        let frame = res_subscription.try_next_message_pure().unwrap();
+        assert_eq!(ResMessage::empty_response(), frame);
     }
 }

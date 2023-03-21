@@ -1,40 +1,36 @@
-use bbqueue::framed::FrameConsumer;
 use embassy_time::Duration;
 use embedded_io::blocking::Write;
 
 use super::{timer::Timer, AtatClient};
-use crate::{frame::Frame, helpers::LossyStr, AtatCmd, Config, Error, Response};
+use crate::{helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error, Response};
 
 /// Client responsible for handling send, receive and timeout from the
 /// userfacing side. The client is decoupled from the ingress-manager through
 /// some spsc queue consumers, where any received responses can be dequeued. The
 /// Client also has an spsc producer, to allow signaling commands like
 /// `reset` to the ingress-manager.
-pub struct Client<'a, W, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize>
+pub struct Client<'a, W, const INGRESS_BUF_SIZE: usize>
 where
     W: Write,
 {
     writer: W,
-
-    res_reader: FrameConsumer<'a, RES_CAPACITY>,
-
+    res_channel: &'a ResChannel<INGRESS_BUF_SIZE>,
     cooldown_timer: Option<Timer>,
     config: Config,
 }
 
-impl<'a, W, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize>
-    Client<'a, W, INGRESS_BUF_SIZE, RES_CAPACITY>
+impl<'a, W, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE>
 where
     W: Write,
 {
     pub(crate) fn new(
         writer: W,
-        res_reader: FrameConsumer<'a, RES_CAPACITY>,
+        res_channel: &'a ResChannel<INGRESS_BUF_SIZE>,
         config: Config,
     ) -> Self {
         Self {
             writer,
-            res_reader,
+            res_channel,
             cooldown_timer: None,
             config,
         }
@@ -51,8 +47,7 @@ where
     }
 }
 
-impl<W, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize> AtatClient
-    for Client<'_, W, INGRESS_BUF_SIZE, RES_CAPACITY>
+impl<W, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRESS_BUF_SIZE>
 where
     W: Write,
 {
@@ -70,6 +65,8 @@ where
             );
         }
 
+        let mut response_subscription = self.res_channel.subscriber().unwrap();
+
         self.writer
             .write_all(cmd_slice)
             .map_err(|_e| Error::Write)?;
@@ -82,11 +79,8 @@ where
         }
 
         let response = Timer::with_timeout(Duration::from_millis(A::MAX_TIMEOUT_MS.into()), || {
-            self.res_reader.read().map(|mut grant| {
-                grant.auto_release(true);
-
-                let frame = Frame::decode(grant.as_ref());
-                let resp = match Response::from(frame) {
+            response_subscription.try_next_message_pure().map(|frame| {
+                let resp = match Response::from(&frame) {
                     Response::Result(r) => r,
                     Response::Prompt(_) => Ok(&[] as &[u8]),
                 };
@@ -98,24 +92,19 @@ where
         self.start_cooldown_timer();
         response
     }
-
-    fn max_response_len() -> usize {
-        INGRESS_BUF_SIZE
-    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::frame::FrameProducerExt;
-
     use super::*;
     use crate::atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc};
+    use crate::reschannel::ResMessage;
     use crate::{self as atat, InternalError};
-    use bbqueue::BBBuffer;
+    use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+    use embassy_sync::pubsub::{PubSubChannel, Publisher};
     use heapless::String;
 
     const TEST_RX_BUF_LEN: usize = 256;
-    const TEST_RES_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
 
     #[derive(Debug)]
     pub struct IoError;
@@ -126,29 +115,35 @@ mod test {
         }
     }
 
-    struct TxMock {
-        s: String<64>,
+    struct TxMock<'a> {
+        buf: String<64>,
+        publisher: Publisher<'a, CriticalSectionRawMutex, String<64>, 1, 1, 1>,
     }
 
-    impl TxMock {
-        fn new(s: String<64>) -> Self {
-            TxMock { s }
+    impl<'a> TxMock<'a> {
+        fn new(publisher: Publisher<'a, CriticalSectionRawMutex, String<64>, 1, 1, 1>) -> Self {
+            TxMock {
+                buf: String::new(),
+                publisher,
+            }
         }
     }
 
-    impl embedded_io::Io for TxMock {
+    impl embedded_io::Io for TxMock<'_> {
         type Error = IoError;
     }
 
-    impl embedded_io::blocking::Write for TxMock {
+    impl embedded_io::blocking::Write for TxMock<'_> {
         fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
             for c in buf {
-                self.s.push(*c as char).map_err(|_| IoError)?;
+                self.buf.push(*c as char).map_err(|_| IoError)?;
             }
             Ok(buf.len())
         }
 
         fn flush(&mut self) -> Result<(), Self::Error> {
+            self.publisher.try_publish(self.buf.clone()).unwrap();
+            self.buf.clear();
             Ok(())
         }
     }
@@ -274,135 +269,181 @@ mod test {
 
     macro_rules! setup {
         ($config:expr) => {{
-            static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer::new();
-            let (res_p, res_c) = unsafe { RES_Q.try_split_framed().unwrap() };
+            static TX_CHANNEL: PubSubChannel<CriticalSectionRawMutex, String<64>, 1, 1, 1> =
+                PubSubChannel::new();
+            static RES_CHANNEL: ResChannel<TEST_RX_BUF_LEN> = ResChannel::new();
 
-            let tx_mock = TxMock::new(String::new());
-            let client: Client<TxMock, TEST_RX_BUF_LEN, TEST_RES_CAPACITY> =
-                Client::new(tx_mock, res_c, $config);
-            (client, res_p)
+            let tx_mock = TxMock::new(TX_CHANNEL.publisher().unwrap());
+            let client: Client<TxMock, TEST_RX_BUF_LEN> =
+                Client::new(tx_mock, &RES_CHANNEL, $config);
+            (
+                client,
+                TX_CHANNEL.subscriber().unwrap(),
+                RES_CHANNEL.publisher().unwrap(),
+            )
         }};
     }
 
-    #[test]
-    fn error_response() {
-        let (mut client, mut p) = setup!(Config::new());
+    #[tokio::test]
+    async fn error_response() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
         let cmd = ErrorTester { x: 7 };
 
-        p.try_enqueue(Err(InternalError::Error).into()).unwrap();
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            rx.try_publish(Err(InternalError::Error).into()).unwrap();
+        });
 
-        assert_eq!(client.send(&cmd), Err(Error::Error));
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(Err(Error::Error), client.send(&cmd));
+        })
+        .await
+        .unwrap();
+
+        sent.await.unwrap();
     }
 
-    #[test]
-    fn generic_error_response() {
-        let (mut client, mut p) = setup!(Config::new());
+    #[tokio::test]
+    async fn generic_error_response() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
 
-        p.try_enqueue(Err(InternalError::Error).into()).unwrap();
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            rx.try_publish(Err(InternalError::Error).into()).unwrap();
+        });
 
-        assert_eq!(client.send(&cmd), Err(Error::Error));
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(Err(Error::Error), client.send(&cmd));
+        })
+        .await
+        .unwrap();
+
+        sent.await.unwrap();
     }
 
-    #[test]
-    fn string_sent() {
-        let (mut client, mut p) = setup!(Config::new());
+    #[tokio::test]
+    async fn string_sent() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
-        let cmd = SetModuleFunctionality {
+        let cmd0 = SetModuleFunctionality {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
 
-        p.try_enqueue(Frame::Response(&[])).unwrap();
-
-        assert_eq!(client.send(&cmd), Ok(NoResponse));
-
-        assert_eq!(
-            client.writer.s,
-            String::<32>::from("AT+CFUN=4,0\r\n"),
-            "Wrong encoding of string"
-        );
-
-        p.try_enqueue(Frame::Response(&[])).unwrap();
-
-        let cmd = Test2Cmd {
+        let cmd1 = Test2Cmd {
             fun: Functionality::DM,
             rst: Some(ResetMode::Reset),
         };
-        assert_eq!(client.send(&cmd), Ok(NoResponse));
 
-        assert_eq!(
-            client.writer.s,
-            String::<32>::from("AT+CFUN=4,0\r\nAT+FUN=1,6\r\n"),
-            "Reverse order string did not match"
-        );
+        let sent = tokio::spawn(async move {
+            let sent0 = tx.next_message_pure().await;
+            rx.try_publish(ResMessage::empty_response()).unwrap();
+
+            let sent1 = tx.next_message_pure().await;
+            rx.try_publish(ResMessage::empty_response()).unwrap();
+
+            (sent0, sent1)
+        });
+
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(client.send(&cmd0), Ok(NoResponse));
+            assert_eq!(client.send(&cmd1), Ok(NoResponse));
+        })
+        .await
+        .unwrap();
+
+        let (sent0, sent1) = sent.await.unwrap();
+        assert_eq!("AT+CFUN=4,0\r\n", &sent0);
+        assert_eq!("AT+FUN=1,6\r\n", &sent1);
     }
 
-    #[test]
-    fn blocking() {
-        let (mut client, mut p) = setup!(Config::new());
+    #[tokio::test]
+    async fn blocking() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
 
-        p.try_enqueue(Frame::Response(&[])).unwrap();
+        let sent = tokio::spawn(async move {
+            let sent = tx.next_message_pure().await;
+            rx.try_publish(ResMessage::empty_response()).unwrap();
+            sent
+        });
 
-        assert_eq!(client.send(&cmd), Ok(NoResponse));
-        assert_eq!(client.writer.s, String::<32>::from("AT+CFUN=4,0\r\n"));
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(client.send(&cmd), Ok(NoResponse));
+        })
+        .await
+        .unwrap();
+
+        let sent = sent.await.unwrap();
+        assert_eq!("AT+CFUN=4,0\r\n", &sent);
     }
 
     // Test response containing string
-    #[test]
-    fn response_string() {
-        let (mut client, mut p) = setup!(Config::new());
+    #[tokio::test]
+    async fn response_string() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
         // String last
-        let cmd = TestRespStringCmd {
+        let cmd0 = TestRespStringCmd {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
-
-        let response = b"+CUN: 22,16,\"0123456789012345\"";
-        p.try_enqueue(Frame::Response(response)).unwrap();
-
-        assert_eq!(
-            client.send(&cmd),
-            Ok(TestResponseString {
-                socket: 22,
-                length: 16,
-                data: String::<64>::from("0123456789012345")
-            })
-        );
+        let response0 = b"+CUN: 22,16,\"0123456789012345\"";
 
         // Mixed order for string
-        let cmd = TestRespStringMixCmd {
+        let cmd1 = TestRespStringMixCmd {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
+        let response1 = b"+CUN: \"0123456789012345\",22,16";
 
-        let response = b"+CUN: \"0123456789012345\",22,16";
-        p.try_enqueue(Frame::Response(response)).unwrap();
+        let sent = tokio::spawn(async move {
+            let sent0 = tx.next_message_pure().await;
+            rx.try_publish(ResMessage::response(response0)).unwrap();
 
-        assert_eq!(
-            client.send(&cmd),
-            Ok(TestResponseStringMixed {
-                socket: 22,
-                length: 16,
-                data: String::<64>::from("0123456789012345")
-            })
-        );
+            let sent1 = tx.next_message_pure().await;
+            rx.try_publish(ResMessage::response(response1)).unwrap();
+
+            (sent0, sent1)
+        });
+
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(
+                Ok(TestResponseString {
+                    socket: 22,
+                    length: 16,
+                    data: String::<64>::from("0123456789012345")
+                }),
+                client.send(&cmd0),
+            );
+            assert_eq!(
+                Ok(TestResponseStringMixed {
+                    socket: 22,
+                    length: 16,
+                    data: String::<64>::from("0123456789012345")
+                }),
+                client.send(&cmd1),
+            );
+        })
+        .await
+        .unwrap();
+
+        sent.await.unwrap();
     }
 
-    #[test]
-    fn invalid_response() {
-        let (mut client, mut p) = setup!(Config::new());
+    #[tokio::test]
+    async fn invalid_response() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
         // String last
         let cmd = TestRespStringCmd {
@@ -410,10 +451,19 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let response = b"+CUN: 22,16,22";
-        p.try_enqueue(Frame::Response(response)).unwrap();
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            rx.try_publish(ResMessage::response(b"+CUN: 22,16,22"))
+                .unwrap();
+        });
 
-        assert_eq!(client.send(&cmd), Err(Error::Parse));
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(Err(Error::Parse), client.send(&cmd));
+        })
+        .await
+        .unwrap();
+
+        sent.await.unwrap();
     }
 
     // #[test]
@@ -426,7 +476,7 @@ mod test {
     //         rst: Some(ResetMode::DontReset),
     //     };
 
-    //     p.try_enqueue(Frame::Response(&[])).unwrap();
+    //     p.try_enqueue(Frame::empty_response()).unwrap();
 
     //     assert_eq!(client.send(&cmd), Err(Error::Timeout));
     // }
@@ -441,7 +491,7 @@ mod test {
     //         rst: Some(ResetMode::DontReset),
     //     };
 
-    //     p.try_enqueue(Frame::Response(&[])).unwrap();
+    //     p.try_enqueue(Frame::empty_response()).unwrap();
 
     //     assert_eq!(client.send(&cmd), Err(Error::Timeout));
     // }
