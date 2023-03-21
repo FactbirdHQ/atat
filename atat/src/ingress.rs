@@ -1,7 +1,6 @@
 use crate::{
-    frame::{Frame, ResPublisherExt},
     helpers::LossyStr,
-    reschannel::ResPublisher,
+    reschannel::{ResMessage, ResPublisher},
     urchannel::UrcPublisher,
     AtatUrc, DigestResult, Digester,
 };
@@ -133,7 +132,7 @@ impl<
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
                     self.res_publisher
-                        .try_publish_frame(Frame::Prompt(prompt))
+                        .try_publish(ResMessage::Prompt(prompt))
                         .map_err(|_| Error::ResponseQueueFull)?;
                     swallowed
                 }
@@ -178,7 +177,7 @@ impl<
                     }
 
                     self.res_publisher
-                        .try_publish_frame(resp.into())
+                        .try_publish(resp.into())
                         .map_err(|_| Error::ResponseQueueFull)?;
                     swallowed
                 }
@@ -217,9 +216,8 @@ impl<
                 (DigestResult::Prompt(prompt), swallowed) => {
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
-                    if let Err(frame) = self.res_publisher.try_publish_frame(Frame::Prompt(prompt))
-                    {
-                        self.res_publisher.publish_frame(frame).await;
+                    if let Err(frame) = self.res_publisher.try_publish(ResMessage::Prompt(prompt)) {
+                        self.res_publisher.publish(frame).await;
                     }
                     swallowed
                 }
@@ -263,8 +261,8 @@ impl<
                         }
                     }
 
-                    if let Err(frame) = self.res_publisher.try_publish_frame(resp.into()) {
-                        self.res_publisher.publish_frame(frame).await;
+                    if let Err(frame) = self.res_publisher.try_publish(resp.into()) {
+                        self.res_publisher.publish(frame).await;
                     }
                     swallowed
                 }
@@ -318,7 +316,7 @@ mod tests {
         assert_eq!(Urc::ConnectOk, sub.try_next_message_pure().unwrap());
         assert_eq!(Urc::ConnectFail, sub.try_next_message_pure().unwrap());
 
-        let message = res_subscription.try_next_message_pure().unwrap();
-        assert_eq!(Frame::Response(&[]), Frame::decode(&message));
+        let frame = res_subscription.try_next_message_pure().unwrap();
+        assert_eq!(ResMessage::empty_response(), frame);
     }
 }

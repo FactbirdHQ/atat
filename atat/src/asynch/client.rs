@@ -1,7 +1,5 @@
 use super::AtatClient;
-use crate::{
-    frame::Frame, helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error, Response,
-};
+use crate::{helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error, Response};
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_io::asynch::Write;
 
@@ -76,9 +74,8 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
         )
         .await
         {
-            Ok(message) => {
-                let frame = Frame::decode(&message);
-                let resp = match Response::from(frame) {
+            Ok(frame) => {
+                let resp = match Response::from(&frame) {
                     Response::Result(r) => r,
                     Response::Prompt(_) => Ok(&[][..]),
                 };

@@ -227,7 +227,6 @@ mod buffers;
 mod config;
 pub mod digest;
 mod error;
-mod frame;
 pub mod helpers;
 mod ingress;
 mod reschannel;
@@ -265,6 +264,7 @@ pub use config::Config;
 pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
 pub use error::{Error, InternalError, Response};
 pub use ingress::{AtatIngress, Ingress};
+pub use reschannel::{ResChannel, ResMessage, ResPublisher, ResSubscription};
 pub use traits::{AtatCmd, AtatResp, AtatUrc};
 pub use urchannel::{AtatUrcChannel, UrcChannel, UrcSubscription};
 
