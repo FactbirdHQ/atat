@@ -1,6 +1,6 @@
-use crate::{InternalError, Response};
-use bbqueue::framed::FrameProducer;
+use crate::{reschannel::ResPublisher, InternalError, Response};
 use bincode::{BorrowDecode, Encode};
+use heapless::Vec;
 
 #[derive(Debug, Clone, Copy, Encode, BorrowDecode, PartialEq)]
 pub enum Frame<'a> {
@@ -35,10 +35,24 @@ impl Frame<'_> {
         }
     }
 
-    pub fn encode(&self, buffer: &mut [u8]) -> usize {
+    pub fn encode<const N: usize>(&self, buffer: &mut Vec<u8, N>) {
+        bincode::encode_into_writer(self, VecWriter(buffer), BINCODE_CONFIG).unwrap();
+    }
+
+    pub fn encode_into_slice(&self, buffer: &mut [u8]) -> usize {
         let encoded = bincode::encode_into_slice(self, buffer, BINCODE_CONFIG).unwrap();
         assert!(encoded <= self.max_len());
         encoded
+    }
+}
+
+struct VecWriter<'a, T, const N: usize>(&'a mut Vec<T, N>);
+
+impl<const N: usize> bincode::enc::write::Writer for VecWriter<'_, u8, N> {
+    fn write(&mut self, bytes: &[u8]) -> Result<(), bincode::error::EncodeError> {
+        self.0
+            .extend_from_slice(bytes)
+            .map_err(|_| bincode::error::EncodeError::UnexpectedEnd)
     }
 }
 
@@ -109,28 +123,24 @@ impl<'a> From<Frame<'a>> for Response<'a> {
     }
 }
 
-pub(crate) trait FrameProducerExt {
-    fn try_enqueue<'a>(&mut self, frame: Frame<'a>) -> Result<(), Frame<'a>>;
+pub(crate) trait ResPublisherExt {
+    fn try_publish_frame<'a>(&mut self, frame: Frame<'a>) -> Result<(), Frame<'a>>;
 
     #[cfg(feature = "async")]
-    async fn enqueue(&mut self, frame: Frame<'_>);
+    async fn publish_frame(&mut self, frame: Frame<'_>);
 }
 
-impl<const N: usize> FrameProducerExt for FrameProducer<'_, N> {
-    fn try_enqueue<'a>(&mut self, frame: Frame<'a>) -> Result<(), Frame<'a>> {
-        if let Ok(mut grant) = self.grant(frame.max_len()) {
-            let len = frame.encode(grant.as_mut());
-            grant.commit(len);
-            Ok(())
-        } else {
-            Err(frame)
-        }
+impl<const N: usize> ResPublisherExt for ResPublisher<'_, N> {
+    fn try_publish_frame<'a>(&mut self, frame: Frame<'a>) -> Result<(), Frame<'a>> {
+        let mut message = Vec::new();
+        frame.encode(&mut message);
+        self.try_publish(message).map_err(|_| frame)
     }
 
     #[cfg(feature = "async")]
-    async fn enqueue(&mut self, frame: Frame<'_>) {
-        let mut grant = self.grant_async(frame.max_len()).await.unwrap();
-        let len = frame.encode(grant.as_mut());
-        grant.commit(len);
+    async fn publish_frame(&mut self, frame: Frame<'_>) {
+        let mut message = Vec::new();
+        frame.encode(&mut message);
+        self.publish(message).await
     }
 }

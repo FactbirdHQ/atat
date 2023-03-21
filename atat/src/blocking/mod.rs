@@ -36,6 +36,4 @@ pub trait AtatClient {
         }
         Err(Error::Timeout)
     }
-
-    fn max_response_len() -> usize;
 }

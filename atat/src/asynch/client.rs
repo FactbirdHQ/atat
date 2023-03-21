@@ -1,27 +1,26 @@
 use super::AtatClient;
-use crate::{frame::Frame, helpers::LossyStr, AtatCmd, Config, Error, Response};
-use bbqueue::framed::FrameConsumer;
+use crate::{
+    frame::Frame, helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error, Response,
+};
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_io::asynch::Write;
 
-pub struct Client<'a, W: Write, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize> {
+pub struct Client<'a, W: Write, const INGRESS_BUF_SIZE: usize> {
     writer: W,
-    res_reader: FrameConsumer<'a, RES_CAPACITY>,
+    res_channel: &'a ResChannel<INGRESS_BUF_SIZE>,
     config: Config,
     cooldown_timer: Option<Timer>,
 }
 
-impl<'a, W: Write, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize>
-    Client<'a, W, INGRESS_BUF_SIZE, RES_CAPACITY>
-{
+impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE> {
     pub(crate) fn new(
         writer: W,
-        res_reader: FrameConsumer<'a, RES_CAPACITY>,
+        res_channel: &'a ResChannel<INGRESS_BUF_SIZE>,
         config: Config,
     ) -> Self {
         Self {
             writer,
-            res_reader,
+            res_channel,
             config,
             cooldown_timer: None,
         }
@@ -38,9 +37,7 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize>
     }
 }
 
-impl<W: Write, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize> AtatClient
-    for Client<'_, W, INGRESS_BUF_SIZE, RES_CAPACITY>
-{
+impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRESS_BUF_SIZE> {
     async fn send<Cmd: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
         cmd: &Cmd,
@@ -58,6 +55,8 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize> AtatCli
             );
         }
 
+        let mut response_subscription = self.res_channel.subscriber().unwrap();
+
         self.writer
             .write_all(cmd_slice)
             .await
@@ -73,15 +72,12 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize> AtatCli
 
         let response = match with_timeout(
             Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()),
-            self.res_reader.read_async(),
+            response_subscription.next_message_pure(),
         )
         .await
         {
-            Ok(res) => {
-                let mut grant = res.unwrap();
-                grant.auto_release(true);
-
-                let frame = Frame::decode(grant.as_ref());
+            Ok(message) => {
+                let frame = Frame::decode(&message);
                 let resp = match Response::from(frame) {
                     Response::Result(r) => r,
                     Response::Prompt(_) => Ok(&[][..]),
@@ -97,9 +93,5 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize> AtatCli
 
         self.start_cooldown_timer();
         response
-    }
-
-    fn max_response_len() -> usize {
-        INGRESS_BUF_SIZE
     }
 }
