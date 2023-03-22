@@ -1,5 +1,5 @@
 use super::AtatClient;
-use crate::{helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error, Response};
+use crate::{helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error};
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_io::asynch::Write;
 
@@ -74,14 +74,7 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
         )
         .await
         {
-            Ok(frame) => {
-                let resp = match Response::from(&frame) {
-                    Response::Result(r) => r,
-                    Response::Prompt(_) => Ok(&[][..]),
-                };
-
-                cmd.parse(resp)
-            }
+            Ok(response) => cmd.parse((&response).into()),
             Err(_) => {
                 warn!("Received timeout after {}ms", Cmd::MAX_TIMEOUT_MS);
                 Err(Error::Timeout)

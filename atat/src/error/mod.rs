@@ -56,11 +56,6 @@ impl<'a> defmt::Format for InternalError<'a> {
     }
 }
 
-pub enum Response<'a> {
-    Result(Result<&'a [u8], InternalError<'a>>),
-    Prompt(u8),
-}
-
 /// Errors returned by the crate
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

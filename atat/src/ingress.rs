@@ -1,8 +1,6 @@
 use crate::{
-    helpers::LossyStr,
-    reschannel::{ResMessage, ResPublisher},
-    urchannel::UrcPublisher,
-    AtatUrc, DigestResult, Digester,
+    helpers::LossyStr, reschannel::ResPublisher, urchannel::UrcPublisher, AtatUrc, DigestResult,
+    Digester, Response,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -150,7 +148,7 @@ impl<
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
                     self.res_publisher
-                        .try_publish(ResMessage::Prompt(prompt))
+                        .try_publish(Response::Prompt(prompt))
                         .map_err(|_| Error::ResponseQueueFull)?;
                     swallowed
                 }
@@ -234,7 +232,7 @@ impl<
                 (DigestResult::Prompt(prompt), swallowed) => {
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
-                    if let Err(frame) = self.res_publisher.try_publish(ResMessage::Prompt(prompt)) {
+                    if let Err(frame) = self.res_publisher.try_publish(Response::Prompt(prompt)) {
                         self.res_publisher.publish(frame).await;
                     }
                     swallowed
@@ -334,7 +332,7 @@ mod tests {
         assert_eq!(Urc::ConnectOk, sub.try_next_message_pure().unwrap());
         assert_eq!(Urc::ConnectFail, sub.try_next_message_pure().unwrap());
 
-        let frame = res_subscription.try_next_message_pure().unwrap();
-        assert_eq!(ResMessage::empty_response(), frame);
+        let response = res_subscription.try_next_message_pure().unwrap();
+        assert_eq!(Response::default(), response);
     }
 }

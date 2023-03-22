@@ -2,7 +2,7 @@ use embassy_time::Duration;
 use embedded_io::blocking::Write;
 
 use super::{timer::Timer, AtatClient};
-use crate::{helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error, Response};
+use crate::{helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error};
 
 /// Client responsible for handling send, receive and timeout from the
 /// userfacing side. The client is decoupled from the ingress-manager through
@@ -79,14 +79,9 @@ where
         }
 
         let response = Timer::with_timeout(Duration::from_millis(A::MAX_TIMEOUT_MS.into()), || {
-            response_subscription.try_next_message_pure().map(|frame| {
-                let resp = match Response::from(&frame) {
-                    Response::Result(r) => r,
-                    Response::Prompt(_) => Ok(&[] as &[u8]),
-                };
-
-                cmd.parse(resp)
-            })
+            response_subscription
+                .try_next_message_pure()
+                .map(|response| cmd.parse((&response).into()))
         });
 
         self.start_cooldown_timer();
@@ -98,8 +93,7 @@ where
 mod test {
     use super::*;
     use crate::atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc};
-    use crate::reschannel::ResMessage;
-    use crate::{self as atat, InternalError};
+    use crate::{self as atat, InternalError, Response};
     use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
     use embassy_sync::pubsub::{PubSubChannel, Publisher};
     use heapless::String;
@@ -343,10 +337,10 @@ mod test {
 
         let sent = tokio::spawn(async move {
             let sent0 = tx.next_message_pure().await;
-            rx.try_publish(ResMessage::empty_response()).unwrap();
+            rx.try_publish(Response::default()).unwrap();
 
             let sent1 = tx.next_message_pure().await;
-            rx.try_publish(ResMessage::empty_response()).unwrap();
+            rx.try_publish(Response::default()).unwrap();
 
             (sent0, sent1)
         });
@@ -374,7 +368,7 @@ mod test {
 
         let sent = tokio::spawn(async move {
             let sent = tx.next_message_pure().await;
-            rx.try_publish(ResMessage::empty_response()).unwrap();
+            rx.try_publish(Response::default()).unwrap();
             sent
         });
 
@@ -409,10 +403,10 @@ mod test {
 
         let sent = tokio::spawn(async move {
             let sent0 = tx.next_message_pure().await;
-            rx.try_publish(ResMessage::response(response0)).unwrap();
+            rx.try_publish(Response::ok(response0)).unwrap();
 
             let sent1 = tx.next_message_pure().await;
-            rx.try_publish(ResMessage::response(response1)).unwrap();
+            rx.try_publish(Response::ok(response1)).unwrap();
 
             (sent0, sent1)
         });
@@ -453,8 +447,7 @@ mod test {
 
         let sent = tokio::spawn(async move {
             tx.next_message_pure().await;
-            rx.try_publish(ResMessage::response(b"+CUN: 22,16,22"))
-                .unwrap();
+            rx.try_publish(Response::ok(b"+CUN: 22,16,22")).unwrap();
         });
 
         tokio::task::spawn_blocking(move || {
@@ -476,7 +469,7 @@ mod test {
     //         rst: Some(ResetMode::DontReset),
     //     };
 
-    //     p.try_enqueue(Frame::empty_response()).unwrap();
+    //     p.try_enqueue(Frame::default()).unwrap();
 
     //     assert_eq!(client.send(&cmd), Err(Error::Timeout));
     // }
@@ -491,7 +484,7 @@ mod test {
     //         rst: Some(ResetMode::DontReset),
     //     };
 
-    //     p.try_enqueue(Frame::empty_response()).unwrap();
+    //     p.try_enqueue(Frame::default()).unwrap();
 
     //     assert_eq!(client.send(&cmd), Err(Error::Timeout));
     // }
