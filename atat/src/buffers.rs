@@ -1,4 +1,4 @@
-use bbqueue::BBBuffer;
+use bbqueue::{BBBuffer, framed::FrameConsumer};
 use embedded_io::blocking::Write;
 
 use crate::{Config, Digester, Ingress};
@@ -115,6 +115,24 @@ impl<const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize, const URC_CAPACIT
         (
             Ingress::new(digester, res_writer, urc_writer),
             crate::blocking::Client::new(writer, res_reader, urc_reader, config),
+        )
+    }
+
+    pub fn to_ingress<'a, D: Digester>(
+        &'a self,
+        digester: D,
+    ) -> (
+        Ingress<'a, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>,
+        FrameConsumer<'a, RES_CAPACITY>,
+        FrameConsumer<'a, URC_CAPACITY>
+    ) {
+        let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
+        let (urc_writer, urc_reader) = self.urc_queue.try_split_framed().unwrap();
+
+        (
+            Ingress::new(digester, res_writer, urc_writer),
+            res_reader, 
+            urc_reader,
         )
     }
 }
