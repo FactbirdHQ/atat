@@ -2,7 +2,7 @@ use embassy_time::Duration;
 use embedded_io::blocking::Write;
 
 use super::{timer::Timer, AtatClient};
-use crate::{helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error};
+use crate::{helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error, Response};
 
 /// Client responsible for handling send, receive and timeout from the
 /// userfacing side. The client is decoupled from the ingress-manager through
@@ -36,6 +36,45 @@ where
         }
     }
 
+    fn send_command(&mut self, cmd: &[u8]) -> Result<(), Error> {
+        self.wait_cooldown_timer();
+
+        self.send_inner(cmd)?;
+
+        self.start_cooldown_timer();
+        Ok(())
+    }
+
+    fn send_request(
+        &mut self,
+        cmd: &[u8],
+        timeout: Duration,
+    ) -> Result<Response<INGRESS_BUF_SIZE>, Error> {
+        self.wait_cooldown_timer();
+
+        let mut response_subscription = self.res_channel.subscriber().unwrap();
+        self.send_inner(cmd)?;
+
+        let response =
+            Timer::with_timeout(timeout, || response_subscription.try_next_message_pure())
+                .map_err(|_| Error::Timeout);
+
+        self.start_cooldown_timer();
+        response
+    }
+
+    fn send_inner(&mut self, cmd: &[u8]) -> Result<(), Error> {
+        if cmd.len() < 50 {
+            debug!("Sending command: {:?}", LossyStr(cmd));
+        } else {
+            debug!("Sending command with long payload ({} bytes)", cmd.len(),);
+        }
+
+        self.writer.write_all(cmd).map_err(|_| Error::Write)?;
+        self.writer.flush().map_err(|_| Error::Write)?;
+        Ok(())
+    }
+
     fn start_cooldown_timer(&mut self) {
         self.cooldown_timer = Some(Timer::after(self.config.cmd_cooldown));
     }
@@ -51,41 +90,20 @@ impl<W, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRESS_BUF_
 where
     W: Write,
 {
-    fn send<A: AtatCmd<LEN>, const LEN: usize>(&mut self, cmd: &A) -> Result<A::Response, Error> {
-        self.wait_cooldown_timer();
-
-        let cmd_bytes = cmd.as_bytes();
-        let cmd_slice = cmd.get_slice(&cmd_bytes);
-        if cmd_slice.len() < 50 {
-            debug!("Sending command: {:?}", LossyStr(cmd_slice));
+    fn send<Cmd: AtatCmd<LEN>, const LEN: usize>(
+        &mut self,
+        cmd: &Cmd,
+    ) -> Result<Cmd::Response, Error> {
+        let cmd_vec = cmd.as_bytes();
+        let cmd_slice = cmd.get_slice(&cmd_vec);
+        if !Cmd::EXPECTS_RESPONSE_CODE {
+            self.send_command(cmd_slice)?;
+            cmd.parse(Ok(&[]))
         } else {
-            debug!(
-                "Sending command with long payload ({} bytes)",
-                cmd_slice.len(),
-            );
+            let response =
+                self.send_request(cmd_slice, Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))?;
+            cmd.parse((&response).into())
         }
-
-        let mut response_subscription = self.res_channel.subscriber().unwrap();
-
-        self.writer
-            .write_all(&cmd_slice)
-            .map_err(|_e| Error::Write)?;
-        self.writer.flush().map_err(|_e| Error::Write)?;
-
-        if !A::EXPECTS_RESPONSE_CODE {
-            debug!("Command does not expect a response");
-            self.start_cooldown_timer();
-            return cmd.parse(Ok(&[]));
-        }
-
-        let response = Timer::with_timeout(Duration::from_millis(A::MAX_TIMEOUT_MS.into()), || {
-            response_subscription
-                .try_next_message_pure()
-                .map(|response| cmd.parse((&response).into()))
-        });
-
-        self.start_cooldown_timer();
-        response
     }
 }
 

@@ -3,7 +3,7 @@ use crate::{
     Digester, Response,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     ResponseQueueFull,

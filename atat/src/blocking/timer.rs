@@ -14,13 +14,13 @@ impl Timer {
 
     pub fn with_timeout<F, R>(timeout: Duration, mut e: F) -> Result<R, Error>
     where
-        F: FnMut() -> Option<Result<R, Error>>,
+        F: FnMut() -> Option<R>,
     {
         let timer = Timer::after(timeout);
 
         loop {
             if let Some(res) = e() {
-                return res;
+                return Ok(res);
             }
             if timer.expires_at <= Instant::now() {
                 return Err(Error::Timeout);
