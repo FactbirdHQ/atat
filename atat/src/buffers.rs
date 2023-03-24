@@ -82,14 +82,14 @@ impl<const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize, const URC_CAPACIT
     Buffers<INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>
 {
     #[cfg(feature = "async")]
-    pub fn split<'a, W: embedded_io::asynch::Write, D: Digester>(
-        &'a self,
+    pub fn split<W: embedded_io::asynch::Write, D: Digester>(
+        &self,
         writer: W,
         digester: D,
         config: Config,
     ) -> (
-        Ingress<'a, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>,
-        crate::asynch::Client<'a, W, RES_CAPACITY, URC_CAPACITY>,
+        Ingress<'_, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>,
+        crate::asynch::Client<'_, W, RES_CAPACITY, URC_CAPACITY>,
     ) {
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
         let (urc_writer, urc_reader) = self.urc_queue.try_split_framed().unwrap();
@@ -100,14 +100,14 @@ impl<const INGRESS_BUF_SIZE: usize, const RES_CAPACITY: usize, const URC_CAPACIT
         )
     }
 
-    pub fn split_blocking<'a, W: Write, D: Digester>(
-        &'a self,
+    pub fn split_blocking<W: Write, D: Digester>(
+        &self,
         writer: W,
         digester: D,
         config: Config,
     ) -> (
-        Ingress<'a, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>,
-        crate::blocking::Client<'a, W, RES_CAPACITY, URC_CAPACITY>,
+        Ingress<'_, D, INGRESS_BUF_SIZE, RES_CAPACITY, URC_CAPACITY>,
+        crate::blocking::Client<'_, W, RES_CAPACITY, URC_CAPACITY>,
     ) {
         let (res_writer, res_reader) = self.res_queue.try_split_framed().unwrap();
         let (urc_writer, urc_reader) = self.urc_queue.try_split_framed().unwrap();
