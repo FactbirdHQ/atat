@@ -25,6 +25,10 @@ required-features = ["defmt"]
 name = "cortex-m-rt"
 required-features = ["defmt"]
 
+[[example]]
+name = "std-tokio"
+required-features = ["log", "std", "async"]
+
 [dependencies]
 bincode = { version = "2.0.0-rc.2", default-features = false, features = [
     "derive",
@@ -59,6 +63,9 @@ embassy-stm32 = { git = "https://github.com/embassy-rs/embassy", rev = "99284b8"
     "unstable-traits",
     "unstable-pac",
 ] }
+env_logger = "0.10"
+tokio = { version = "1.26", default-features = false, features = ["time", "rt-multi-thread", "macros"] }
+tokio-serial = "5.4.4"
 
 [features]
 default = ["derive", "bytes"]
@@ -69,4 +76,4 @@ async = ["embedded-io/async", "futures"]
 
 bytes = ["heapless-bytes", "serde_bytes"]
 
-std = ["serde_at/std", "nom/std", "embassy-time/std"]
+std = ["serde_at/std", "nom/std", "embassy-time/std", "embedded-io/std", "embedded-io/tokio"]
