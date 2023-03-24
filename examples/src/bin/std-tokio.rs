@@ -1,15 +1,12 @@
 #![feature(async_fn_in_trait)]
-
-mod common;
+#![allow(incomplete_features)]
+use atat_examples::common;
 
 use std::process::exit;
 
-use atat::{
-    asynch::AtatClient, digest::ParseError, AtatIngress, Buffers, Config, DefaultDigester, Ingress,
-    Parser,
-};
+use atat::{asynch::AtatClient, AtatIngress, Buffers, Config, DefaultDigester, Ingress};
 use embedded_io::adapters::FromTokio;
-use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
+use tokio_serial::SerialStream;
 
 #[tokio::main]
 async fn main() -> ! {
@@ -17,8 +14,7 @@ async fn main() -> ! {
 
     static BUFFERS: Buffers<256, 1024, 1024> = Buffers::<256, 1024, 1024>::new();
 
-    let (reader, writer) =
-        tokio_serial::SerialStream::pair().expect("Failed to create serial pair");
+    let (reader, writer) = SerialStream::pair().expect("Failed to create serial pair");
 
     let (ingress, mut client) = BUFFERS.split(
         FromTokio::new(writer),
@@ -33,16 +29,16 @@ async fn main() -> ! {
         // These will all timeout after 1 sec, as there is no response
         match state {
             0 => {
-                client.send(&common::general::GetManufacturerId).await;
+                client.send(&common::general::GetManufacturerId).await.ok();
             }
             1 => {
-                client.send(&common::general::GetModelId).await;
+                client.send(&common::general::GetModelId).await.ok();
             }
             2 => {
-                client.send(&common::general::GetSoftwareVersion).await;
+                client.send(&common::general::GetSoftwareVersion).await.ok();
             }
             3 => {
-                client.send(&common::general::GetWifiMac).await;
+                client.send(&common::general::GetWifiMac).await.ok();
             }
             _ => exit(0),
         }

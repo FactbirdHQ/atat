@@ -17,18 +17,6 @@ maintenance = { status = "actively-developed" }
 [lib]
 name = "atat"
 
-[[example]]
-name = "rtic"
-required-features = ["defmt"]
-
-[[example]]
-name = "cortex-m-rt"
-required-features = ["defmt"]
-
-[[example]]
-name = "std-tokio"
-required-features = ["log", "std", "async"]
-
 [dependencies]
 bincode = { version = "2.0.0-rc.2", default-features = false, features = [
     "derive",
@@ -37,7 +25,6 @@ embedded-io = "0.4"
 futures = { version = "0.3", default-features = false, optional = true }
 embassy-time = "0.1.0"
 heapless = { version = "^0.7", features = ["serde"] }
-# bbqueue = "0.5"
 bbqueue = { git = "https://github.com/jamesmunns/bbqueue", rev = "refs/pull/95/head" }
 serde_at = { path = "../serde_at", version = "^0.18.0", optional = true }
 atat_derive = { path = "../atat_derive", version = "^0.18.0", optional = true }
@@ -49,31 +36,21 @@ nom = { version = "^7.1", default-features = false }
 log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.3", optional = true }
 
-[dev-dependencies]
-embassy-time = { version = "0.1.0", features = ["std", "generic-queue"] }
-critical-section = { version = "1.1", features = ["std"] }
-cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
-cortex-m-rt = "0.7.1"
-cortex-m-rtic = "1.0.0"
-defmt-rtt = "0.3.1"
-panic-probe = { version = "0.3.0", features = ["print-defmt"] }
-dwt-systick-monotonic = "1.0.0"
-embassy-stm32 = { git = "https://github.com/embassy-rs/embassy", rev = "99284b8", features = [
-    "stm32l475vg",
-    "unstable-traits",
-    "unstable-pac",
-] }
-env_logger = "0.10"
-tokio = { version = "1.26", default-features = false, features = ["time", "rt-multi-thread", "macros"] }
-tokio-serial = "5.4.4"
-
 [features]
 default = ["derive", "bytes"]
 defmt = ["dep:defmt", "embedded-io/defmt"]
 derive = ["atat_derive", "serde_at"]
+bytes = ["heapless-bytes", "serde_bytes"]
 custom-error-messages = []
+
 async = ["embedded-io/async", "futures"]
 
-bytes = ["heapless-bytes", "serde_bytes"]
+thumbv6 = ["bbqueue/thumbv6"]
 
-std = ["serde_at/std", "nom/std", "embassy-time/std", "embedded-io/std", "embedded-io/tokio"]
+std = [
+    "serde_at/std",
+    "nom/std",
+    "embassy-time/std",
+    "embedded-io/std",
+    "embedded-io/tokio",
+]
