@@ -108,7 +108,7 @@ jobs:
             features: "derive, log"
             std: ", std"
           - target: "thumbv6m-none-eabi"
-            features: "thumbv6"
+            thumb: ", thumbv6"
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
@@ -125,7 +125,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --all --target '${{ matrix.target }}' --features '${{ matrix.features }}${{ matrix.std }}'
+          args: --all --target '${{ matrix.target }}' --features '${{ matrix.features }}${{ matrix.thumb }}${{ matrix.std }}'
 
   test:
     name: Test
