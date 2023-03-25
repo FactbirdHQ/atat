@@ -1,6 +1,6 @@
 //! Responses for General Commands
 use atat::atat_derive::AtatResp;
-use heapless::String;
+use atat::heapless::String;
 
 /// 4.1 Manufacturer identification
 /// Text string identifying the manufacturer.
@@ -26,5 +26,5 @@ pub struct SoftwareVersion {
 /// 7.11 Wi-Fi Access point station list +UWAPSTALIST
 #[derive(Clone, AtatResp)]
 pub struct WifiMac {
-    pub mac_addr: heapless_bytes::Bytes<12>,
+    pub mac_addr: atat::heapless_bytes::Bytes<12>,
 }
