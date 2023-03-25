@@ -58,7 +58,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
     let visitor = format_ident!("{}Visitor", ident);
     let field_visitor = format_ident!("{}FieldVisitor", ident);
     let invalid_val_err = format!("field index {} <= i < {}", 0, len);
-    let enum_name = format!("enum {}", ident);
+    let enum_name = format!("enum {ident}");
 
     let mut deserialize_generics = syn::Generics::default();
     let mut serialize_generics = syn::Generics::default();

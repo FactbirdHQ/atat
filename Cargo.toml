@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["serde_at", "atat_derive", "atat"]
+members = ["serde_at", "atat_derive", "atat", "examples"]
 
 
 # cargo build/run

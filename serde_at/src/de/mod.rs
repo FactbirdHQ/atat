@@ -13,6 +13,9 @@ mod enum_;
 mod map;
 mod seq;
 
+/// Hex string helper module
+pub mod hex_str;
+
 /// Deserialization result
 pub type Result<T> = core::result::Result<T, Error>;
 

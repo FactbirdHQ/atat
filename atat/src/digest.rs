@@ -468,7 +468,7 @@ mod test {
     enum UrcTestParser {}
 
     impl Parser for UrcTestParser {
-        fn parse<'a>(buf: &'a [u8]) -> Result<(&'a [u8], usize), ParseError> {
+        fn parse(buf: &[u8]) -> Result<(&[u8], usize), ParseError> {
             let (_, r) = nom::branch::alt((urc_helper("+UUSORD"), urc_helper("+CIEV")))(buf)?;
 
             Ok(r)

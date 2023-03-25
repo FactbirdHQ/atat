@@ -1,4 +1,5 @@
 use heapless::{String, Vec};
+use serde_at::HexStr;
 
 /// Trait used by [`atat_derive`] to estimate lengths of the serialized commands, at compile time.
 ///
@@ -38,6 +39,14 @@ impl_length!(i128, 40);
 impl_length!(f32, 42);
 impl_length!(f64, 312);
 
+//       0x   F:F:F:F
+// uN = (2 + (N/2) - 1) * 2 bytes
+impl_length!(HexStr<u8>, 10);
+impl_length!(HexStr<u16>, 18);
+impl_length!(HexStr<u32>, 30);
+impl_length!(HexStr<u64>, 66);
+impl_length!(HexStr<u128>, 130);
+
 impl<const T: usize> AtatLen for String<T> {
     const LEN: usize = 1 + T + 1;
 }
@@ -65,7 +74,7 @@ mod tests {
     use atat::{derive::AtatLen, AtatCmd};
     use atat_derive::{AtatCmd, AtatEnum, AtatResp};
     use heapless::{String, Vec};
-    use serde_at::{from_str, to_string, SerializeOptions};
+    use serde_at::{from_str, to_string, HexStr, SerializeOptions};
 
     macro_rules! assert_not_impl {
         ($x:ty, $($t:path),+ $(,)*) => {
@@ -163,6 +172,13 @@ mod tests {
 
         assert_eq!(<SimpleEnum as AtatLen>::LEN, 3);
         assert_eq!(<SimpleEnumU32 as AtatLen>::LEN, 10);
+
+        assert_eq!(<HexStr<u8> as AtatLen>::LEN, 10);
+        assert_eq!(<HexStr<u16> as AtatLen>::LEN, 18);
+        assert_eq!(<HexStr<u32> as AtatLen>::LEN, 30);
+        assert_eq!(<HexStr<u64> as AtatLen>::LEN, 66);
+        assert_eq!(<HexStr<u128> as AtatLen>::LEN, 130);
+
         // (fields) + (n_fields - 1)
         // (3 + (1 + 128 + 1) + 2 + (1 + 150 + 1) + 3 + 10 + 3 + (10*5)) + 7
         assert_eq!(
