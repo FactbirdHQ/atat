@@ -2,7 +2,9 @@ use embassy_time::Duration;
 use embedded_io::blocking::Write;
 
 use super::{timer::Timer, AtatClient};
-use crate::{helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error, Response};
+use crate::{
+    helpers::LossyStr, response_channel::ResponseChannel, AtatCmd, Config, Error, Response,
+};
 
 /// Client responsible for handling send, receive and timeout from the
 /// userfacing side. The client is decoupled from the ingress-manager through
@@ -14,7 +16,7 @@ where
     W: Write,
 {
     writer: W,
-    res_channel: &'a ResChannel<INGRESS_BUF_SIZE>,
+    res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
     cooldown_timer: Option<Timer>,
     config: Config,
 }
@@ -25,7 +27,7 @@ where
 {
     pub(crate) fn new(
         writer: W,
-        res_channel: &'a ResChannel<INGRESS_BUF_SIZE>,
+        res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
         config: Config,
     ) -> Self {
         Self {

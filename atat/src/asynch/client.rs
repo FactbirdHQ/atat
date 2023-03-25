@@ -1,11 +1,13 @@
 use super::AtatClient;
-use crate::{helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error, Response};
+use crate::{
+    helpers::LossyStr, response_channel::ResponseChannel, AtatCmd, Config, Error, Response,
+};
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_io::asynch::Write;
 
 pub struct Client<'a, W: Write, const INGRESS_BUF_SIZE: usize> {
     writer: W,
-    res_channel: &'a ResChannel<INGRESS_BUF_SIZE>,
+    res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
     config: Config,
     cooldown_timer: Option<Timer>,
 }
@@ -13,7 +15,7 @@ pub struct Client<'a, W: Write, const INGRESS_BUF_SIZE: usize> {
 impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE> {
     pub(crate) fn new(
         writer: W,
-        res_channel: &'a ResChannel<INGRESS_BUF_SIZE>,
+        res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
         config: Config,
     ) -> Self {
         Self {

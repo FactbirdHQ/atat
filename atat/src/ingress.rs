@@ -1,6 +1,6 @@
 use crate::{
-    helpers::LossyStr, reschannel::ResPublisher, urchannel::UrcPublisher, AtatUrc, DigestResult,
-    Digester, Response,
+    helpers::LossyStr, response_channel::ResponsePublisher, urc_channel::UrcPublisher, AtatUrc,
+    DigestResult, Digester, Response,
 };
 
 #[derive(Debug, PartialEq)]
@@ -86,7 +86,7 @@ pub struct Ingress<
     digester: D,
     buf: [u8; INGRESS_BUF_SIZE],
     pos: usize,
-    res_publisher: ResPublisher<'a, INGRESS_BUF_SIZE>,
+    res_publisher: ResponsePublisher<'a, INGRESS_BUF_SIZE>,
     urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
 
@@ -101,7 +101,7 @@ impl<
 {
     pub fn new(
         digester: D,
-        res_publisher: ResPublisher<'a, INGRESS_BUF_SIZE>,
+        res_publisher: ResponsePublisher<'a, INGRESS_BUF_SIZE>,
         urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) -> Self {
         Self {
@@ -297,8 +297,8 @@ impl<
 #[cfg(test)]
 mod tests {
     use crate::{
-        self as atat, atat_derive::AtatUrc, reschannel::ResChannel, AtDigester, AtatUrcChannel,
-        UrcChannel,
+        self as atat, atat_derive::AtatUrc, response_channel::ResponseChannel, AtDigester,
+        AtatUrcChannel, UrcChannel,
     };
 
     use super::*;
@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn advance_can_processes_multiple_digest_results() {
-        let res_channel = ResChannel::<100>::new();
+        let res_channel = ResponseChannel::<100>::new();
         let mut res_subscription = res_channel.subscriber().unwrap();
         let urc_channel = UrcChannel::<Urc, 10, 1>::new();
         let mut ingress: Ingress<_, Urc, 100, 10, 1> = Ingress::new(
