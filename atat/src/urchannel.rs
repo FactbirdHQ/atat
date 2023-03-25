@@ -14,7 +14,7 @@ pub enum Error {
 }
 
 pub trait AtatUrcChannel<Urc: AtatUrc> {
-    fn subscribe<'sub>(&'sub self) -> Result<UrcSubscription<'sub, Urc>, Error>;
+    fn subscribe(&self) -> Result<UrcSubscription<'_, Urc>, Error>;
     fn space(&self) -> usize;
 }
 
@@ -37,7 +37,7 @@ impl<Urc: AtatUrc, const CAPACITY: usize, const SUBSCRIBERS: usize>
 impl<Urc: AtatUrc, const CAPACITY: usize, const SUBSCRIBERS: usize> AtatUrcChannel<Urc>
     for UrcChannel<Urc, CAPACITY, SUBSCRIBERS>
 {
-    fn subscribe<'sub>(&'sub self) -> Result<UrcSubscription<'sub, Urc>, Error> {
+    fn subscribe(&self) -> Result<UrcSubscription<'_, Urc>, Error> {
         self.0
             .dyn_subscriber()
             .map_err(|_| Error::MaximumSubscribersReached)

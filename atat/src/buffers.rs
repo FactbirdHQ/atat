@@ -36,14 +36,14 @@ impl<
     > Buffers<Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     #[cfg(feature = "async")]
-    pub fn split<'a, W: embedded_io::asynch::Write, D: Digester>(
-        &'a self,
+    pub fn split<W: embedded_io::asynch::Write, D: Digester>(
+        &self,
         writer: W,
         digester: D,
         config: Config,
     ) -> (
-        Ingress<'a, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
-        crate::asynch::Client<'a, W, INGRESS_BUF_SIZE>,
+        Ingress<'_, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
+        crate::asynch::Client<'_, W, INGRESS_BUF_SIZE>,
     ) {
         (
             Ingress::new(
@@ -55,14 +55,14 @@ impl<
         )
     }
 
-    pub fn split_blocking<'a, W: Write, D: Digester>(
-        &'a self,
+    pub fn split_blocking<W: Write, D: Digester>(
+        &self,
         writer: W,
         digester: D,
         config: Config,
     ) -> (
-        Ingress<'a, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
-        crate::blocking::Client<'a, W, INGRESS_BUF_SIZE>,
+        Ingress<'_, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
+        crate::blocking::Client<'_, W, INGRESS_BUF_SIZE>,
     ) {
         (
             Ingress::new(
