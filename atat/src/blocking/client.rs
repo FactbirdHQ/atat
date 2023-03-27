@@ -285,7 +285,7 @@ mod test {
         ($config:expr) => {{
             static TX_CHANNEL: PubSubChannel<CriticalSectionRawMutex, String<64>, 1, 1, 1> =
                 PubSubChannel::new();
-            static RES_CHANNEL: ResChannel<TEST_RX_BUF_LEN> = ResChannel::new();
+            static RES_CHANNEL: ResponseChannel<TEST_RX_BUF_LEN> = ResponseChannel::new();
 
             let tx_mock = TxMock::new(TX_CHANNEL.publisher().unwrap());
             let client: Client<TxMock, TEST_RX_BUF_LEN> =
