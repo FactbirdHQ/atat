@@ -8,11 +8,16 @@ use atat::{asynch::AtatClient, AtatIngress, Buffers, Config, DefaultDigester, In
 use embedded_io::adapters::FromTokio;
 use tokio_serial::SerialStream;
 
+const INGRESS_BUF_SIZE: usize = 1024;
+const URC_CAPACITY: usize = 128;
+const URC_SUBSCRIBERS: usize = 3;
+
 #[tokio::main]
 async fn main() -> ! {
     env_logger::init();
 
-    static BUFFERS: Buffers<256, 1024, 1024> = Buffers::<256, 1024, 1024>::new();
+    static BUFFERS: Buffers<common::Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS> =
+        Buffers::<common::Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>::new();
 
     let (reader, writer) = SerialStream::pair().expect("Failed to create serial pair");
 
@@ -50,7 +55,14 @@ async fn main() -> ! {
 }
 
 async fn ingress_task<'a>(
-    mut ingress: Ingress<'a, DefaultDigester<common::Urc>, 256, 1024, 1024>,
+    mut ingress: Ingress<
+        'a,
+        DefaultDigester<common::Urc>,
+        common::Urc,
+        INGRESS_BUF_SIZE,
+        URC_CAPACITY,
+        URC_SUBSCRIBERS,
+    >,
     mut reader: FromTokio<SerialStream>,
 ) -> ! {
     ingress.read_from(&mut reader).await

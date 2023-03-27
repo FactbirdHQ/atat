@@ -23,6 +23,10 @@ macro_rules! singleton {
     }};
 }
 
+const INGRESS_BUF_SIZE: usize = 1024;
+const URC_CAPACITY: usize = 128;
+const URC_SUBSCRIBERS: usize = 3;
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
@@ -43,7 +47,8 @@ async fn main(spawner: Spawner) {
     );
     let (reader, writer) = uart.split();
 
-    static BUFFERS: Buffers<256, 1024, 1024> = Buffers::<256, 1024, 1024>::new();
+    static BUFFERS: Buffers<common::Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS> =
+        Buffers::<common::Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>::new();
 
     let (ingress, mut client) = BUFFERS.split(
         writer,
@@ -80,7 +85,14 @@ async fn main(spawner: Spawner) {
 
 #[embassy_executor::task]
 async fn ingress_task(
-    mut ingress: Ingress<'static, DefaultDigester<common::Urc>, 256, 1024, 1024>,
+    mut ingress: Ingress<
+        'static,
+        DefaultDigester<common::Urc>,
+        common::Urc,
+        INGRESS_BUF_SIZE,
+        URC_CAPACITY,
+        URC_SUBSCRIBERS,
+    >,
     mut reader: BufferedUartRx<'static, UART0>,
 ) -> ! {
     ingress.read_from(&mut reader).await
