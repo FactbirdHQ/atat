@@ -59,7 +59,6 @@ embedded = [
     "dep:embassy-executor",
     "embassy-rp?/defmt",
     "atat/defmt",
-    "atat/thumbv6"
 ]
 std = [
     "dep:env_logger",

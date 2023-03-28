@@ -218,7 +218,6 @@
 #![allow(clippy::fallible_impl_from)]
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 #![cfg_attr(feature = "async", allow(incomplete_features))]
-#![cfg_attr(feature = "async", feature(generic_const_exprs))]
 #![cfg_attr(feature = "async", feature(async_fn_in_trait))]
 
 // This mod MUST go first, so that the others see its macros.
@@ -228,11 +227,12 @@ mod buffers;
 mod config;
 pub mod digest;
 mod error;
-mod frame;
 pub mod helpers;
 mod ingress;
+mod response;
+mod response_channel;
 mod traits;
-pub use bbqueue;
+mod urc_channel;
 pub use nom;
 
 pub mod blocking;
@@ -263,9 +263,12 @@ pub use heapless;
 pub use buffers::Buffers;
 pub use config::Config;
 pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
-pub use error::{Error, InternalError, Response};
+pub use error::{Error, InternalError};
 pub use ingress::{AtatIngress, Ingress};
+pub use response::Response;
+pub use response_channel::{ResponseChannel, ResponsePublisher, ResponseSubscription};
 pub use traits::{AtatCmd, AtatResp, AtatUrc};
+pub use urc_channel::{AtatUrcChannel, UrcChannel, UrcSubscription};
 
 #[cfg(test)]
 #[cfg(feature = "defmt")]

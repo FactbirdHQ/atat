@@ -1,51 +1,80 @@
-use bbqueue::framed::FrameConsumer;
 use embassy_time::Duration;
 use embedded_io::blocking::Write;
 
-use super::timer::Timer;
-use super::AtatClient;
-use crate::error::{Error, Response};
-use crate::frame::Frame;
-use crate::helpers::LossyStr;
-use crate::AtatCmd;
-use crate::{AtatUrc, Config};
+use super::{timer::Timer, AtatClient};
+use crate::{
+    helpers::LossyStr, response_channel::ResponseChannel, AtatCmd, Config, Error, Response,
+};
 
 /// Client responsible for handling send, receive and timeout from the
 /// userfacing side. The client is decoupled from the ingress-manager through
 /// some spsc queue consumers, where any received responses can be dequeued. The
 /// Client also has an spsc producer, to allow signaling commands like
 /// `reset` to the ingress-manager.
-pub struct Client<'a, W, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
+pub struct Client<'a, W, const INGRESS_BUF_SIZE: usize>
 where
     W: Write,
 {
     writer: W,
-
-    res_reader: FrameConsumer<'a, RES_CAPACITY>,
-    urc_reader: FrameConsumer<'a, URC_CAPACITY>,
-
+    res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
     cooldown_timer: Option<Timer>,
     config: Config,
 }
 
-impl<'a, W, const RES_CAPACITY: usize, const URC_CAPACITY: usize>
-    Client<'a, W, RES_CAPACITY, URC_CAPACITY>
+impl<'a, W, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE>
 where
     W: Write,
 {
     pub(crate) fn new(
         writer: W,
-        res_reader: FrameConsumer<'a, RES_CAPACITY>,
-        urc_reader: FrameConsumer<'a, URC_CAPACITY>,
+        res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
         config: Config,
     ) -> Self {
         Self {
             writer,
-            res_reader,
-            urc_reader,
+            res_channel,
             cooldown_timer: None,
             config,
         }
+    }
+
+    fn send_command(&mut self, cmd: &[u8]) -> Result<(), Error> {
+        self.wait_cooldown_timer();
+
+        self.send_inner(cmd)?;
+
+        self.start_cooldown_timer();
+        Ok(())
+    }
+
+    fn send_request(
+        &mut self,
+        cmd: &[u8],
+        timeout: Duration,
+    ) -> Result<Response<INGRESS_BUF_SIZE>, Error> {
+        self.wait_cooldown_timer();
+
+        let mut response_subscription = self.res_channel.subscriber().unwrap();
+        self.send_inner(cmd)?;
+
+        let response =
+            Timer::with_timeout(timeout, || response_subscription.try_next_message_pure())
+                .map_err(|_| Error::Timeout);
+
+        self.start_cooldown_timer();
+        response
+    }
+
+    fn send_inner(&mut self, cmd: &[u8]) -> Result<(), Error> {
+        if cmd.len() < 50 {
+            debug!("Sending command: {:?}", LossyStr(cmd));
+        } else {
+            debug!("Sending command with long payload ({} bytes)", cmd.len(),);
+        }
+
+        self.writer.write_all(cmd).map_err(|_| Error::Write)?;
+        self.writer.flush().map_err(|_| Error::Write)?;
+        Ok(())
     }
 
     fn start_cooldown_timer(&mut self) {
@@ -59,95 +88,37 @@ where
     }
 }
 
-impl<W, const RES_CAPACITY: usize, const URC_CAPACITY: usize> AtatClient
-    for Client<'_, W, RES_CAPACITY, URC_CAPACITY>
+impl<W, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRESS_BUF_SIZE>
 where
     W: Write,
 {
-    fn send<A: AtatCmd<LEN>, const LEN: usize>(&mut self, cmd: &A) -> Result<A::Response, Error> {
-        self.wait_cooldown_timer();
-
-        let cmd_bytes = cmd.as_bytes();
-        let cmd_slice = cmd.get_slice(&cmd_bytes);
-        if cmd_slice.len() < 50 {
-            debug!("Sending command: {:?}", LossyStr(cmd_slice));
-        } else {
-            debug!(
-                "Sending command with long payload ({} bytes)",
-                cmd_slice.len(),
-            );
-        }
-
-        self.writer
-            .write_all(cmd_slice)
-            .map_err(|_e| Error::Write)?;
-        self.writer.flush().map_err(|_e| Error::Write)?;
-
-        if !A::EXPECTS_RESPONSE_CODE {
-            debug!("Command does not expect a response");
-            self.start_cooldown_timer();
-            return cmd.parse(Ok(&[]));
-        }
-
-        let response = Timer::with_timeout(Duration::from_millis(A::MAX_TIMEOUT_MS.into()), || {
-            self.res_reader.read().map(|mut grant| {
-                grant.auto_release(true);
-
-                let frame = Frame::decode(grant.as_ref());
-                let resp = match Response::from(frame) {
-                    Response::Result(r) => r,
-                    Response::Prompt(_) => Ok(&[] as &[u8]),
-                };
-
-                cmd.parse(resp)
-            })
-        });
-
-        self.start_cooldown_timer();
-        response
-    }
-
-    fn try_read_urc_with<Urc: AtatUrc, F: for<'b> FnOnce(Urc::Response, &'b [u8]) -> bool>(
+    fn send<Cmd: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
-        handle: F,
-    ) -> bool {
-        if let Some(urc_grant) = self.urc_reader.read() {
-            self.start_cooldown_timer();
-            if let Some(urc) = Urc::parse(&urc_grant) {
-                if handle(urc, &urc_grant) {
-                    urc_grant.release();
-                    return true;
-                }
-            } else {
-                error!("Parsing URC FAILED: {:?}", LossyStr(&urc_grant));
-                urc_grant.release();
-            }
+        cmd: &Cmd,
+    ) -> Result<Cmd::Response, Error> {
+        let cmd_vec = cmd.as_bytes();
+        let cmd_slice = cmd.get_slice(&cmd_vec);
+        if !Cmd::EXPECTS_RESPONSE_CODE {
+            self.send_command(cmd_slice)?;
+            cmd.parse(Ok(&[]))
+        } else {
+            let response =
+                self.send_request(cmd_slice, Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))?;
+            cmd.parse((&response).into())
         }
-
-        false
-    }
-
-    fn max_urc_len() -> usize {
-        // bbqueue can only guarantee grant sizes of half its capacity if the queue is empty.
-        // A _frame_ grant returned by bbqueue has a header. Assume that it is 2 bytes.
-        (URC_CAPACITY / 2) - 2
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::frame::FrameProducerExt;
-
     use super::*;
     use crate::atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc};
-    use crate::{self as atat, InternalError};
-    use bbqueue::BBBuffer;
+    use crate::{self as atat, InternalError, Response};
+    use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+    use embassy_sync::pubsub::{PubSubChannel, Publisher};
     use heapless::String;
-    use serde_at::HexStr;
 
     const TEST_RX_BUF_LEN: usize = 256;
-    const TEST_RES_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
-    const TEST_URC_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
 
     #[derive(Debug)]
     pub struct IoError;
@@ -158,29 +129,35 @@ mod test {
         }
     }
 
-    struct TxMock {
-        s: String<64>,
+    struct TxMock<'a> {
+        buf: String<64>,
+        publisher: Publisher<'a, CriticalSectionRawMutex, String<64>, 1, 1, 1>,
     }
 
-    impl TxMock {
-        fn new(s: String<64>) -> Self {
-            TxMock { s }
+    impl<'a> TxMock<'a> {
+        fn new(publisher: Publisher<'a, CriticalSectionRawMutex, String<64>, 1, 1, 1>) -> Self {
+            TxMock {
+                buf: String::new(),
+                publisher,
+            }
         }
     }
 
-    impl embedded_io::Io for TxMock {
+    impl embedded_io::Io for TxMock<'_> {
         type Error = IoError;
     }
 
-    impl embedded_io::blocking::Write for TxMock {
+    impl embedded_io::blocking::Write for TxMock<'_> {
         fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
             for c in buf {
-                self.s.push(*c as char).map_err(|_| IoError)?;
+                self.buf.push(*c as char).map_err(|_| IoError)?;
             }
             Ok(buf.len())
         }
 
         fn flush(&mut self) -> Result<(), Self::Error> {
+            self.publisher.try_publish(self.buf.clone()).unwrap();
+            self.buf.clear();
             Ok(())
         }
     }
@@ -306,164 +283,181 @@ mod test {
 
     macro_rules! setup {
         ($config:expr) => {{
-            static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer::new();
-            let (res_p, res_c) = unsafe { RES_Q.try_split_framed().unwrap() };
+            static TX_CHANNEL: PubSubChannel<CriticalSectionRawMutex, String<64>, 1, 1, 1> =
+                PubSubChannel::new();
+            static RES_CHANNEL: ResponseChannel<TEST_RX_BUF_LEN> = ResponseChannel::new();
 
-            static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer::new();
-            let (urc_p, urc_c) = unsafe { URC_Q.try_split_framed().unwrap() };
-
-            let tx_mock = TxMock::new(String::new());
-            let client: Client<TxMock, TEST_RES_CAPACITY, TEST_URC_CAPACITY> =
-                Client::new(tx_mock, res_c, urc_c, $config);
-            (client, res_p, urc_p)
+            let tx_mock = TxMock::new(TX_CHANNEL.publisher().unwrap());
+            let client: Client<TxMock, TEST_RX_BUF_LEN> =
+                Client::new(tx_mock, &RES_CHANNEL, $config);
+            (
+                client,
+                TX_CHANNEL.subscriber().unwrap(),
+                RES_CHANNEL.publisher().unwrap(),
+            )
         }};
     }
 
-    #[test]
-    fn error_response() {
-        let (mut client, mut p, _) = setup!(Config::new());
+    #[tokio::test]
+    async fn error_response() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
         let cmd = ErrorTester { x: 7 };
 
-        p.try_enqueue(Err(InternalError::Error).into()).unwrap();
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            rx.try_publish(Err(InternalError::Error).into()).unwrap();
+        });
 
-        assert_eq!(client.send(&cmd), Err(Error::Error));
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(Err(Error::Error), client.send(&cmd));
+        })
+        .await
+        .unwrap();
+
+        sent.await.unwrap();
     }
 
-    #[test]
-    fn generic_error_response() {
-        let (mut client, mut p, _) = setup!(Config::new());
+    #[tokio::test]
+    async fn generic_error_response() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
 
-        p.try_enqueue(Err(InternalError::Error).into()).unwrap();
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            rx.try_publish(Err(InternalError::Error).into()).unwrap();
+        });
 
-        assert_eq!(client.send(&cmd), Err(Error::Error));
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(Err(Error::Error), client.send(&cmd));
+        })
+        .await
+        .unwrap();
+
+        sent.await.unwrap();
     }
 
-    #[test]
-    fn string_sent() {
-        let (mut client, mut p, _) = setup!(Config::new());
+    #[tokio::test]
+    async fn string_sent() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
-        let cmd = SetModuleFunctionality {
+        let cmd0 = SetModuleFunctionality {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
 
-        p.try_enqueue(Frame::Response(&[])).unwrap();
-
-        assert_eq!(client.send(&cmd), Ok(NoResponse));
-
-        assert_eq!(
-            client.writer.s,
-            String::<32>::from("AT+CFUN=4,0\r\n"),
-            "Wrong encoding of string"
-        );
-
-        p.try_enqueue(Frame::Response(&[])).unwrap();
-
-        let cmd = Test2Cmd {
+        let cmd1 = Test2Cmd {
             fun: Functionality::DM,
             rst: Some(ResetMode::Reset),
         };
-        assert_eq!(client.send(&cmd), Ok(NoResponse));
 
-        assert_eq!(
-            client.writer.s,
-            String::<32>::from("AT+CFUN=4,0\r\nAT+FUN=1,6\r\n"),
-            "Reverse order string did not match"
-        );
+        let sent = tokio::spawn(async move {
+            let sent0 = tx.next_message_pure().await;
+            rx.try_publish(Response::default()).unwrap();
+
+            let sent1 = tx.next_message_pure().await;
+            rx.try_publish(Response::default()).unwrap();
+
+            (sent0, sent1)
+        });
+
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(client.send(&cmd0), Ok(NoResponse));
+            assert_eq!(client.send(&cmd1), Ok(NoResponse));
+        })
+        .await
+        .unwrap();
+
+        let (sent0, sent1) = sent.await.unwrap();
+        assert_eq!("AT+CFUN=4,0\r\n", &sent0);
+        assert_eq!("AT+FUN=1,6\r\n", &sent1);
     }
 
-    #[test]
-    fn blocking() {
-        let (mut client, mut p, _) = setup!(Config::new());
+    #[tokio::test]
+    async fn blocking() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
         let cmd = SetModuleFunctionality {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
 
-        p.try_enqueue(Frame::Response(&[])).unwrap();
+        let sent = tokio::spawn(async move {
+            let sent = tx.next_message_pure().await;
+            rx.try_publish(Response::default()).unwrap();
+            sent
+        });
 
-        assert_eq!(client.send(&cmd), Ok(NoResponse));
-        assert_eq!(client.writer.s, String::<32>::from("AT+CFUN=4,0\r\n"));
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(client.send(&cmd), Ok(NoResponse));
+        })
+        .await
+        .unwrap();
+
+        let sent = sent.await.unwrap();
+        assert_eq!("AT+CFUN=4,0\r\n", &sent);
     }
 
     // Test response containing string
-    #[test]
-    fn response_string() {
-        let (mut client, mut p, _) = setup!(Config::new());
+    #[tokio::test]
+    async fn response_string() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
         // String last
-        let cmd = TestRespStringCmd {
+        let cmd0 = TestRespStringCmd {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
-
-        let response = b"+CUN: 22,16,\"0123456789012345\"";
-        p.try_enqueue(Frame::Response(response)).unwrap();
-
-        assert_eq!(
-            client.send(&cmd),
-            Ok(TestResponseString {
-                socket: 22,
-                length: 16,
-                data: String::<64>::from("0123456789012345")
-            })
-        );
+        let response0 = b"+CUN: 22,16,\"0123456789012345\"";
 
         // Mixed order for string
-        let cmd = TestRespStringMixCmd {
+        let cmd1 = TestRespStringMixCmd {
             fun: Functionality::APM,
             rst: Some(ResetMode::DontReset),
         };
+        let response1 = b"+CUN: \"0123456789012345\",22,16";
 
-        let response = b"+CUN: \"0123456789012345\",22,16";
-        p.try_enqueue(Frame::Response(response)).unwrap();
+        let sent = tokio::spawn(async move {
+            let sent0 = tx.next_message_pure().await;
+            rx.try_publish(Response::ok(response0)).unwrap();
 
-        assert_eq!(
-            client.send(&cmd),
-            Ok(TestResponseStringMixed {
-                socket: 22,
-                length: 16,
-                data: String::<64>::from("0123456789012345")
-            })
-        );
+            let sent1 = tx.next_message_pure().await;
+            rx.try_publish(Response::ok(response1)).unwrap();
+
+            (sent0, sent1)
+        });
+
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(
+                Ok(TestResponseString {
+                    socket: 22,
+                    length: 16,
+                    data: String::<64>::from("0123456789012345")
+                }),
+                client.send(&cmd0),
+            );
+            assert_eq!(
+                Ok(TestResponseStringMixed {
+                    socket: 22,
+                    length: 16,
+                    data: String::<64>::from("0123456789012345")
+                }),
+                client.send(&cmd1),
+            );
+        })
+        .await
+        .unwrap();
+
+        sent.await.unwrap();
     }
 
-    #[test]
-    fn urc() {
-        let (mut client, _, mut urc_p) = setup!(Config::new());
-
-        let response = b"+UMWI: 0, 1";
-
-        let mut grant = urc_p.grant(response.len()).unwrap();
-        grant.copy_from_slice(response.as_ref());
-        grant.commit(response.len());
-
-        assert!(client.try_read_urc::<Urc>().is_some());
-    }
-
-    #[test]
-    fn urc_keyword() {
-        let (mut client, _, mut urc_p) = setup!(Config::new());
-
-        let response = b"CONNECT OK";
-
-        let mut grant = urc_p.grant(response.len()).unwrap();
-        grant.copy_from_slice(response.as_ref());
-        grant.commit(response.len());
-
-        assert_eq!(Urc::ConnectOk, client.try_read_urc::<Urc>().unwrap());
-    }
-
-    #[test]
-    fn invalid_response() {
-        let (mut client, mut p, _) = setup!(Config::new());
+    #[tokio::test]
+    async fn invalid_response() {
+        let (mut client, mut tx, rx) = setup!(Config::new());
 
         // String last
         let cmd = TestRespStringCmd {
@@ -471,71 +465,31 @@ mod test {
             rst: Some(ResetMode::DontReset),
         };
 
-        let response = b"+CUN: 22,16,22";
-        p.try_enqueue(Frame::Response(response)).unwrap();
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            rx.try_publish(Response::ok(b"+CUN: 22,16,22")).unwrap();
+        });
 
-        assert_eq!(client.send(&cmd), Err(Error::Parse));
-    }
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(Err(Error::Parse), client.send(&cmd));
+        })
+        .await
+        .unwrap();
 
-    #[test]
-    fn quote_and_no_quote_strings() {
-        #[derive(Clone, PartialEq, AtatCmd)]
-        #[at_cmd("+DEVEUI", NoResponse)]
-        pub struct WithQuoteNoValHexStr {
-            pub val: HexStr<u16>,
-        }
-
-        let val = HexStr {
-            val: 0xA0F5,
-            ..Default::default()
-        };
-        let val = WithQuoteNoValHexStr { val };
-        let b = val.as_bytes();
-        let s = core::str::from_utf8(&b).unwrap();
-        assert_eq!(s, "AT+DEVEUI=\"A0F5\"\r\n");
-
-        #[derive(Clone, PartialEq, AtatCmd)]
-        #[at_cmd("+DEVEUI", NoResponse, quote_escape_strings = true)]
-        pub struct WithQuoteHexStr {
-            pub val: HexStr<u16>,
-        }
-
-        let val = HexStr {
-            val: 0xA0F5,
-            ..Default::default()
-        };
-        let val = WithQuoteHexStr { val };
-        let b = val.as_bytes();
-        let s = core::str::from_utf8(&b).unwrap();
-        assert_eq!(s, "AT+DEVEUI=\"A0F5\"\r\n");
-
-        #[derive(Clone, PartialEq, AtatCmd)]
-        #[at_cmd("+DEVEUI", NoResponse, quote_escape_strings = false)]
-        pub struct WithoutQuoteHexStr {
-            pub val: HexStr<u128>,
-        }
-
-        let val = HexStr {
-            val: 0xA0F5_A0F5_A0F5_A0F5_A0F5_A0F5_A0F5_A0F5,
-            ..Default::default()
-        };
-        let val = WithoutQuoteHexStr { val };
-        let b = val.as_bytes();
-        let s = core::str::from_utf8(&b).unwrap();
-        assert_eq!(s, "AT+DEVEUI=A0F5A0F5A0F5A0F5A0F5A0F5A0F5A0F5\r\n");
+        sent.await.unwrap();
     }
 
     // #[test]
     // fn tx_timeout() {
     //     let timeout = Duration::from_millis(20);
-    //     let (mut client, mut p, _) = setup!(Config::new().tx_timeout(1));
+    //     let (mut client, mut p) = setup!(Config::new().tx_timeout(1));
 
     //     let cmd = SetModuleFunctionality {
     //         fun: Functionality::APM,
     //         rst: Some(ResetMode::DontReset),
     //     };
 
-    //     p.try_enqueue(Frame::Response(&[])).unwrap();
+    //     p.try_enqueue(Frame::default()).unwrap();
 
     //     assert_eq!(client.send(&cmd), Err(Error::Timeout));
     // }
@@ -543,14 +497,14 @@ mod test {
     // #[test]
     // fn flush_timeout() {
     //     let timeout = Duration::from_millis(20);
-    //     let (mut client, mut p, _) = setup!(Config::new().flush_timeout(1));
+    //     let (mut client, mut p) = setup!(Config::new().flush_timeout(1));
 
     //     let cmd = SetModuleFunctionality {
     //         fun: Functionality::APM,
     //         rst: Some(ResetMode::DontReset),
     //     };
 
-    //     p.try_enqueue(Frame::Response(&[])).unwrap();
+    //     p.try_enqueue(Frame::default()).unwrap();
 
     //     assert_eq!(client.send(&cmd), Err(Error::Timeout));
     // }

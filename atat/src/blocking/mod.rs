@@ -3,7 +3,7 @@ mod timer;
 
 pub use client::Client;
 
-use crate::{AtatCmd, AtatUrc, Error};
+use crate::{AtatCmd, Error};
 
 pub trait AtatClient {
     /// Send an AT command.
@@ -36,47 +36,4 @@ pub trait AtatClient {
         }
         Err(Error::Timeout)
     }
-
-    /// Checks if there are any URC's (Unsolicited Response Code) in
-    /// queue from the ingress manager.
-    ///
-    /// Example:
-    /// ```
-    /// use atat::atat_derive::{AtatResp, AtatUrc};
-    ///
-    /// #[derive(Clone, AtatResp)]
-    /// pub struct MessageWaitingIndication {
-    ///     #[at_arg(position = 0)]
-    ///     pub status: u8,
-    ///     #[at_arg(position = 1)]
-    ///     pub code: u8,
-    /// }
-    ///
-    /// #[derive(Clone, AtatUrc)]
-    /// pub enum Urc {
-    ///     #[at_urc("+UMWI")]
-    ///     MessageWaitingIndication(MessageWaitingIndication),
-    /// }
-    ///
-    /// // match client.check_urc::<Urc>() {
-    /// //     Some(Urc::MessageWaitingIndication(MessageWaitingIndication { status, code })) => {
-    /// //         // Do something to act on `+UMWI` URC
-    /// //     }
-    /// // }
-    /// ```
-    fn try_read_urc<Urc: AtatUrc>(&mut self) -> Option<Urc::Response> {
-        let mut first = None;
-        self.try_read_urc_with::<Urc, _>(|urc, _| {
-            first = Some(urc);
-            true
-        });
-        first
-    }
-
-    fn try_read_urc_with<Urc: AtatUrc, F: for<'b> FnOnce(Urc::Response, &'b [u8]) -> bool>(
-        &mut self,
-        handle: F,
-    ) -> bool;
-
-    fn max_urc_len() -> usize;
 }
