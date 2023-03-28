@@ -1,6 +1,8 @@
 use embedded_io::blocking::Write;
 
-use crate::{reschannel::ResChannel, urchannel::UrcChannel, AtatUrc, Config, Digester, Ingress};
+use crate::{
+    response_channel::ResponseChannel, urc_channel::UrcChannel, AtatUrc, Config, Digester, Ingress,
+};
 
 pub struct Buffers<
     Urc: AtatUrc,
@@ -8,7 +10,7 @@ pub struct Buffers<
     const URC_CAPACITY: usize,
     const URC_SUBSCRIBERS: usize,
 > {
-    res_channel: ResChannel<INGRESS_BUF_SIZE>,
+    res_channel: ResponseChannel<INGRESS_BUF_SIZE>,
     /// The URC pub/sub channel
     pub urc_channel: UrcChannel<Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
@@ -22,7 +24,7 @@ impl<
 {
     pub const fn new() -> Self {
         Self {
-            res_channel: ResChannel::new(),
+            res_channel: ResponseChannel::new(),
             urc_channel: UrcChannel::new(),
         }
     }

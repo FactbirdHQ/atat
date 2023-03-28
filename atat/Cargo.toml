@@ -17,14 +17,6 @@ maintenance = { status = "actively-developed" }
 [lib]
 name = "atat"
 
-[[example]]
-name = "rtic"
-required-features = ["defmt"]
-
-[[example]]
-name = "cortex-m-rt"
-required-features = ["defmt"]
-
 [dependencies]
 embedded-io = "0.4"
 futures = { version = "0.3", default-features = false, optional = true }
@@ -50,10 +42,14 @@ tokio = { version = "1", features = ["macros", "rt"] }
 default = ["derive", "bytes"]
 defmt = ["dep:defmt", "embedded-io/defmt"]
 derive = ["atat_derive", "serde_at"]
+bytes = ["heapless-bytes", "serde_bytes"]
 custom-error-messages = []
 async = ["embedded-io/async", "futures"]
-
-bytes = ["heapless-bytes", "serde_bytes"]
-
-std = ["serde_at/std", "nom/std", "embassy-time/std"]
+std = [
+    "serde_at/std",
+    "nom/std",
+    "embassy-time/std",
+    "embedded-io/std",
+    "embedded-io/tokio",
+]
 hex_str_arrays = []

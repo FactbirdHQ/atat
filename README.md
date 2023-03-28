@@ -42,14 +42,14 @@ This crate attempts to work from these AT best practices:
 
 ## Examples
 
-The crate has examples for usage with [cortex-m-rt] and [cortex-m-rtic] crates.
+The crate has examples for usage with [embassy] for `#![no_std]` and [tokio] for `std`.
 
-The samples can be built using `cargo build --example cortex-m-rt --target thumbv7em-none-eabihf` and `cargo build --example rtic --target thumbv7em-none-eabihf`.
+The samples can be built using `cargo +nightly run --bin embassy --features embedded --target thumbv6m-none-eabi` and `cargo +nightly run --example std-tokio --features std`.
 
-Furthermore I have used the crate to build initial WIP drivers for uBlox cellular modules ([ublox-cellular-rs]) and uBlox short-range modules ([ublox-short-range-rs])
+Furthermore the crate has been used to build initial drivers for U-Blox cellular modules ([ublox-cellular-rs]) and U-Blox short-range modules ([ublox-short-range-rs])
 
-[cortex-m-rt]: https://crates.io/crates/cortex-m-rt
-[cortex-m-rtic]: https://crates.io/crates/cortex-m-rtic
+[embassy]: https://crates.io/crates/embassy-executor
+[tokio]: https://crates.io/crates/tokio
 [ublox-short-range-rs]: https://github.com/BlackbirdHQ/ublox-short-range-rs
 [ublox-cellular-rs]: https://github.com/BlackbirdHQ/ublox-cellular-rs
 
@@ -98,11 +98,12 @@ The following dependent crates provide platform-agnostic device drivers built on
 - `log`: Disabled by default. Enable log statements on various log levels to aid debugging. Powered by `log`.
 - `defmt`: Disabled by default. Enable defmt log statements on various log levels to aid debugging. Powered by `defmt`.
 - `custom-error-messages`: Disabled by default. Allows errors to contain custom error messages up to 64 characters, parsed by `AtDigest::custom_error`.
+- `async`: Enable the async interfaces on both `Ingress` and `Client`.
 - `hex_str_arrays`: Disabled by default. Needs `#![feature(generic_const_exprs)]` Nightly feature. This allows for hex strings to be serialized to a fix-width byte array. 
 
 ## Chat / Getting Help
 
-If you have questions on the development of AT-AT or want to write a driver
+If you have questions on the development of ATAT or want to write a driver
 based on it, feel free to join our matrix room at `#atat:matrix.org`!
 
 ## License

@@ -2,7 +2,9 @@ use embassy_time::Duration;
 use embedded_io::blocking::Write;
 
 use super::{timer::Timer, AtatClient};
-use crate::{helpers::LossyStr, reschannel::ResChannel, AtatCmd, Config, Error, Response};
+use crate::{
+    helpers::LossyStr, response_channel::ResponseChannel, AtatCmd, Config, Error, Response,
+};
 
 /// Client responsible for handling send, receive and timeout from the
 /// userfacing side. The client is decoupled from the ingress-manager through
@@ -14,7 +16,7 @@ where
     W: Write,
 {
     writer: W,
-    res_channel: &'a ResChannel<INGRESS_BUF_SIZE>,
+    res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
     cooldown_timer: Option<Timer>,
     config: Config,
 }
@@ -25,7 +27,7 @@ where
 {
     pub(crate) fn new(
         writer: W,
-        res_channel: &'a ResChannel<INGRESS_BUF_SIZE>,
+        res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
         config: Config,
     ) -> Self {
         Self {
@@ -34,6 +36,45 @@ where
             cooldown_timer: None,
             config,
         }
+    }
+
+    fn send_command(&mut self, cmd: &[u8]) -> Result<(), Error> {
+        self.wait_cooldown_timer();
+
+        self.send_inner(cmd)?;
+
+        self.start_cooldown_timer();
+        Ok(())
+    }
+
+    fn send_request(
+        &mut self,
+        cmd: &[u8],
+        timeout: Duration,
+    ) -> Result<Response<INGRESS_BUF_SIZE>, Error> {
+        self.wait_cooldown_timer();
+
+        let mut response_subscription = self.res_channel.subscriber().unwrap();
+        self.send_inner(cmd)?;
+
+        let response =
+            Timer::with_timeout(timeout, || response_subscription.try_next_message_pure())
+                .map_err(|_| Error::Timeout);
+
+        self.start_cooldown_timer();
+        response
+    }
+
+    fn send_inner(&mut self, cmd: &[u8]) -> Result<(), Error> {
+        if cmd.len() < 50 {
+            debug!("Sending command: {:?}", LossyStr(cmd));
+        } else {
+            debug!("Sending command with long payload ({} bytes)", cmd.len(),);
+        }
+
+        self.writer.write_all(cmd).map_err(|_| Error::Write)?;
+        self.writer.flush().map_err(|_| Error::Write)?;
+        Ok(())
     }
 
     fn start_cooldown_timer(&mut self) {
@@ -51,46 +92,20 @@ impl<W, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRESS_BUF_
 where
     W: Write,
 {
-    fn send<A: AtatCmd<LEN>, const LEN: usize>(&mut self, cmd: &A) -> Result<A::Response, Error> {
-        self.wait_cooldown_timer();
-
-        let cmd_bytes = cmd.as_bytes();
-        let cmd_slice = cmd.get_slice(&cmd_bytes);
-        if cmd_slice.len() < 50 {
-            debug!("Sending command: {:?}", LossyStr(cmd_slice));
+    fn send<Cmd: AtatCmd<LEN>, const LEN: usize>(
+        &mut self,
+        cmd: &Cmd,
+    ) -> Result<Cmd::Response, Error> {
+        let cmd_vec = cmd.as_bytes();
+        let cmd_slice = cmd.get_slice(&cmd_vec);
+        if !Cmd::EXPECTS_RESPONSE_CODE {
+            self.send_command(cmd_slice)?;
+            cmd.parse(Ok(&[]))
         } else {
-            debug!(
-                "Sending command with long payload ({} bytes)",
-                cmd_slice.len(),
-            );
+            let response =
+                self.send_request(cmd_slice, Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))?;
+            cmd.parse((&response).into())
         }
-
-        let mut response_subscription = self.res_channel.subscriber().unwrap();
-
-        self.writer
-            .write_all(cmd_slice)
-            .map_err(|_e| Error::Write)?;
-        self.writer.flush().map_err(|_e| Error::Write)?;
-
-        if !A::EXPECTS_RESPONSE_CODE {
-            debug!("Command does not expect a response");
-            self.start_cooldown_timer();
-            return cmd.parse(Ok(&[]));
-        }
-
-        let response = Timer::with_timeout(Duration::from_millis(A::MAX_TIMEOUT_MS.into()), || {
-            response_subscription.try_next_message_pure().map(|frame| {
-                let resp = match Response::from(&frame) {
-                    Response::Result(r) => r,
-                    Response::Prompt(_) => Ok(&[] as &[u8]),
-                };
-
-                cmd.parse(resp)
-            })
-        });
-
-        self.start_cooldown_timer();
-        response
     }
 }
 
@@ -98,8 +113,7 @@ where
 mod test {
     use super::*;
     use crate::atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc};
-    use crate::reschannel::ResMessage;
-    use crate::{self as atat, InternalError};
+    use crate::{self as atat, InternalError, Response};
     use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
     use embassy_sync::pubsub::{PubSubChannel, Publisher};
     use heapless::String;
@@ -271,7 +285,7 @@ mod test {
         ($config:expr) => {{
             static TX_CHANNEL: PubSubChannel<CriticalSectionRawMutex, String<64>, 1, 1, 1> =
                 PubSubChannel::new();
-            static RES_CHANNEL: ResChannel<TEST_RX_BUF_LEN> = ResChannel::new();
+            static RES_CHANNEL: ResponseChannel<TEST_RX_BUF_LEN> = ResponseChannel::new();
 
             let tx_mock = TxMock::new(TX_CHANNEL.publisher().unwrap());
             let client: Client<TxMock, TEST_RX_BUF_LEN> =
@@ -343,10 +357,10 @@ mod test {
 
         let sent = tokio::spawn(async move {
             let sent0 = tx.next_message_pure().await;
-            rx.try_publish(ResMessage::empty_response()).unwrap();
+            rx.try_publish(Response::default()).unwrap();
 
             let sent1 = tx.next_message_pure().await;
-            rx.try_publish(ResMessage::empty_response()).unwrap();
+            rx.try_publish(Response::default()).unwrap();
 
             (sent0, sent1)
         });
@@ -374,7 +388,7 @@ mod test {
 
         let sent = tokio::spawn(async move {
             let sent = tx.next_message_pure().await;
-            rx.try_publish(ResMessage::empty_response()).unwrap();
+            rx.try_publish(Response::default()).unwrap();
             sent
         });
 
@@ -409,10 +423,10 @@ mod test {
 
         let sent = tokio::spawn(async move {
             let sent0 = tx.next_message_pure().await;
-            rx.try_publish(ResMessage::response(response0)).unwrap();
+            rx.try_publish(Response::ok(response0)).unwrap();
 
             let sent1 = tx.next_message_pure().await;
-            rx.try_publish(ResMessage::response(response1)).unwrap();
+            rx.try_publish(Response::ok(response1)).unwrap();
 
             (sent0, sent1)
         });
@@ -453,8 +467,7 @@ mod test {
 
         let sent = tokio::spawn(async move {
             tx.next_message_pure().await;
-            rx.try_publish(ResMessage::response(b"+CUN: 22,16,22"))
-                .unwrap();
+            rx.try_publish(Response::ok(b"+CUN: 22,16,22")).unwrap();
         });
 
         tokio::task::spawn_blocking(move || {
@@ -476,7 +489,7 @@ mod test {
     //         rst: Some(ResetMode::DontReset),
     //     };
 
-    //     p.try_enqueue(Frame::empty_response()).unwrap();
+    //     p.try_enqueue(Frame::default()).unwrap();
 
     //     assert_eq!(client.send(&cmd), Err(Error::Timeout));
     // }
@@ -491,7 +504,7 @@ mod test {
     //         rst: Some(ResetMode::DontReset),
     //     };
 
-    //     p.try_enqueue(Frame::empty_response()).unwrap();
+    //     p.try_enqueue(Frame::default()).unwrap();
 
     //     assert_eq!(client.send(&cmd), Err(Error::Timeout));
     // }

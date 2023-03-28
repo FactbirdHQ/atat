@@ -229,9 +229,10 @@ pub mod digest;
 mod error;
 pub mod helpers;
 mod ingress;
-mod reschannel;
+mod response;
+mod response_channel;
 mod traits;
-mod urchannel;
+mod urc_channel;
 pub use nom;
 
 pub mod blocking;
@@ -262,11 +263,12 @@ pub use heapless;
 pub use buffers::Buffers;
 pub use config::Config;
 pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
-pub use error::{Error, InternalError, Response};
+pub use error::{Error, InternalError};
 pub use ingress::{AtatIngress, Ingress};
-pub use reschannel::{ResChannel, ResMessage, ResPublisher, ResSubscription};
+pub use response::Response;
+pub use response_channel::{ResponseChannel, ResponsePublisher, ResponseSubscription};
 pub use traits::{AtatCmd, AtatResp, AtatUrc};
-pub use urchannel::{AtatUrcChannel, UrcChannel, UrcSubscription};
+pub use urc_channel::{AtatUrcChannel, UrcChannel, UrcSubscription};
 
 #[cfg(test)]
 #[cfg(feature = "defmt")]
