@@ -95,12 +95,12 @@ impl<'a, const B: usize> Serializer<'a, B> {
 // which take 200+ bytes of ROM / Flash
 macro_rules! serialize_unsigned {
     ($self:ident, $N:expr, $v:expr) => {{
-        let mut buf: [u8; $N] = unsafe { super::uninitialized() };
+        let mut buf = super::uninit_array::<u8, $N>();
 
         let mut v = $v;
         let mut i = $N - 1;
         loop {
-            buf[i] = (v % 10) as u8 + b'0';
+            buf[i].write((v % 10) as u8 + b'0');
             v /= 10;
 
             if v == 0 {
@@ -109,7 +109,10 @@ macro_rules! serialize_unsigned {
             i -= 1;
         }
 
-        $self.buf.extend_from_slice(&buf[i..])?;
+        // SAFETY: The buffer was initialized from `i` to the end.
+        let out = unsafe { super::slice_assume_init_ref(&buf[i..]) };
+
+        $self.buf.extend_from_slice(out)?;
         Ok(())
     }};
 }
@@ -125,10 +128,10 @@ macro_rules! serialize_signed {
             (false, v as $uxx)
         };
 
-        let mut buf: [u8; $N] = unsafe { super::uninitialized() };
+        let mut buf = super::uninit_array::<u8, $N>();
         let mut i = $N - 1;
         loop {
-            buf[i] = (v % 10) as u8 + b'0';
+            buf[i].write((v % 10) as u8 + b'0');
             v /= 10;
 
             i -= 1;
@@ -139,11 +142,15 @@ macro_rules! serialize_signed {
         }
 
         if signed {
-            buf[i] = b'-';
+            buf[i].write(b'-');
         } else {
             i += 1;
         }
-        $self.buf.extend_from_slice(&buf[i..])?;
+
+        // SAFETY: The buffer was initialized from `i` to the end.
+        let out = unsafe { super::slice_assume_init_ref(&buf[i..]) };
+
+        $self.buf.extend_from_slice(out)?;
         Ok(())
     }};
 }
