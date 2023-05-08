@@ -20,7 +20,7 @@ name = "atat"
 [dependencies]
 embedded-io = "0.4"
 futures = { version = "0.3", default-features = false, optional = true }
-embassy-sync = "0.1"
+embassy-sync = "0.2"
 embassy-time = "0.1"
 heapless = { version = "^0.7", features = ["serde"] }
 serde_at = { path = "../serde_at", version = "^0.18.0", optional = true }
