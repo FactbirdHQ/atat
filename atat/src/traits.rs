@@ -79,6 +79,10 @@ pub trait AtatCmd<const LEN: usize> {
     /// Return the command as a heapless `Vec` of bytes.
     fn as_bytes(&self) -> Vec<u8, LEN>;
 
+    /// Write the command into `buf`. `buf` must be able to hold the full
+    /// command. `LEN` can be used as a guide to size `buf`.
+    fn to_slice(&self, buf: &mut [u8]) -> usize;
+
     fn get_slice<'a>(&'a self, bytes: &'a Vec<u8, LEN>) -> &'a [u8] {
         bytes
     }
@@ -97,6 +101,14 @@ impl<const L: usize> AtatCmd<L> for String<L> {
     fn as_bytes(&self) -> Vec<u8, L> {
         self.clone().into_bytes()
     }
+
+    fn to_slice(&self, buf: &mut [u8]) -> usize {
+        let slice = self.as_str().as_bytes();
+        let len = slice.len();
+        buf[..len].copy_from_slice(slice);
+        len
+    }
+
 
     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error> {
         let utf8_string =

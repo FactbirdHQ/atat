@@ -82,6 +82,7 @@ pub enum Error {
     ConnectionError(ConnectionError),
     /// Error response containing any error message
     Custom,
+    BufferTooSmall,
     #[cfg(feature = "custom-error-messages")]
     CustomMessage(heapless::Vec<u8, 64>),
 }

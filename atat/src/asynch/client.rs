@@ -77,6 +77,10 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
 }
 
 impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRESS_BUF_SIZE> {
+    async fn send_raw(&mut self, buf: &[u8], timeout: Duration) -> Result<(), Error> {
+        self.send_request(buf, timeout).await.map(drop)
+    }
+
     async fn send<Cmd: AtatCmd<LEN>, const LEN: usize>(
         &mut self,
         cmd: &Cmd,

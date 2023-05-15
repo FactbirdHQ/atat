@@ -2,18 +2,18 @@ use crate::ser::{Error, Result, Serializer};
 use serde::ser;
 
 #[allow(clippy::module_name_repetitions)]
-pub struct SerializeStruct<'a, 'b, const B: usize> {
-    ser: &'a mut Serializer<'b, B>,
+pub struct SerializeStruct<'a, 'b> {
+    ser: &'a mut Serializer<'b>,
     first: bool,
 }
 
-impl<'a, 'b, const B: usize> SerializeStruct<'a, 'b, B> {
-    pub(crate) fn new(ser: &'a mut Serializer<'b, B>) -> Self {
+impl<'a, 'b> SerializeStruct<'a, 'b> {
+    pub(crate) fn new(ser: &'a mut Serializer<'b>) -> Self {
         SerializeStruct { ser, first: true }
     }
 }
 
-impl<'a, 'b, const B: usize> ser::SerializeStruct for SerializeStruct<'a, 'b, B> {
+impl<'a, 'b> ser::SerializeStruct for SerializeStruct<'a, 'b> {
     type Ok = ();
     type Error = Error;
 
@@ -23,10 +23,10 @@ impl<'a, 'b, const B: usize> ser::SerializeStruct for SerializeStruct<'a, 'b, B>
     {
         if self.first {
             if self.ser.options.value_sep {
-                self.ser.buf.push(b'=')?;
+                self.ser.push(b'=')?;
             }
         } else {
-            self.ser.buf.push(b',')?;
+            self.ser.push(b',')?;
         }
         self.first = false;
 
@@ -36,7 +36,6 @@ impl<'a, 'b, const B: usize> ser::SerializeStruct for SerializeStruct<'a, 'b, B>
 
     fn end(self) -> Result<Self::Ok> {
         self.ser
-            .buf
             .extend_from_slice(self.ser.options.termination.as_bytes())?;
         Ok(())
     }

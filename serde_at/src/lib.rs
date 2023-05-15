@@ -18,7 +18,7 @@ pub use serde;
 #[doc(inline)]
 pub use self::de::{from_slice, from_str, hex_str::HexStr};
 #[doc(inline)]
-pub use self::ser::{to_string, to_vec, SerializeOptions};
+pub use self::ser::{to_string, to_slice, to_vec, SerializeOptions};
 
 use core::mem::MaybeUninit;
 

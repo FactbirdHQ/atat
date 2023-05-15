@@ -113,6 +113,20 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             }
 
             #[inline]
+            fn to_slice(&self, buf: &mut [u8]) -> usize {
+                match atat::serde_at::to_slice(self, buf, #cmd, atat::serde_at::SerializeOptions {
+                    value_sep: #value_sep,
+                    cmd_prefix: #cmd_prefix,
+                    termination: #termination,
+                    quote_escape_strings: #quote_escape_strings
+                }) {
+                    Ok(s) => s,
+                    Err(_) => panic!("Failed to serialize command")
+                }
+            }
+
+
+            #[inline]
             fn parse(&self, res: Result<&[u8], atat::InternalError>) -> core::result::Result<Self::Response, atat::Error> {
                 match res {
                     Ok(resp) => atat::serde_at::from_slice::<#resp>(resp).map_err(|e| {

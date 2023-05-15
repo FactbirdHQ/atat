@@ -75,18 +75,50 @@ impl fmt::Display for Error {
     }
 }
 
-pub(crate) struct Serializer<'a, const B: usize> {
-    buf: Vec<u8, B>,
+pub(crate) struct Serializer<'a> {
+    buf: &'a mut [u8],
+    current_length: usize,
     cmd: &'a str,
     options: SerializeOptions<'a>,
 }
 
-impl<'a, const B: usize> Serializer<'a, B> {
-    fn new(cmd: &'a str, options: SerializeOptions<'a>) -> Self {
+impl<'a> Serializer<'a> {
+    fn new(buf: &'a mut [u8], cmd: &'a str, options: SerializeOptions<'a>) -> Self {
         Serializer {
-            buf: Vec::new(),
+            buf,
+            current_length: 0,
             cmd,
             options,
+        }
+    }
+
+    fn push(&mut self, c: u8) -> Result<()> {
+        if self.current_length < self.buf.len() {
+            unsafe { self.push_unchecked(c) };
+            Ok(())
+        } else {
+            Err(Error::BufferFull)
+        }
+    }
+
+    unsafe fn push_unchecked(&mut self, c: u8) {
+        self.buf[self.current_length] = c;
+        self.current_length += 1;
+    }
+
+    fn truncate(&mut self, len: usize) {
+        self.current_length = len;
+    }
+
+    fn extend_from_slice(&mut self, other: &[u8]) -> Result<()> {
+        if self.current_length + other.len() > self.buf.len() {
+            // won't fit in the buf; don't modify anything and return an error
+            Err(Error::BufferFull)
+        } else {
+            for c in other {
+                unsafe { self.push_unchecked(*c) };
+            }
+            Ok(())
         }
     }
 }
@@ -112,7 +144,7 @@ macro_rules! serialize_unsigned {
         // SAFETY: The buffer was initialized from `i` to the end.
         let out = unsafe { super::slice_assume_init_ref(&buf[i..]) };
 
-        $self.buf.extend_from_slice(out)?;
+        $self.extend_from_slice(out)?;
         Ok(())
     }};
 }
@@ -150,7 +182,7 @@ macro_rules! serialize_signed {
         // SAFETY: The buffer was initialized from `i` to the end.
         let out = unsafe { super::slice_assume_init_ref(&buf[i..]) };
 
-        $self.buf.extend_from_slice(out)?;
+        $self.extend_from_slice(out)?;
         Ok(())
     }};
 }
@@ -159,27 +191,27 @@ macro_rules! serialize_fmt {
     ($self:ident, $N:expr, $fmt:expr, $v:expr) => {{
         let mut s: String<$N> = String::new();
         write!(&mut s, $fmt, $v).unwrap();
-        $self.buf.extend_from_slice(s.as_bytes())?;
+        $self.extend_from_slice(s.as_bytes())?;
         Ok(())
     }};
 }
 
-impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
+impl<'a, 'b> ser::Serializer for &'a mut Serializer<'b> {
     type Ok = ();
     type Error = Error;
     type SerializeSeq = Unreachable;
     type SerializeTuple = Unreachable;
     type SerializeTupleStruct = Unreachable;
-    type SerializeTupleVariant = SerializeTupleVariant<'a, 'b, B>;
+    type SerializeTupleVariant = SerializeTupleVariant<'a, 'b>;
     type SerializeMap = Unreachable;
-    type SerializeStruct = SerializeStruct<'a, 'b, B>;
-    type SerializeStructVariant = SerializeStructVariant<'a, 'b, B>;
+    type SerializeStruct = SerializeStruct<'a, 'b>;
+    type SerializeStructVariant = SerializeStructVariant<'a, 'b>;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok> {
         if v {
-            self.buf.extend_from_slice(b"true")?;
+            self.extend_from_slice(b"true")?;
         } else {
-            self.buf.extend_from_slice(b"false")?;
+            self.extend_from_slice(b"false")?;
         }
 
         Ok(())
@@ -236,32 +268,32 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
     fn serialize_char(self, v: char) -> Result<Self::Ok> {
         let mut encoding_tmp = [0_u8; 4];
         let encoded = v.encode_utf8(&mut encoding_tmp as &mut [u8]);
-        self.buf.extend_from_slice(encoded.as_bytes())?;
+        self.extend_from_slice(encoded.as_bytes())?;
         Ok(())
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
         if self.options.quote_escape_strings {
-            self.buf.push(b'"')?;
+            self.push(b'"')?;
         }
         let mut encoding_tmp = [0_u8; 4];
         for c in v.chars() {
             let encoded = c.encode_utf8(&mut encoding_tmp as &mut [u8]);
-            self.buf.extend_from_slice(encoded.as_bytes())?;
+            self.extend_from_slice(encoded.as_bytes())?;
         }
         if self.options.quote_escape_strings {
-            self.buf.push(b'"')?;
+            self.push(b'"')?;
         }
         Ok(())
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok> {
-        self.buf.extend_from_slice(v)?;
+        self.extend_from_slice(v)?;
         Ok(())
     }
 
     fn serialize_none(self) -> Result<Self::Ok> {
-        self.buf.truncate(self.buf.len() - 1);
+        self.truncate(self.buf.len() - 1);
         Ok(())
     }
 
@@ -277,11 +309,9 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok> {
-        self.buf
-            .extend_from_slice(self.options.cmd_prefix.as_bytes())?;
-        self.buf.extend_from_slice(self.cmd.as_bytes())?;
-        self.buf
-            .extend_from_slice(self.options.termination.as_bytes())?;
+        self.extend_from_slice(self.options.cmd_prefix.as_bytes())?;
+        self.extend_from_slice(self.cmd.as_bytes())?;
+        self.extend_from_slice(self.options.termination.as_bytes())?;
         Ok(())
     }
 
@@ -312,7 +342,7 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
         T: ser::Serialize + ?Sized,
     {
         self.serialize_u32(variant_index)?;
-        self.buf.push(b',')?;
+        self.push(b',')?;
         value.serialize(self)
     }
 
@@ -340,7 +370,7 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
         self.serialize_u32(variant_index)?;
-        self.buf.push(b',')?;
+        self.push(b',')?;
         Ok(SerializeTupleVariant::new(self))
     }
 
@@ -349,9 +379,8 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
     }
 
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-        self.buf
-            .extend_from_slice(self.options.cmd_prefix.as_bytes())?;
-        self.buf.extend_from_slice(self.cmd.as_bytes())?;
+        self.extend_from_slice(self.options.cmd_prefix.as_bytes())?;
+        self.extend_from_slice(self.cmd.as_bytes())?;
         Ok(SerializeStruct::new(self))
     }
 
@@ -363,7 +392,7 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
         self.serialize_u32(variant_index)?;
-        self.buf.push(b',')?;
+        self.push(b',')?;
         Ok(SerializeStructVariant::new(self))
     }
 
@@ -373,33 +402,52 @@ impl<'a, 'b, const B: usize> ser::Serializer for &'a mut Serializer<'b, B> {
 }
 
 /// Serializes the given data structure as a string
-pub fn to_string<T, const B: usize>(
+pub fn to_string<T, const N: usize>(
     value: &T,
     cmd: &str,
     options: SerializeOptions<'_>,
-) -> Result<String<B>>
+) -> Result<String<N>>
 where
     T: ser::Serialize + ?Sized,
 {
-    let mut ser = Serializer::<B>::new(cmd, options);
-    value.serialize(&mut ser)?;
+    let mut buf = Vec::<u8, N>::new();
+    buf.resize_default(N)?;
+    let len = to_slice(value, &mut buf, cmd, options)?;
+    buf.truncate(len);
     Ok(String::from(unsafe {
-        core::str::from_utf8_unchecked(&ser.buf)
+        core::str::from_utf8_unchecked(buf.as_slice())
     }))
 }
 
-/// Serializes the given data structure as a byte vector
-pub fn to_vec<T, const B: usize>(
+/// Serializes the given data structure as a vec
+pub fn to_vec<T, const N: usize>(
     value: &T,
     cmd: &str,
     options: SerializeOptions<'_>,
-) -> Result<Vec<u8, B>>
+) -> Result<Vec<u8, N>>
 where
     T: ser::Serialize + ?Sized,
 {
-    let mut ser = Serializer::new(cmd, options);
+    let mut buf = Vec::<u8, N>::new();
+    buf.resize_default(N)?;
+    let len = to_slice(value, &mut buf, cmd, options)?;
+    buf.truncate(len);
+    Ok(buf)
+}
+
+/// Serializes the given data structure as a JSON byte vector into the provided buffer
+pub fn to_slice<T>(
+    value: &T,
+    buf: &mut [u8],
+    cmd: &str,
+    options: SerializeOptions<'_>,
+) -> Result<usize>
+where
+    T: ser::Serialize + ?Sized,
+{
+    let mut ser = Serializer::new(buf, cmd, options);
     value.serialize(&mut ser)?;
-    Ok(ser.buf)
+    Ok(ser.current_length)
 }
 
 impl ser::Error for Error {

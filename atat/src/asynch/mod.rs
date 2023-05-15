@@ -1,10 +1,18 @@
 mod client;
 
 pub use client::Client;
+use embassy_time::Duration;
 
 use crate::{AtatCmd, Error};
 
 pub trait AtatClient {
+    /// Send an already serialized AT command.
+    ///
+    /// This function will also make sure that at least
+    /// `self.config.cmd_cooldown` has passed since the last response or URC has
+    /// been received, to allow the slave AT device time to deliver URC's.
+    async fn send_raw(&mut self, buf: &[u8], timeout: Duration) -> Result<(), Error>;
+
     /// Send an AT command.
     ///
     /// `cmd` must implement [`AtatCmd`].
