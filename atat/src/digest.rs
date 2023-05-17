@@ -108,18 +108,20 @@ impl<P: Parser> Default for AtDigester<P> {
 
 impl<P: Parser> Digester for AtDigester<P> {
     fn digest<'a>(&mut self, input: &'a [u8]) -> (DigestResult<'a>, usize) {
-        // 1. Optionally discard echo
-        let (buf, echo_bytes) = match nom::combinator::opt(parser::echo)(input) {
-            Ok((buf, echo)) => (buf, echo.unwrap_or_default().len()),
+        // 1. Optionally discard space and echo
+        let buf = parser::trim_start_ascii_space(input);
+        let space_bytes = input.len() - buf.len();
+        let (buf, space_and_echo_bytes) = match nom::combinator::opt(parser::echo)(buf) {
+            Ok((buf, echo)) => (buf, space_bytes + echo.unwrap_or_default().len()),
             Err(nom::Err::Incomplete(_)) => return (DigestResult::None, 0),
             Err(_) => panic!("NOM ERROR - opt(echo)"),
         };
 
-        // Incomplete. Eat the echo and do nothing else.
-        let incomplete = (DigestResult::None, echo_bytes);
+        // Incomplete. Eat whitespace and echo and do nothing else.
+        let incomplete = (DigestResult::None, space_and_echo_bytes);
 
         // 2. Match for URC's
-        match P::parse(input) {
+        match P::parse(buf) {
             Ok((urc, len)) => return (DigestResult::Urc(urc), len),
             Err(ParseError::Incomplete) => return incomplete,
             _ => {}
@@ -128,28 +130,35 @@ impl<P: Parser> Digester for AtDigester<P> {
         // 3. Parse for success responses
         // Custom successful replies first, if any
         match (self.custom_success)(buf) {
-            Ok((response, len)) => return (DigestResult::Response(Ok(response)), len + echo_bytes),
+            Ok((response, len)) => {
+                return (
+                    DigestResult::Response(Ok(response)),
+                    len + space_and_echo_bytes,
+                )
+            }
             Err(ParseError::Incomplete) => return incomplete,
             _ => {}
         }
 
         // Generic success replies
         match parser::success_response(buf) {
-            Ok((_, (result, len))) => return (result, len + echo_bytes),
+            Ok((_, (result, len))) => return (result, len + space_and_echo_bytes),
             Err(nom::Err::Incomplete(_)) => return incomplete,
             _ => {}
         }
 
         // Custom prompts for data replies first, if any
         match (self.custom_prompt)(buf) {
-            Ok((response, len)) => return (DigestResult::Prompt(response), len + echo_bytes),
+            Ok((response, len)) => {
+                return (DigestResult::Prompt(response), len + space_and_echo_bytes)
+            }
             Err(ParseError::Incomplete) => return incomplete,
             _ => {}
         }
 
         // Generic prompts for data
         if let Ok((_, (result, len))) = parser::prompt_response(buf) {
-            return (result, len + echo_bytes);
+            return (result, len + space_and_echo_bytes);
         }
 
         // 4. Parse for error responses
@@ -158,7 +167,7 @@ impl<P: Parser> Digester for AtDigester<P> {
             Ok((response, len)) => {
                 return (
                     DigestResult::Response(Err(InternalError::Custom(response))),
-                    len + echo_bytes,
+                    len + space_and_echo_bytes,
                 )
             }
             Err(ParseError::Incomplete) => return incomplete,
@@ -167,7 +176,7 @@ impl<P: Parser> Digester for AtDigester<P> {
 
         // Generic error matches
         if let Ok((_, (result, len))) = parser::error_response(buf) {
-            return (result, len + echo_bytes);
+            return (result, len + space_and_echo_bytes);
         }
 
         // No matches at all.
@@ -451,6 +460,13 @@ pub mod parser {
         let to = x.iter().rposition(|x| !x.is_ascii_whitespace()).unwrap();
         &x[from..=to]
     }
+
+    pub fn trim_start_ascii_space(x: &[u8]) -> &[u8] {
+        match x.iter().position(|&x| x != b' ') {
+            Some(offset) => &x[offset..],
+            None => &x[0..0],
+        }
+    }
 }
 #[cfg(test)]
 mod test {
@@ -680,6 +696,16 @@ mod test {
             buf.rotate_left(bytes);
             buf.truncate(buf.len() - bytes);
         }
+    }
+
+    #[test]
+    fn space_removal() {
+        // Space can happen after a "\r\n> " prompt,
+        // ingested as "\r\n>" and " ".
+
+        let mut digester = AtDigester::<UrcTestParser>::new();
+
+        assert_eq!((DigestResult::None, 1), digester.digest(b" "));
     }
 
     #[test]
