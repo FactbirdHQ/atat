@@ -135,7 +135,7 @@ impl<
                 (DigestResult::None, swallowed) => {
                     if swallowed > 0 {
                         debug!(
-                            "Received echo or whitespace ({}/{}): {:?}",
+                            "Received echo or space ({}/{}): {:?}",
                             swallowed,
                             self.pos,
                             LossyStr(&self.buf[..self.pos])
