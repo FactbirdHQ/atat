@@ -69,10 +69,13 @@ pub trait AtatIngress {
                 }
                 Err(e) => {
                     error!("Got serial read error {:?}", e.kind());
+                    self.clear();
                 }
             }
         }
     }
+
+    fn clear(&mut self);
 }
 
 pub struct Ingress<
@@ -291,6 +294,10 @@ impl<
             self.buf.copy_within(swallowed..self.pos, 0);
             self.pos -= swallowed;
         }
+    }
+
+    fn clear(&mut self) {
+        self.pos = 0;
     }
 }
 
