@@ -2,8 +2,12 @@ use super::AtatClient;
 use crate::{
     helpers::LossyStr, response_channel::ResponseChannel, AtatCmd, Config, Error, Response,
 };
-use embassy_time::{with_timeout, Duration, Timer};
+use embassy_time::{Duration, Instant, TimeoutError, Timer};
 use embedded_io::asynch::Write;
+use futures::{
+    future::{select, Either},
+    pin_mut, Future,
+};
 
 pub struct Client<'a, W: Write, const INGRESS_BUF_SIZE: usize> {
     writer: W,
@@ -45,7 +49,8 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
         let mut response_subscription = self.res_channel.subscriber().unwrap();
         self.send_inner(cmd).await?;
 
-        let response = with_timeout(timeout, response_subscription.next_message_pure())
+        let response = self
+            .with_timeout(timeout, response_subscription.next_message_pure())
             .await
             .map_err(|_| Error::Timeout);
 
@@ -63,6 +68,31 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
         self.writer.write_all(cmd).await.map_err(|_| Error::Write)?;
         self.writer.flush().await.map_err(|_| Error::Write)?;
         Ok(())
+    }
+
+    async fn with_timeout<F: Future>(
+        &self,
+        timeout: Duration,
+        fut: F,
+    ) -> Result<F::Output, TimeoutError> {
+        let start = Instant::now();
+        let mut expires = (self.config.get_response_timeout)(start, timeout);
+
+        pin_mut!(fut);
+
+        loop {
+            fut = match select(fut, Timer::at(expires)).await {
+                Either::Left((r, _)) => return Ok(r),
+                Either::Right((_, fut)) => {
+                    let new_expires = (self.config.get_response_timeout)(start, timeout);
+                    if new_expires == expires {
+                        return Err(TimeoutError);
+                    }
+                    expires = new_expires;
+                    fut
+                }
+            };
+        }
     }
 
     fn start_cooldown_timer(&mut self) {

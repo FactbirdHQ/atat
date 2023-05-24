@@ -1,7 +1,7 @@
-use embassy_time::Duration;
+use embassy_time::{Duration, Instant, TimeoutError};
 use embedded_io::blocking::Write;
 
-use super::{timer::Timer, AtatClient};
+use super::{blocking_timer::BlockingTimer, AtatClient};
 use crate::{
     helpers::LossyStr, response_channel::ResponseChannel, AtatCmd, Config, Error, Response,
 };
@@ -17,7 +17,7 @@ where
 {
     writer: W,
     res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
-    cooldown_timer: Option<Timer>,
+    cooldown_timer: Option<BlockingTimer>,
     config: Config,
 }
 
@@ -57,9 +57,9 @@ where
         let mut response_subscription = self.res_channel.subscriber().unwrap();
         self.send_inner(cmd)?;
 
-        let response =
-            Timer::with_timeout(timeout, || response_subscription.try_next_message_pure())
-                .map_err(|_| Error::Timeout);
+        let response = self
+            .with_timeout(timeout, || response_subscription.try_next_message_pure())
+            .map_err(|_| Error::Timeout);
 
         self.start_cooldown_timer();
         response
@@ -77,8 +77,25 @@ where
         Ok(())
     }
 
+    fn with_timeout<R>(
+        &self,
+        timeout: Duration,
+        mut poll: impl FnMut() -> Option<R>,
+    ) -> Result<R, TimeoutError> {
+        let start = Instant::now();
+
+        loop {
+            if let Some(res) = poll() {
+                return Ok(res);
+            }
+            if (self.config.get_response_timeout)(start, timeout) <= Instant::now() {
+                return Err(TimeoutError);
+            }
+        }
+    }
+
     fn start_cooldown_timer(&mut self) {
-        self.cooldown_timer = Some(Timer::after(self.config.cmd_cooldown));
+        self.cooldown_timer = Some(BlockingTimer::after(self.config.cmd_cooldown));
     }
 
     fn wait_cooldown_timer(&mut self) {
