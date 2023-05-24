@@ -1,4 +1,4 @@
-use embassy_time::Duration;
+use embassy_time::{Duration, Instant};
 
 /// Configuration of both the ingress manager, and the AT client. Some of these
 /// parameters can be changed on the fly, through issuing a [`Command`] from the
@@ -10,7 +10,10 @@ pub struct Config {
     pub(crate) cmd_cooldown: Duration,
     pub(crate) tx_timeout: Duration,
     pub(crate) flush_timeout: Duration,
+    pub(crate) get_response_timeout: GetTimeout,
 }
+
+pub type GetTimeout = fn(Instant, Duration) -> Instant;
 
 impl Default for Config {
     fn default() -> Self {
@@ -18,8 +21,13 @@ impl Default for Config {
             cmd_cooldown: Duration::from_millis(20),
             tx_timeout: Duration::from_ticks(0),
             flush_timeout: Duration::from_ticks(0),
+            get_response_timeout,
         }
     }
+}
+
+fn get_response_timeout(start: Instant, duration: Duration) -> Instant {
+    start + duration
 }
 
 impl Config {
@@ -43,6 +51,18 @@ impl Config {
     #[must_use]
     pub const fn cmd_cooldown(mut self, duration: Duration) -> Self {
         self.cmd_cooldown = duration;
+        self
+    }
+
+    /// Set a custom computation for determining the reponse timeout instant
+    /// for a request sent at a specific time. The timeout is recomputed
+    /// continously, so it is possible to for example artificially extend the
+    /// timeout if for example flow control has hindered the device to actually
+    /// communicate during the period from the request is sent until the
+    /// response is expected.
+    #[must_use]
+    pub const fn get_response_timeout(mut self, compute: GetTimeout) -> Self {
+        self.get_response_timeout = compute;
         self
     }
 }

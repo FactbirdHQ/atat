@@ -1,5 +1,5 @@
+mod blocking_timer;
 mod client;
-mod timer;
 
 pub use client::Client;
 
