@@ -230,7 +230,7 @@ mod error;
 pub mod helpers;
 mod ingress;
 mod response;
-mod response_channel;
+pub mod response_channel;
 mod traits;
 mod urc_channel;
 pub use nom;
