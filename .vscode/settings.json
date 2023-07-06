@@ -4,7 +4,7 @@
     // with these changes RA will call `cargo check --bins` on save
     "rust-analyzer.checkOnSave.allTargets": false,
     "rust-analyzer.cargo.target": "thumbv6m-none-eabi",
-    "rust-analyzer.cargo.features": ["async", "thumbv6"],
+    "rust-analyzer.cargo.features": ["async"],
     "rust-analyzer.diagnostics.disabled": [
         "unresolved-import"
     ]
