@@ -1,18 +1,18 @@
 use crate::ser::{Error, Result, Serializer};
 use serde::ser;
 
-pub struct SerializeTupleVariant<'a, 'b, const B: usize> {
-    ser: &'a mut Serializer<'b, B>,
+pub struct SerializeTupleVariant<'a, 'b> {
+    ser: &'a mut Serializer<'b>,
     first: bool,
 }
 
-impl<'a, 'b, const B: usize> SerializeTupleVariant<'a, 'b, B> {
-    pub(crate) fn new(ser: &'a mut Serializer<'b, B>) -> Self {
+impl<'a, 'b> SerializeTupleVariant<'a, 'b> {
+    pub(crate) fn new(ser: &'a mut Serializer<'b>) -> Self {
         SerializeTupleVariant { ser, first: true }
     }
 }
 
-impl<'a, 'b, const B: usize> ser::SerializeTupleVariant for SerializeTupleVariant<'a, 'b, B> {
+impl<'a, 'b> ser::SerializeTupleVariant for SerializeTupleVariant<'a, 'b> {
     type Ok = ();
     type Error = Error;
 
@@ -21,7 +21,7 @@ impl<'a, 'b, const B: usize> ser::SerializeTupleVariant for SerializeTupleVarian
         T: ser::Serialize + ?Sized,
     {
         if !self.first {
-            self.ser.buf.push(b',')?;
+            self.ser.push(b',')?;
         }
         self.first = false;
 
@@ -34,18 +34,18 @@ impl<'a, 'b, const B: usize> ser::SerializeTupleVariant for SerializeTupleVarian
     }
 }
 
-pub struct SerializeStructVariant<'a, 'b, const B: usize> {
-    ser: &'a mut Serializer<'b, B>,
+pub struct SerializeStructVariant<'a, 'b> {
+    ser: &'a mut Serializer<'b>,
     first: bool,
 }
 
-impl<'a, 'b, const B: usize> SerializeStructVariant<'a, 'b, B> {
-    pub(crate) fn new(ser: &'a mut Serializer<'b, B>) -> Self {
+impl<'a, 'b> SerializeStructVariant<'a, 'b> {
+    pub(crate) fn new(ser: &'a mut Serializer<'b>) -> Self {
         SerializeStructVariant { ser, first: true }
     }
 }
 
-impl<'a, 'b, const B: usize> ser::SerializeStructVariant for SerializeStructVariant<'a, 'b, B> {
+impl<'a, 'b> ser::SerializeStructVariant for SerializeStructVariant<'a, 'b> {
     type Ok = ();
     type Error = Error;
 
@@ -54,7 +54,7 @@ impl<'a, 'b, const B: usize> ser::SerializeStructVariant for SerializeStructVari
         T: ser::Serialize + ?Sized,
     {
         if !self.first {
-            self.ser.buf.push(b',')?;
+            self.ser.push(b',')?;
         }
         self.first = false;
 
