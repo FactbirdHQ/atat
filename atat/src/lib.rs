@@ -232,7 +232,7 @@ mod ingress;
 mod response;
 pub mod response_channel;
 mod traits;
-mod urc_channel;
+pub mod urc_channel;
 pub use nom;
 
 pub mod blocking;
