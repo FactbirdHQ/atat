@@ -131,53 +131,13 @@ mod test {
     use super::*;
     use crate::atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc};
     use crate::{self as atat, InternalError, Response};
+    use core::sync::atomic::{AtomicU64, Ordering};
     use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-    use embassy_sync::pubsub::{PubSubChannel, Publisher};
+    use embassy_sync::pubsub::PubSubChannel;
+    use embassy_time::Timer;
     use heapless::String;
 
     const TEST_RX_BUF_LEN: usize = 256;
-
-    #[derive(Debug)]
-    pub struct IoError;
-
-    impl embedded_io::Error for IoError {
-        fn kind(&self) -> embedded_io::ErrorKind {
-            embedded_io::ErrorKind::Other
-        }
-    }
-
-    struct TxMock<'a> {
-        buf: String<64>,
-        publisher: Publisher<'a, CriticalSectionRawMutex, String<64>, 1, 1, 1>,
-    }
-
-    impl<'a> TxMock<'a> {
-        fn new(publisher: Publisher<'a, CriticalSectionRawMutex, String<64>, 1, 1, 1>) -> Self {
-            TxMock {
-                buf: String::new(),
-                publisher,
-            }
-        }
-    }
-
-    impl embedded_io::Io for TxMock<'_> {
-        type Error = IoError;
-    }
-
-    impl embedded_io::blocking::Write for TxMock<'_> {
-        fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
-            for c in buf {
-                self.buf.push(*c as char).map_err(|_| IoError)?;
-            }
-            Ok(buf.len())
-        }
-
-        fn flush(&mut self) -> Result<(), Self::Error> {
-            self.publisher.try_publish(self.buf.clone()).unwrap();
-            self.buf.clear();
-            Ok(())
-        }
-    }
 
     #[derive(Debug, PartialEq, Eq)]
     pub enum InnerError {
@@ -304,8 +264,8 @@ mod test {
                 PubSubChannel::new();
             static RES_CHANNEL: ResponseChannel<TEST_RX_BUF_LEN> = ResponseChannel::new();
 
-            let tx_mock = TxMock::new(TX_CHANNEL.publisher().unwrap());
-            let client: Client<TxMock, TEST_RX_BUF_LEN> =
+            let tx_mock = crate::tx_mock::TxMock::new(TX_CHANNEL.publisher().unwrap());
+            let client: Client<crate::tx_mock::TxMock, TEST_RX_BUF_LEN> =
                 Client::new(tx_mock, &RES_CHANNEL, $config);
             (
                 client,
@@ -494,6 +454,93 @@ mod test {
         .unwrap();
 
         sent.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn custom_timeout() {
+        static CALL_COUNT: AtomicU64 = AtomicU64::new(0);
+
+        fn custom_response_timeout(sent: Instant, timeout: Duration) -> Instant {
+            CALL_COUNT.fetch_add(1, Ordering::Relaxed);
+            assert_eq!(
+                Duration::from_millis(SetModuleFunctionality::MAX_TIMEOUT_MS.into()),
+                timeout
+            );
+            // Effectively ignoring the timeout configured for the command
+            // The default response timeout is "sent + timeout"
+            sent + Duration::from_millis(100)
+        }
+
+        let (mut client, mut tx, _rx) =
+            setup!(Config::new().get_response_timeout(custom_response_timeout));
+
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            // Do not emit a response effectively causing a timeout
+        });
+
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(Err(Error::Timeout), client.send(&cmd));
+        })
+        .await
+        .unwrap();
+
+        sent.await.unwrap();
+
+        assert_ne!(0, CALL_COUNT.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn custom_timeout_modified_during_request() {
+        static CALL_COUNT: AtomicU64 = AtomicU64::new(0);
+
+        fn custom_response_timeout(sent: Instant, timeout: Duration) -> Instant {
+            CALL_COUNT.fetch_add(1, Ordering::Relaxed);
+            assert_eq!(
+                Duration::from_millis(SetModuleFunctionality::MAX_TIMEOUT_MS.into()),
+                timeout
+            );
+            // Effectively ignoring the timeout configured for the command
+            // The default response timeout is "sent + timeout"
+            // Let the timeout instant be extended depending on the current time
+            if Instant::now() < sent + Duration::from_millis(100) {
+                // Initial timeout
+                sent + Duration::from_millis(200)
+            } else {
+                // Extended timeout
+                sent + Duration::from_millis(500)
+            }
+        }
+
+        let (mut client, mut tx, rx) =
+            setup!(Config::new().get_response_timeout(custom_response_timeout));
+
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            // Emit response in the extended timeout timeframe
+            Timer::after(Duration::from_millis(300)).await;
+            rx.try_publish(Response::default()).unwrap();
+        });
+
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(Ok(NoResponse), client.send(&cmd));
+        })
+        .await
+        .unwrap();
+
+        sent.await.unwrap();
+
+        assert_ne!(0, CALL_COUNT.load(Ordering::Relaxed));
     }
 
     // #[test]

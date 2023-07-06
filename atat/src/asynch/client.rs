@@ -85,7 +85,7 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
                 Either::Left((r, _)) => return Ok(r),
                 Either::Right((_, fut)) => {
                     let new_expires = (self.config.get_response_timeout)(start, timeout);
-                    if new_expires == expires {
+                    if new_expires <= expires {
                         return Err(TimeoutError);
                     }
                     expires = new_expires;
@@ -122,5 +122,159 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
                 .await?;
             cmd.parse((&response).into())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate as atat;
+    use crate::atat_derive::{AtatCmd, AtatEnum, AtatResp};
+    use crate::{Error, Response};
+    use core::sync::atomic::{AtomicU64, Ordering};
+    use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+    use embassy_sync::pubsub::PubSubChannel;
+    use embassy_time::{Duration, Instant, Timer};
+    use heapless::String;
+    use tokio::join;
+
+    const TEST_RX_BUF_LEN: usize = 256;
+
+    #[derive(Clone, AtatCmd)]
+    #[at_cmd("+CFUN", NoResponse, timeout_ms = 180000)]
+    pub struct SetModuleFunctionality {
+        #[at_arg(position = 0)]
+        pub fun: Functionality,
+        #[at_arg(position = 1)]
+        pub rst: Option<ResetMode>,
+    }
+
+    #[derive(Clone, PartialEq, AtatEnum)]
+    #[at_enum(u8)]
+    pub enum Functionality {
+        #[at_arg(value = 0)]
+        Min,
+        #[at_arg(value = 1)]
+        Full,
+        #[at_arg(value = 4)]
+        APM,
+        #[at_arg(value = 6)]
+        DM,
+    }
+
+    #[derive(Clone, PartialEq, AtatEnum)]
+    #[at_enum(u8)]
+    pub enum ResetMode {
+        #[at_arg(value = 0)]
+        DontReset,
+        #[at_arg(value = 1)]
+        Reset,
+    }
+
+    #[derive(Clone, AtatResp, PartialEq, Debug)]
+    pub struct NoResponse;
+
+    macro_rules! setup {
+        ($config:expr) => {{
+            static TX_CHANNEL: PubSubChannel<CriticalSectionRawMutex, String<64>, 1, 1, 1> =
+                PubSubChannel::new();
+            static RES_CHANNEL: ResponseChannel<TEST_RX_BUF_LEN> = ResponseChannel::new();
+
+            let tx_mock = crate::tx_mock::TxMock::new(TX_CHANNEL.publisher().unwrap());
+            let client: Client<crate::tx_mock::TxMock, TEST_RX_BUF_LEN> =
+                Client::new(tx_mock, &RES_CHANNEL, $config);
+            (
+                client,
+                TX_CHANNEL.subscriber().unwrap(),
+                RES_CHANNEL.publisher().unwrap(),
+            )
+        }};
+    }
+
+    #[tokio::test]
+    async fn custom_timeout() {
+        static CALL_COUNT: AtomicU64 = AtomicU64::new(0);
+
+        fn custom_response_timeout(sent: Instant, timeout: Duration) -> Instant {
+            CALL_COUNT.fetch_add(1, Ordering::Relaxed);
+            assert_eq!(
+                Duration::from_millis(SetModuleFunctionality::MAX_TIMEOUT_MS.into()),
+                timeout
+            );
+            // Effectively ignoring the timeout configured for the command
+            // The default response timeout is "sent + timeout"
+            sent + Duration::from_millis(100)
+        }
+
+        let (mut client, mut tx, _rx) =
+            setup!(Config::new().get_response_timeout(custom_response_timeout));
+
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            // Do not emit a response effectively causing a timeout
+        });
+
+        let send = tokio::task::spawn(async move {
+            assert_eq!(Err(Error::Timeout), client.send(&cmd).await);
+        });
+
+        let (sent, send) = join!(sent, send);
+        sent.unwrap();
+        send.unwrap();
+
+        assert_ne!(0, CALL_COUNT.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn custom_timeout_modified_during_request() {
+        static CALL_COUNT: AtomicU64 = AtomicU64::new(0);
+
+        fn custom_response_timeout(sent: Instant, timeout: Duration) -> Instant {
+            CALL_COUNT.fetch_add(1, Ordering::Relaxed);
+            assert_eq!(
+                Duration::from_millis(SetModuleFunctionality::MAX_TIMEOUT_MS.into()),
+                timeout
+            );
+            // Effectively ignoring the timeout configured for the command
+            // The default response timeout is "sent + timeout"
+            // Let the timeout instant be extended depending on the current time
+            if Instant::now() < sent + Duration::from_millis(100) {
+                // Initial timeout
+                sent + Duration::from_millis(200)
+            } else {
+                // Extended timeout
+                sent + Duration::from_millis(500)
+            }
+        }
+
+        let (mut client, mut tx, rx) =
+            setup!(Config::new().get_response_timeout(custom_response_timeout));
+
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
+
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            // Emit response in the extended timeout timeframe
+            Timer::after(Duration::from_millis(300)).await;
+            rx.try_publish(Response::default()).unwrap();
+        });
+
+        let send = tokio::task::spawn(async move {
+            assert_eq!(Ok(NoResponse), client.send(&cmd).await);
+        });
+
+        let (sent, send) = join!(sent, send);
+        sent.unwrap();
+        send.unwrap();
+
+        assert_ne!(0, CALL_COUNT.load(Ordering::Relaxed));
     }
 }
