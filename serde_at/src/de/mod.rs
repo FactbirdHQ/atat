@@ -105,6 +105,9 @@ impl<'a> Deserializer<'a> {
 
     fn parse_str(&mut self) -> Result<&'a str> {
         let start = self.index;
+        // match self.peek() {
+        //     Some(b'"') => {
+        // String is " escaped
         loop {
             match self.peek() {
                 Some(b'"') => {
@@ -144,6 +147,14 @@ impl<'a> Deserializer<'a> {
                 None => return Err(Error::EofWhileParsingString),
             }
         }
+        //     },
+        //     Some(_) => {
+        //         // String is not " escaped
+        //         return str::from_utf8(&self.slice[start..])
+        //             .map_err(|_| Error::InvalidUnicodeCodePoint);
+        //     },
+        //     None => return Err(Error::EofWhileParsingString),
+        // }
     }
 
     fn parse_bytes(&mut self) -> Result<&'a [u8]> {
@@ -444,13 +455,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
                 self.eat_char();
                 visitor.visit_borrowed_str(self.parse_str()?)
             }
-            _ => {
-                if (peek as char).is_alphabetic() {
-                    visitor.visit_bytes(self.parse_bytes()?)
-                } else {
-                    Err(Error::InvalidType)
-                }
-            }
+            _ => visitor.visit_bytes(self.parse_bytes()?),
         }
     }
 
@@ -784,6 +789,13 @@ mod tests {
 
         assert_eq!(
             crate::from_str("+CCID: \"89883030000005421166\""),
+            Ok(StringTest {
+                string: String::from("89883030000005421166")
+            })
+        );
+
+        assert_eq!(
+            crate::from_str("+CCID: 89883030000005421166"),
             Ok(StringTest {
                 string: String::from("89883030000005421166")
             })
