@@ -4,12 +4,17 @@ use serde::ser;
 #[allow(clippy::module_name_repetitions)]
 pub struct SerializeStruct<'a, 'b> {
     ser: &'a mut Serializer<'b>,
+    nested: bool,
     first: bool,
 }
 
 impl<'a, 'b> SerializeStruct<'a, 'b> {
-    pub(crate) fn new(ser: &'a mut Serializer<'b>) -> Self {
-        SerializeStruct { ser, first: true }
+    pub(crate) fn new(ser: &'a mut Serializer<'b>, nested: bool) -> Self {
+        SerializeStruct {
+            ser,
+            nested,
+            first: true,
+        }
     }
 }
 
@@ -22,7 +27,7 @@ impl<'a, 'b> ser::SerializeStruct for SerializeStruct<'a, 'b> {
         T: ser::Serialize + ?Sized,
     {
         if self.first {
-            if self.ser.options.value_sep {
+            if !self.nested && self.ser.options.value_sep {
                 self.ser.push(b'=')?;
             }
         } else {
@@ -35,8 +40,10 @@ impl<'a, 'b> ser::SerializeStruct for SerializeStruct<'a, 'b> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.ser
-            .extend_from_slice(self.ser.options.termination.as_bytes())?;
+        if !self.nested {
+            self.ser
+                .extend_from_slice(self.ser.options.termination.as_bytes())?;
+        }
         Ok(())
     }
 }
