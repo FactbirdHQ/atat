@@ -66,6 +66,12 @@ where
     const LEN: usize = L * <T as AtatLen>::LEN;
 }
 
+//       0x   F:F:F:F
+// uN = (2 + (N*4) - 1) * 2 bytes
+impl<const L: usize> AtatLen for HexStr<[u8; L]> {
+    const LEN: usize = (2 + L * 4 - 1) * 2;
+}
+
 #[cfg(test)]
 mod tests {
     use std::convert::TryFrom;
@@ -178,6 +184,11 @@ mod tests {
         assert_eq!(<HexStr<u32> as AtatLen>::LEN, 30);
         assert_eq!(<HexStr<u64> as AtatLen>::LEN, 66);
         assert_eq!(<HexStr<u128> as AtatLen>::LEN, 130);
+
+        #[cfg(feature = "hex_str_arrays")]
+        {
+            assert_eq!(<HexStr<[u8; 16]> as AtatLen>::LEN, 130);
+        }
 
         // (fields) + (n_fields - 1)
         // (3 + (1 + 128 + 1) + 2 + (1 + 150 + 1) + 3 + 10 + 3 + (10*5)) + 7

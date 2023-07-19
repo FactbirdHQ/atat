@@ -44,8 +44,8 @@ impl<
         digester: D,
         config: Config,
     ) -> (
-        Ingress<'_, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
-        crate::asynch::Client<'_, W, INGRESS_BUF_SIZE>,
+        Ingress<D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
+        crate::asynch::Client<W, INGRESS_BUF_SIZE>,
     ) {
         (
             Ingress::new(
@@ -63,8 +63,8 @@ impl<
         digester: D,
         config: Config,
     ) -> (
-        Ingress<'_, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
-        crate::blocking::Client<'_, W, INGRESS_BUF_SIZE>,
+        Ingress<D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>,
+        crate::blocking::Client<W, INGRESS_BUF_SIZE>,
     ) {
         (
             Ingress::new(

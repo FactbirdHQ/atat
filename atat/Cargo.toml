@@ -52,3 +52,4 @@ std = [
     "embedded-io/std",
     "embedded-io/tokio",
 ]
+hex_str_arrays = []

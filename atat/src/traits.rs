@@ -73,7 +73,7 @@ pub trait AtatCmd<const LEN: usize> {
 
     /// Force client to look for a response.
     /// Empty slice is then passed to parse by client.
-    /// Implemented to enhance expandability fo ATAT
+    /// Implemented to enhance expandability of ATAT
     const EXPECTS_RESPONSE_CODE: bool = true;
 
     /// Return the command as a heapless `Vec` of bytes.
