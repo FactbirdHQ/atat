@@ -16,14 +16,14 @@ pub trait AtatIngress {
     /// Bytes written to the buffer must be committed by calling advance.
     fn write_buf(&mut self) -> &mut [u8];
 
-    /// Commit written bytes to the ingress and make them visible to the digester.
+    /// Commit a given number of written bytes to the ingress and make them visible to the digester.
     fn try_advance(&mut self, commit: usize) -> Result<(), Error>;
 
-    /// Commit written bytes to the ingress and make them visible to the digester.
+    /// Commit a given number of written bytes to the ingress and make them visible to the digester.
     #[cfg(feature = "async")]
     async fn advance(&mut self, commit: usize);
 
-    /// Write a buffer to the ingress
+    /// Write a buffer to the ingress and return how many bytes were written.
     fn try_write(&mut self, buf: &[u8]) -> Result<usize, Error> {
         let mut buf = buf;
         let mut written = 0;

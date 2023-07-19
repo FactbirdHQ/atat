@@ -29,6 +29,11 @@ pub trait Digester {
 }
 
 pub trait Parser {
+    /// Parse a URC, if it exists.
+    ///
+    /// - if no URC exists, return [ParseError::NoMatch]
+    /// - if a URC exists but is incomplete, return [ParseError::Incomplete]
+    /// - if a URC exists and is complete, return it and its length
     fn parse(buf: &[u8]) -> Result<(&[u8], usize), ParseError>;
 }
 
