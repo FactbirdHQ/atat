@@ -66,6 +66,7 @@ impl fmt::Display for Error {
 pub(crate) struct Serializer<'a> {
     buf: &'a mut [u8],
     written: usize,
+    nested_struct: bool,
     cmd: &'a str,
     options: SerializeOptions<'a>,
 }
@@ -75,6 +76,7 @@ impl<'a> Serializer<'a> {
         Serializer {
             buf,
             written: 0,
+            nested_struct: false,
             cmd,
             options,
         }
@@ -357,9 +359,16 @@ impl<'a, 'b> ser::Serializer for &'a mut Serializer<'b> {
     }
 
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-        self.extend_from_slice(self.options.cmd_prefix.as_bytes())?;
-        self.extend_from_slice(self.cmd.as_bytes())?;
-        Ok(SerializeStruct::new(self))
+        let ser_struct = if !self.nested_struct {
+            // all calls to serialize_struct after this one will be nested structs
+            self.nested_struct = true;
+            self.extend_from_slice(self.options.cmd_prefix.as_bytes())?;
+            self.extend_from_slice(self.cmd.as_bytes())?;
+            SerializeStruct::new(self, false)
+        } else {
+            SerializeStruct::new(self, true)
+        };
+        Ok(ser_struct)
     }
 
     fn serialize_struct_variant(
@@ -610,6 +619,27 @@ mod tests {
         };
         let s: String<32> = to_string(&b, "+CMD", SerializeOptions::default()).unwrap();
         assert_eq!(s, String::<32>::from("AT+CMD=Some bytes\r\n"));
+    }
+
+    #[test]
+    fn nested_struct() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct Inner<'a> {
+            s: &'a str,
+        }
+
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct Outer<'a> {
+            inner: Inner<'a>,
+        }
+
+        let value = Outer {
+            inner: Inner { s: "value" },
+        };
+
+        let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+
+        assert_eq!(s, String::<32>::from("AT+CMD=\"value\"\r\n"));
     }
 
     #[test]
