@@ -70,10 +70,12 @@ This workspace uses `cargo-release` to do workspace releases to crates.io. It ca
 The following dependent crates provide platform-agnostic device drivers built on `embedded-hal` which also implement this crate's traits:
 
 | Device Name            | Description                                                                                    | Crate + Docs                                                                                                                                |
-| ---------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+|------------------------|------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
 | [ublox-short-range-rs] | Driver crate for U-Blox host-based short range devices (wifi and BT) with AT-command interface | [![crates.io][ublox-short-range-rs-crate-img]][ublox-short-range-rs] [![docs.rs][ublox-short-range-rs-docs-img]][ublox-short-range-rs-docs] |
 | [ublox-cellular-rs]    | Driver crate for U-Blox host-based cellular devices with AT-command interface                  | [![crates.io][ublox-cellular-rs-crate-img]][ublox-cellular-rs-crates] [![docs.rs][ublox-cellular-rs-docs-img]][ublox-cellular-rs-docs]      |
 | [esp-at-nal]           | ESP-AT network layer driver for no_std                                                         | [![crates.io][esp-at-nal-crate-img]][esp-at-nal-crate] [![docs.rs][esp-at-nal-docs-img]][esp-at-nal-docs]                                   |
+| [moko-mkl62ba]         | Driver crate for the Moko MKL62BA LoRaWAN module                                               | [![crates.io][moko-mkl62ba-crate-img]][moko-mkl62ba-crate] [![docs.rs][moko-mkl62ba-docs-img]][moko-mkl62ba-docs]                           |     
+| [seeed-lora-e5]        | Driver crate for the Seeed Lora-E5 LoRaWAN module                                              | [![crates.io][seeed-lora-e5-crate-img]][seeed-lora-e5-crate] [![docs.rs][seeed-lora-e5-docs-img]][seeed-lora-e5-docs]                       |     
 
 [ublox-short-range-rs]: https://github.com/BlackbirdHQ/ublox-short-range-rs
 [ublox-short-range-rs-crate-img]: https://img.shields.io/crates/v/ublox-short-range-rs.svg
@@ -90,6 +92,16 @@ The following dependent crates provide platform-agnostic device drivers built on
 [esp-at-nal-crate]: https://crates.io/crates/esp-at-nal
 [esp-at-nal-docs-img]: https://docs.rs/esp-at-nal/badge.svg
 [esp-at-nal-docs]: https://docs.rs/esp-at-nal/
+[moko-mkl62ba]: https://github.com/mvniekerk/moko-mkl62ba-at-commands-rs
+[moko-mkl62ba-crate]: https://crates.io/crates/moko-mkl62ba-at-commands-rs
+[moko-mkl62ba-crate-img]: https://img.shields.io/crates/v/moko-mkl62ba-at-commands.svg
+[moko-mkl62ba-docs-img]: https://docs.rs/moko-mkl62ba-at-commands/badge.svg
+[moko-mkl62ba-docs]: https://docs.rs/moko-mkl62ba-at-commands/
+[seeed-lora-e5]: https://github.com/mvniekerk/seeed-lora-e5-at-commands
+[seeed-lora-e5-crate]: https://crates.io/crates/seeed-lora-e5-at-commands
+[seeed-lora-e5-crate-img]: https://img.shields.io/crates/v/seeed-lora-e5-at-commands.svg
+[seeed-lora-e5-docs-img]: https://docs.rs/seeed-lora-e5-at-commands/badge.svg
+[seeed-lora-e5-docs]: https://docs.rs/seeed-lora-e5-at-commands/
 
 ## Features
 
