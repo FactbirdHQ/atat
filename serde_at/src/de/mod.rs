@@ -589,6 +589,9 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
+        // Allow parsing enums in cases of URC's
+        self.parse_at()?;
+
         self.parse_whitespace().ok_or(Error::EofWhileParsingValue)?;
         visitor.visit_enum(VariantAccess::new(self))
     }
