@@ -3,7 +3,7 @@ use crate::{
     helpers::LossyStr, response_channel::ResponseChannel, AtatCmd, Config, Error, Response,
 };
 use embassy_time::{Duration, Instant, TimeoutError, Timer};
-use embedded_io::asynch::Write;
+use embedded_io_async::Write;
 use futures::{
     future::{select, Either},
     pin_mut, Future,

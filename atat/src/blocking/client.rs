@@ -1,5 +1,5 @@
 use embassy_time::{Duration, Instant, TimeoutError};
-use embedded_io::blocking::Write;
+use embedded_io::Write;
 
 use super::{blocking_timer::BlockingTimer, AtatClient};
 use crate::{
