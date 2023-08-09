@@ -26,7 +26,7 @@ impl<'a> TxMock<'a> {
 }
 
 impl ErrorType for TxMock<'_> {
-    type Error = ();
+    type Error = IoError;
 }
 
 impl embedded_io::Write for TxMock<'_> {
