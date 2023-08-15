@@ -21,20 +21,22 @@ required-features = ["std"]
 
 [dependencies]
 atat = { path = "../atat", features = ["async"] }
-embedded-io = "0.4"
+embedded-io = "0.5"
+embedded-io-async = "0.5"
+embedded-io-adapters = { version = "0.5", optional = true }
 critical-section = "1.1.1"
 
 cortex-m = { version = "0.7.6", optional = true }
 cortex-m-rt = { version = "0.7.3", optional = true }
 defmt-rtt = { version = "0.4", optional = true }
 panic-probe = { version = "0.3.0", features = ["print-defmt"], optional = true }
-embassy-executor = { git = "https://github.com/embassy-rs/embassy", rev = "299689d", features = [
+embassy-executor = { git = "https://github.com/embassy-rs/embassy", rev = "fcb77f3f96479b371e1279c9feed7eddf6b53083", features = [
     "defmt",
     "nightly",
     "integrated-timers",
 ], optional = true }
 embassy-time = { version = "0.1.0" }
-embassy-rp = { git = "https://github.com/embassy-rs/embassy", rev = "299689d", features = [
+embassy-rp = { git = "https://github.com/embassy-rs/embassy", rev = "fcb77f3f96479b371e1279c9feed7eddf6b53083", features = [
     "unstable-pac",
     "nightly",
     "time-driver",
@@ -68,4 +70,6 @@ std = [
     "embassy-time/std",
     "embassy-time/generic-queue",
     "critical-section/std",
+    "embedded-io-adapters",
+    "embedded-io-adapters/tokio-1"
 ]

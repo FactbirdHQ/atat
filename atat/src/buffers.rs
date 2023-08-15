@@ -1,4 +1,4 @@
-use embedded_io::blocking::Write;
+use embedded_io::Write;
 
 use crate::{
     response_channel::ResponseChannel, urc_channel::UrcChannel, AtatUrc, Config, Digester, Ingress,
@@ -38,7 +38,7 @@ impl<
     > Buffers<Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     #[cfg(feature = "async")]
-    pub fn split<W: embedded_io::asynch::Write, D: Digester>(
+    pub fn split<W: embedded_io_async::Write, D: Digester>(
         &self,
         writer: W,
         digester: D,

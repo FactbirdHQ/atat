@@ -5,7 +5,7 @@ use atat_examples::common;
 use std::process::exit;
 
 use atat::{asynch::AtatClient, AtatIngress, Buffers, Config, DefaultDigester, Ingress};
-use embedded_io::adapters::FromTokio;
+use embedded_io_adapters::tokio_1::FromTokio;
 use tokio_serial::SerialStream;
 
 const INGRESS_BUF_SIZE: usize = 1024;

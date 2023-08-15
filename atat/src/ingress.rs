@@ -57,7 +57,7 @@ pub trait AtatIngress {
     /// Read all bytes from the provided serial and ingest the read bytes into
     /// the ingress from where they will be processed
     #[cfg(feature = "async")]
-    async fn read_from(&mut self, serial: &mut impl embedded_io::asynch::Read) -> ! {
+    async fn read_from(&mut self, serial: &mut impl embedded_io_async::Read) -> ! {
         use embedded_io::Error;
         loop {
             let buf = self.write_buf();

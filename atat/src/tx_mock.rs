@@ -1,4 +1,5 @@
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::Publisher};
+use embedded_io::ErrorType;
 use heapless::String;
 
 pub struct TxMock<'a> {
@@ -24,11 +25,11 @@ impl<'a> TxMock<'a> {
     }
 }
 
-impl embedded_io::Io for TxMock<'_> {
+impl ErrorType for TxMock<'_> {
     type Error = IoError;
 }
 
-impl embedded_io::blocking::Write for TxMock<'_> {
+impl embedded_io::Write for TxMock<'_> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         for c in buf {
             self.buf.push(*c as char).map_err(|_| IoError)?;
@@ -44,7 +45,7 @@ impl embedded_io::blocking::Write for TxMock<'_> {
 }
 
 #[cfg(feature = "async")]
-impl embedded_io::asynch::Write for TxMock<'_> {
+impl embedded_io_async::Write for TxMock<'_> {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         for c in buf {
             self.buf.push(*c as char).map_err(|_| IoError)?;
