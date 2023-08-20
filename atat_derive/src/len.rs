@@ -83,8 +83,8 @@ pub fn enum_len(
 
             enum_len = quote! {
                 {
-                    const e_len: usize = #enum_len;
-                    if #fields_len < e_len { e_len } else { #fields_len }
+                    const E_LEN: usize = #enum_len;
+                    if #fields_len < E_LEN { E_LEN } else { #fields_len }
                 }
             };
         }
