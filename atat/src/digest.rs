@@ -206,7 +206,7 @@ pub mod parser {
         IResult,
     };
 
-    /// Matches the equivalent of regex: "\r\n{token}(.*)\r\n"
+    /// Matches the equivalent of regex: "\r\n{token}(:.*)?\r\n"
     pub fn urc_helper<'a, T, Error: ParseError<&'a [u8]>>(
         token: T,
     ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], usize), Error>
@@ -217,7 +217,14 @@ pub mod parser {
         move |i| {
             let (i, (le, urc_tag)) = tuple((
                 complete::line_ending,
-                recognize(tuple((tag(token.clone()), take_until_including("\r\n")))),
+                recognize(alt((
+                    tuple((tag(token.clone()), tag(":"), take_until_including("\r\n"))),
+                    tuple((
+                        tag(token.clone()),
+                        tag("\r\n"),
+                        nom::combinator::success((&b""[..], &b""[..])),
+                    )),
+                ))),
             ))(i)?;
 
             Ok((
