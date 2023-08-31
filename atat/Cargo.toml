@@ -26,7 +26,7 @@ name = "cortex-m-rt"
 required-features = ["defmt"]
 
 [dependencies]
-embedded-hal-nb = { version = "=1.0.0-alpha.1" }
+embedded-hal-nb = { version = "=1.0.0-alpha.3" }
 fugit = "0.3.3"
 fugit-timer = "0.1.2"
 heapless = { version = "^0.7", features = ["serde"] }
