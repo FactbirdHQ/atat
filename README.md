@@ -1,7 +1,6 @@
 # ATAT
 
 ![Test][test]
-[![Code coverage][codecov-badge]][codecov]
 [![Crates.io Version][crates-io-badge]][crates-io]
 [![Crates.io Downloads][crates-io-download-badge]][crates-io-download]
 [![chat][chat-badge]][chat]
@@ -136,7 +135,7 @@ dual licensed as above, without any additional terms or conditions.
 
 <!-- Badges -->
 
-[test]: https://github.com/BlackbirdHQ/atat/workflows/Test/badge.svg
+[test]: https://github.com/BlackbirdHQ/atat/actions/workflows/ci.yml/badge.svg
 [crates-io]: https://crates.io/crates/atat
 [chat]: https://matrix.to/#/!ocRyOwQJhEWrphujkM:matrix.org?via=chat.berline.rs&via=matrix.org
 [chat-badge]: https://img.shields.io/badge/chat-atat%3Amatrix.org-brightgreen
@@ -144,5 +143,3 @@ dual licensed as above, without any additional terms or conditions.
 [crates-io-download]: https://crates.io/crates/atat
 [crates-io-download-badge]: https://img.shields.io/crates/d/atat.svg?maxAge=3600
 [no-std-badge]: https://img.shields.io/badge/no__std-yes-blue
-[codecov-badge]: https://codecov.io/gh/BlackbirdHQ/atat/branch/master/graph/badge.svg
-[codecov]: https://codecov.io/gh/BlackbirdHQ/atat
