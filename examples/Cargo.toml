@@ -21,8 +21,8 @@ required-features = ["std"]
 
 [dependencies]
 atat = { path = "../atat", features = ["async"] }
-embedded-io = "0.5"
-embedded-io-async = "0.5"
+embedded-io = "0.6"
+embedded-io-async = "0.6"
 embedded-io-adapters = { version = "0.5", optional = true }
 critical-section = "1.1.1"
 
