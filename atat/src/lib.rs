@@ -219,7 +219,6 @@
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 #![cfg_attr(feature = "async", allow(incomplete_features))]
 #![cfg_attr(feature = "async", feature(async_fn_in_trait))]
-#![cfg_attr(feature = "async", feature(impl_trait_projections))]
 
 // This mod MUST go first, so that the others see its macros.
 pub(crate) mod fmt;
