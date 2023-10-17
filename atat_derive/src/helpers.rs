@@ -1,14 +1,14 @@
 use crate::parse::Variant;
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{parse_quote, GenericParam, Generics, Ident, Lifetime, LifetimeDef, TypeParamBound};
+use syn::{parse_quote, GenericParam, Generics, Ident, Lifetime, LifetimeParam, TypeParamBound};
 
 /// Adds a single lifetime symbol eg. <'a>
 #[inline]
 pub fn add_lifetime(generics: &mut Generics, lifetime_symbol: &str) {
     generics
         .params
-        .push(GenericParam::Lifetime(LifetimeDef::new(Lifetime::new(
+        .push(GenericParam::Lifetime(LifetimeParam::new(Lifetime::new(
             lifetime_symbol,
             Span::call_site(),
         ))));
