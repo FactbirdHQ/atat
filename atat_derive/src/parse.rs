@@ -1,7 +1,7 @@
 use proc_macro2::Span;
-use syn::parse::{Error, Parse, ParseStream, Parser, Result};
+use syn::parse::{Error, Parse, ParseStream, Result};
 use syn::{
-    parenthesized, Attribute, Data, DataEnum, DataStruct, DeriveInput, Fields, Generics, Ident,
+    Attribute, Data, DataEnum, DataStruct, DeriveInput, Expr, ExprLit, Fields, Generics, Ident,
     Lit, LitByteStr, Path, Type,
 };
 
@@ -74,21 +74,11 @@ pub fn parse_field_attr(attributes: &[Attribute]) -> Result<FieldAttributes> {
         at_arg: None,
     };
     for attr in attributes {
-        if attr.path.is_ident("at_arg") {
-            fn at_arg(input: ParseStream) -> Result<ArgAttributes> {
-                let content;
-                parenthesized!(content in input);
-                content.parse()
-            }
-            attrs.at_arg = Some(at_arg.parse2(attr.tokens.clone())?);
+        if attr.path().is_ident("at_arg") {
+            attrs.at_arg = Some(attr.parse_args()?);
         }
-        if attr.path.is_ident("at_urc") {
-            fn at_urc(input: ParseStream) -> Result<UrcAttributes> {
-                let content;
-                parenthesized!(content in input);
-                content.parse()
-            }
-            attrs.at_urc = Some(at_urc.parse2(attr.tokens.clone())?);
+        if attr.path().is_ident("at_urc") {
+            attrs.at_urc = Some(attr.parse_args()?);
         }
     }
     Ok(attrs)
@@ -176,8 +166,10 @@ impl Parse for ArgAttributes {
         while {
             match input.parse::<syn::Meta>()? {
                 syn::Meta::NameValue(name_value) if name_value.path.is_ident("value") => {
-                    match name_value.lit.clone() {
-                        Lit::Int(v) => attrs.value = Some(v.base10_parse().unwrap()),
+                    match name_value.value.clone() {
+                        Expr::Lit(ExprLit {
+                            lit: Lit::Int(v), ..
+                        }) => attrs.value = Some(v.base10_parse().unwrap()),
                         _ => {
                             return Err(Error::new(
                                 Span::call_site(),
@@ -187,8 +179,10 @@ impl Parse for ArgAttributes {
                     }
                 }
                 syn::Meta::NameValue(name_value) if name_value.path.is_ident("position") => {
-                    match name_value.lit.clone() {
-                        Lit::Int(v) => attrs.position = Some(v.base10_parse().unwrap()),
+                    match name_value.value.clone() {
+                        Expr::Lit(ExprLit {
+                            lit: Lit::Int(v), ..
+                        }) => attrs.position = Some(v.base10_parse().unwrap()),
                         _ => {
                             return Err(Error::new(
                                 Span::call_site(),
@@ -198,8 +192,10 @@ impl Parse for ArgAttributes {
                     }
                 }
                 syn::Meta::NameValue(name_value) if name_value.path.is_ident("len") => {
-                    match name_value.lit.clone() {
-                        Lit::Int(v) => attrs.len = Some(v.base10_parse().unwrap()),
+                    match name_value.value.clone() {
+                        Expr::Lit(ExprLit {
+                            lit: Lit::Int(v), ..
+                        }) => attrs.len = Some(v.base10_parse().unwrap()),
                         _ => {
                             return Err(Error::new(
                                 Span::call_site(),
@@ -266,8 +262,10 @@ impl Parse for CmdAttributes {
         while input.parse::<syn::token::Comma>().is_ok() {
             let optional = input.parse::<syn::MetaNameValue>()?;
             if optional.path.is_ident("timeout_ms") {
-                match optional.lit {
-                    Lit::Int(v) => {
+                match optional.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Int(v), ..
+                    }) => {
                         at_cmd.timeout_ms = Some(v.base10_parse().unwrap());
                     }
                     _ => {
@@ -278,8 +276,10 @@ impl Parse for CmdAttributes {
                     }
                 }
             } else if optional.path.is_ident("attempts") {
-                match optional.lit {
-                    Lit::Int(v) => {
+                match optional.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Int(v), ..
+                    }) => {
                         at_cmd.attempts = Some(v.base10_parse().unwrap());
                     }
                     _ => {
@@ -290,22 +290,28 @@ impl Parse for CmdAttributes {
                     }
                 }
             } else if optional.path.is_ident("abortable") {
-                match optional.lit {
-                    Lit::Bool(v) => {
+                match optional.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Bool(v), ..
+                    }) => {
                         at_cmd.abortable = Some(v.value);
                     }
                     _ => return Err(Error::new(call_site, "expected bool value for 'abortable'")),
                 }
             } else if optional.path.is_ident("value_sep") {
-                match optional.lit {
-                    Lit::Bool(v) => {
+                match optional.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Bool(v), ..
+                    }) => {
                         at_cmd.value_sep = v.value;
                     }
                     _ => return Err(Error::new(call_site, "expected bool value for 'value_sep'")),
                 }
             } else if optional.path.is_ident("cmd_prefix") {
-                match optional.lit {
-                    Lit::Str(v) => {
+                match optional.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Str(v), ..
+                    }) => {
                         at_cmd.cmd_prefix = v.value();
                     }
                     _ => {
@@ -316,8 +322,10 @@ impl Parse for CmdAttributes {
                     }
                 }
             } else if optional.path.is_ident("termination") {
-                match optional.lit {
-                    Lit::Str(v) => {
+                match optional.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Str(v), ..
+                    }) => {
                         at_cmd.termination = v.value();
                     }
                     _ => {
@@ -328,8 +336,10 @@ impl Parse for CmdAttributes {
                     }
                 }
             } else if optional.path.is_ident("quote_escape_strings") {
-                match optional.lit {
-                    Lit::Bool(v) => {
+                match optional.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Bool(v), ..
+                    }) => {
                         at_cmd.quote_escape_strings = v.value;
                     }
                     _ => {
@@ -355,21 +365,11 @@ impl Parse for ParseInput {
 
         // Parse valid container attributes
         for attr in derive_input.attrs {
-            if attr.path.is_ident("at_cmd") {
-                fn at_cmd_arg(input: ParseStream) -> Result<CmdAttributes> {
-                    let content;
-                    parenthesized!(content in input);
-                    content.parse()
-                }
-                at_cmd = Some(at_cmd_arg.parse2(attr.tokens)?);
-            } else if attr.path.is_ident("at_enum") {
-                fn at_enum_arg(input: ParseStream) -> Result<Ident> {
-                    let content;
-                    parenthesized!(content in input);
-                    content.parse()
-                }
+            if attr.path().is_ident("at_cmd") {
+                at_cmd = Some(attr.parse_args()?);
+            } else if attr.path().is_ident("at_enum") {
                 at_enum = Some(EnumAttributes {
-                    repr: at_enum_arg.parse2(attr.tokens)?,
+                    repr: attr.parse_args()?,
                 });
             }
         }
