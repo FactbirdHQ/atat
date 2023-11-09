@@ -207,7 +207,7 @@ mod tests {
         assert_eq!(
             LengthTester {
                 x: 8,
-                y: String::from("SomeString"),
+                y: String::try_from("SomeString").unwrap(),
                 z: 2,
                 w: "whatup",
                 a: SimpleEnum::A,
@@ -230,7 +230,7 @@ mod tests {
         assert_eq!(SimpleEnumU32::try_from(1), Ok(SimpleEnumU32::B));
         assert_eq!(
             to_string::<_, 1>(&MixedEnum::UnitVariant, "CMD", SerializeOptions::default()).unwrap(),
-            String::<1>::from("0")
+            String::<1>::try_from("0").unwrap()
         );
         assert_eq!(
             to_string::<_, 10>(
@@ -239,16 +239,21 @@ mod tests {
                 SerializeOptions::default()
             )
             .unwrap(),
-            String::<10>::from("1,15")
+            String::<10>::try_from("1,15").unwrap()
         );
         assert_eq!(
             to_string::<_, 50>(
-                &MixedEnum::AdvancedTuple(25, String::from("testing"), -54, SimpleEnumU32::A),
+                &MixedEnum::AdvancedTuple(
+                    25,
+                    String::try_from("testing").unwrap(),
+                    -54,
+                    SimpleEnumU32::A
+                ),
                 "CMD",
                 SerializeOptions::default()
             )
             .unwrap(),
-            String::<50>::from("2,25,\"testing\",-54,0")
+            String::<50>::try_from("2,25,\"testing\",-54,0").unwrap()
         );
         assert_eq!(
             to_string::<_, 10>(
@@ -257,14 +262,14 @@ mod tests {
                 SerializeOptions::default()
             )
             .unwrap(),
-            String::<10>::from("3,35")
+            String::<10>::try_from("3,35").unwrap()
         );
 
         assert_eq!(
             to_string::<_, 50>(
                 &MixedEnum::AdvancedStruct {
                     a: 77,
-                    b: String::from("whaat"),
+                    b: String::try_from("whaat").unwrap(),
                     c: 88,
                     d: SimpleEnum::B
                 },
@@ -272,7 +277,7 @@ mod tests {
                 SerializeOptions::default()
             )
             .unwrap(),
-            String::<50>::from("4,77,\"whaat\",88,1")
+            String::<50>::try_from("4,77,\"whaat\",88,1").unwrap()
         );
 
         assert_eq!(Ok(MixedEnum::UnitVariant), from_str::<MixedEnum<'_>>("0"));
@@ -283,7 +288,7 @@ mod tests {
         assert_eq!(
             Ok(MixedEnum::AdvancedTuple(
                 251,
-                String::from("deser"),
+                String::try_from("deser").unwrap(),
                 -43,
                 SimpleEnumU32::C
             )),

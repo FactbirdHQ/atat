@@ -101,7 +101,7 @@ impl<const L: usize> AtatCmd<L> for String<L> {
     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error> {
         let utf8_string =
             core::str::from_utf8(resp.map_err(Error::from)?).map_err(|_| Error::Parse)?;
-        Ok(String::from(utf8_string))
+        String::try_from(utf8_string).map_err(|_| Error::Parse)
     }
 }
 
@@ -200,9 +200,9 @@ mod test {
         let mut v = Vec::<_, 3>::from_slice(&[
             PDPContextDefinition {
                 cid: 2,
-                pdp_type: String::from("IP"),
-                apn: String::from("em"),
-                pdp_addr: String::from("100.92.188.66"),
+                pdp_type: String::try_from("IP").unwrap(),
+                apn: String::try_from("em").unwrap(),
+                pdp_addr: String::try_from("100.92.188.66").unwrap(),
                 d_comp: 0,
                 h_comp: 0,
                 ipv4_addr_alloc: Some(0),
@@ -212,9 +212,9 @@ mod test {
             },
             PDPContextDefinition {
                 cid: 1,
-                pdp_type: String::from("IP"),
-                apn: String::from("STATREAL"),
-                pdp_addr: String::from("0.0.0.0"),
+                pdp_type: String::try_from("IP").unwrap(),
+                apn: String::try_from("STATREAL").unwrap(),
+                pdp_addr: String::try_from("0.0.0.0").unwrap(),
                 d_comp: 0,
                 h_comp: 0,
                 ipv4_addr_alloc: None,
@@ -224,9 +224,9 @@ mod test {
             },
             PDPContextDefinition {
                 cid: 3,
-                pdp_type: String::from("IP"),
-                apn: String::from("tim.ibox.it"),
-                pdp_addr: String::from("0.0.0.0"),
+                pdp_type: String::try_from("IP").unwrap(),
+                apn: String::try_from("tim.ibox.it").unwrap(),
+                pdp_addr: String::try_from("0.0.0.0").unwrap(),
                 d_comp: 0,
                 h_comp: 0,
                 ipv4_addr_alloc: None,

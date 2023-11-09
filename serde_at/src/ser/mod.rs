@@ -398,9 +398,7 @@ where
     T: ser::Serialize + ?Sized,
 {
     let vec: Vec<u8, N> = to_vec(value, cmd, options)?;
-    Ok(String::from(unsafe {
-        core::str::from_utf8_unchecked(&vec)
-    }))
+    Ok(unsafe { String::from_utf8_unchecked(vec) })
 }
 
 /// Serializes the given data structure as a byte vector
@@ -569,14 +567,14 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(s, String::<32>::from("4,15"));
+        assert_eq!(s, String::<32>::try_from("4,15").unwrap());
     }
 
     #[test]
     fn newtype_struct() {
         let s: String<32> = to_string(&Handle(15), "", SerializeOptions::default()).unwrap();
 
-        assert_eq!(s, String::<32>::from("15"));
+        assert_eq!(s, String::<32>::try_from("15").unwrap());
     }
 
     #[test]
@@ -590,7 +588,7 @@ mod tests {
 
         let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
 
-        assert_eq!(s, String::<32>::from("AT+CMD\r\n"));
+        assert_eq!(s, String::<32>::try_from("AT+CMD\r\n").unwrap());
     }
 
     #[test]
@@ -604,7 +602,7 @@ mod tests {
 
         let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
 
-        assert_eq!(s, String::<32>::from("AT+CMD=\"value\"\r\n"));
+        assert_eq!(s, String::<32>::try_from("AT+CMD=\"value\"\r\n").unwrap());
     }
 
     #[test]
@@ -618,7 +616,7 @@ mod tests {
             s: Bytes::new(&slice[..]),
         };
         let s: String<32> = to_string(&b, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<32>::from("AT+CMD=Some bytes\r\n"));
+        assert_eq!(s, String::<32>::try_from("AT+CMD=Some bytes\r\n").unwrap());
     }
 
     #[test]
@@ -639,7 +637,7 @@ mod tests {
 
         let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
 
-        assert_eq!(s, String::<32>::from("AT+CMD=\"value\"\r\n"));
+        assert_eq!(s, String::<32>::try_from("AT+CMD=\"value\"\r\n").unwrap());
     }
 
     #[test]
@@ -729,9 +727,9 @@ mod tests {
         let s: String<600> = to_string(&params, "+CMD", options).unwrap();
         assert_eq!(
             s,
-            String::<600>::from(
+            String::<600>::try_from(
                 "AT+CMD=0x0000FF00,000055AA,0x000000ff,0000aa55,0x0:0:0:0:F:F:0:0,00-00-55-AA,0x0:0:0:0:0:0:f:f,00-00-00-00-aa-55-00-ff\r\n"
-            )
+            ).unwrap()
         );
 
         let params = WithHexStr {
@@ -807,9 +805,10 @@ mod tests {
         let s: String<600> = to_string(&params, "+CMD", options).unwrap();
         assert_eq!(
             s,
-            String::<600>::from(
+            String::<600>::try_from(
                 "AT+CMD=0xFF00,55AA,0xff,aa55,0xF:F:0:0,55-AA,0xf:f,aa-55-00-ff\r\n"
             )
+            .unwrap()
         );
     }
 
@@ -913,9 +912,9 @@ mod tests {
         let s: String<600> = to_string(&params, "+CMD", options).unwrap();
         assert_eq!(
             s,
-            String::<600>::from(
+            String::<600>::try_from(
                 "AT+CMD=ff00aa55ff00aa55,0xFF00AA55FF00AA55,0xff00aa55ff00aa55,FF00AA55FF00AA55,ff00aa55ff00aa55,0xFF-00-AA-55-FF-00-AA-55,0xf:f:0:0:a:a:5:5:f:f:0:0:a:a:5:5,FF_00_AA_55_FF_00_AA_55,f#f#0#0#a#a#5#5#f#f#0#0#a#a#5#5\r\n"
-            )
+            ).unwrap()
         );
     }
 }

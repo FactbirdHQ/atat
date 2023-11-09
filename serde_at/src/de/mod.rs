@@ -785,7 +785,7 @@ mod tests {
         assert_eq!(
             crate::from_str("+CCID: \"89883030000005421166\""),
             Ok(StringTest {
-                string: String::from("89883030000005421166")
+                string: String::try_from("89883030000005421166").unwrap()
             })
         );
     }

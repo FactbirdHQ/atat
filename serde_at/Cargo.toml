@@ -12,7 +12,7 @@ name = "serde_at"
 version = "0.20.0"
 
 [dependencies]
-heapless = { version = "^0.7", features = ["serde"] }
+heapless = { version = "^0.8", features = ["serde"] }
 serde = { version = "^1", default-features = false }
 
 [dependencies.num-traits]
