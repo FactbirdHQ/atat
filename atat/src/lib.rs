@@ -59,7 +59,7 @@
 //!     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error> {
 //!         // Parse resp into `GreetingText`
 //!         Ok(GreetingText {
-//!             text: String::from(core::str::from_utf8(resp.unwrap()).unwrap()),
+//!             text: String::try_from(core::str::from_utf8(resp.unwrap()).unwrap()).unwrap(),
 //!         })
 //!     }
 //! }

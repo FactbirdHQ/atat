@@ -413,7 +413,7 @@ mod test {
                 Ok(TestResponseString {
                     socket: 22,
                     length: 16,
-                    data: String::<64>::from("0123456789012345")
+                    data: String::<64>::try_from("0123456789012345").unwrap()
                 }),
                 client.send(&cmd0),
             );
@@ -421,7 +421,7 @@ mod test {
                 Ok(TestResponseStringMixed {
                     socket: 22,
                     length: 16,
-                    data: String::<64>::from("0123456789012345")
+                    data: String::<64>::try_from("0123456789012345").unwrap()
                 }),
                 client.send(&cmd1),
             );
