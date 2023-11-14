@@ -264,7 +264,7 @@ pub use heapless;
 pub use buffers::Buffers;
 pub use config::Config;
 pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
-pub use error::{Error, InternalError};
+pub use error::{CmeError, CmsError, ConnectionError, Error, InternalError};
 pub use ingress::{AtatIngress, Ingress};
 pub use response::Response;
 pub use response_channel::{ResponseChannel, ResponsePublisher, ResponseSubscription};
