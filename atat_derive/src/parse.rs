@@ -291,6 +291,20 @@ impl Parse for CmdAttributes {
                         ))
                     }
                 }
+            } else if optional.path.is_ident("reattempt_on_parse_err") {
+                match optional.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Bool(v), ..
+                    }) => {
+                        at_cmd.reattempt_on_parse_err = Some(v.value);
+                    }
+                    _ => {
+                        return Err(Error::new(
+                            call_site,
+                            "expected bool value for 'reattempt_on_parse_err'",
+                        ))
+                    }
+                }
             } else if optional.path.is_ident("abortable") {
                 match optional.value {
                     Expr::Lit(ExprLit {
