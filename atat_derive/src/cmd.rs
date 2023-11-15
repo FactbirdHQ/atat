@@ -19,6 +19,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         resp,
         timeout_ms,
         attempts,
+        reattempt_on_parse_err,
         abortable,
         value_sep,
         cmd_prefix,
@@ -54,6 +55,15 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         Some(attempts) => {
             quote! {
                 const ATTEMPTS: u8 = #attempts;
+            }
+        }
+        None => quote! {},
+    };
+
+    let reattempt_on_parse_err = match reattempt_on_parse_err {
+        Some(reattempt_on_parse_err) => {
+            quote! {
+                const REATTEMPT_ON_PARSE_ERR: u8 = #reattempt_on_parse_err;
             }
         }
         None => quote! {},
@@ -98,6 +108,8 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             #abortable
 
             #attempts
+
+            #reattempt_on_parse_err
 
             #[inline]
             fn as_bytes(&self) -> atat::heapless::Vec<u8, { #ident_len + #cmd_len }> {

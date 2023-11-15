@@ -71,6 +71,10 @@ pub trait AtatCmd<const LEN: usize> {
     /// using `send_retry`.
     const ATTEMPTS: u8 = 1;
 
+    /// Whether or not to reattempt a command on a parse error
+    /// using `send_retry`.
+    const REATTEMPT_ON_PARSE_ERR: bool = false;
+
     /// Force client to look for a response.
     /// Empty slice is then passed to parse by client.
     /// Implemented to enhance expandability of ATAT
