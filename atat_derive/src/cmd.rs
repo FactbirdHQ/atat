@@ -63,7 +63,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
     let reattempt_on_parse_err = match reattempt_on_parse_err {
         Some(reattempt_on_parse_err) => {
             quote! {
-                const REATTEMPT_ON_PARSE_ERR: u8 = #reattempt_on_parse_err;
+                const REATTEMPT_ON_PARSE_ERR: bool = #reattempt_on_parse_err;
             }
         }
         None => quote! {},
