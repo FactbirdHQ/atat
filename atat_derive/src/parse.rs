@@ -22,6 +22,7 @@ pub struct CmdAttributes {
     pub timeout_ms: Option<u32>,
     pub attempts: Option<u8>,
     pub abortable: Option<bool>,
+    pub reattempt_on_parse_err: Option<bool>,
     pub value_sep: bool,
     pub cmd_prefix: String,
     pub termination: String,
@@ -253,6 +254,7 @@ impl Parse for CmdAttributes {
             timeout_ms: None,
             attempts: None,
             abortable: None,
+            reattempt_on_parse_err: None,
             value_sep: true,
             cmd_prefix: String::from("AT"),
             termination: String::from("\r\n"),
@@ -286,6 +288,20 @@ impl Parse for CmdAttributes {
                         return Err(Error::new(
                             call_site,
                             "expected integer value for 'attempts'",
+                        ))
+                    }
+                }
+            } else if optional.path.is_ident("reattempt_on_parse_err") {
+                match optional.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Bool(v), ..
+                    }) => {
+                        at_cmd.reattempt_on_parse_err = Some(v.value);
+                    }
+                    _ => {
+                        return Err(Error::new(
+                            call_site,
+                            "expected bool value for 'reattempt_on_parse_err'",
                         ))
                     }
                 }

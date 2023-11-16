@@ -28,6 +28,11 @@ pub trait AtatClient {
 
             match self.send(cmd).await {
                 Err(Error::Timeout) => {}
+                Err(Error::Parse) => {
+                    if !Cmd::REATTEMPT_ON_PARSE_ERR {
+                        return Err(Error::Parse);
+                    }
+                }
                 r => return r,
             }
         }
