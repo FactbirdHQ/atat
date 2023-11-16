@@ -73,7 +73,7 @@ pub trait AtatCmd<const LEN: usize> {
 
     /// Whether or not to reattempt a command on a parse error
     /// using `send_retry`.
-    const REATTEMPT_ON_PARSE_ERR: bool = false;
+    const REATTEMPT_ON_PARSE_ERR: bool = true;
 
     /// Force client to look for a response.
     /// Empty slice is then passed to parse by client.
