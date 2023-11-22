@@ -5,12 +5,20 @@ use crate::de::{Deserializer, Error, Result};
 #[allow(clippy::module_name_repetitions)]
 pub struct SeqAccess<'a, 'b> {
     first: bool,
+    count: usize,
+    len: Option<usize>,
     de: &'a mut Deserializer<'b>,
 }
 
 impl<'a, 'b> SeqAccess<'a, 'b> {
     pub(crate) fn new(de: &'a mut Deserializer<'b>) -> Self {
-        SeqAccess { de, first: true }
+        let len = de.struct_size_hint();
+        SeqAccess {
+            de,
+            first: true,
+            len,
+            count: 0,
+        }
     }
 }
 
@@ -32,7 +40,15 @@ impl<'a, 'de> de::SeqAccess<'de> for SeqAccess<'a, 'de> {
                 if self.first {
                     self.first = false;
                 } else if c != b'+' {
-                    return Ok(None);
+                    if let Some(len) = self.len {
+                        if self.count == len - 1 {
+                            self.de.set_is_trailing_parsing();
+                        } else {
+                            return Ok(None);
+                        }
+                    } else {
+                        return Ok(None);
+                    }
                 }
             }
             None => {
@@ -44,9 +60,15 @@ impl<'a, 'de> de::SeqAccess<'de> for SeqAccess<'a, 'de> {
         match seed.deserialize(&mut *self.de) {
             // Misuse EofWhileParsingObject here to indicate finished object in vec cases.
             // See matching TODO in `de::mod`..
-            Err(Error::EofWhileParsingObject) => Ok(None),
+            Err(Error::EofWhileParsingObject) => {
+                self.count += 1;
+                Ok(None)
+            }
             Err(e) => Err(e),
-            Ok(v) => Ok(Some(v)),
+            Ok(v) => {
+                self.count += 1;
+                Ok(Some(v))
+            }
         }
     }
 }

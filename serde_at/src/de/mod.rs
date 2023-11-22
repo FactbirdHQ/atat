@@ -67,11 +67,18 @@ pub enum Error {
 pub(crate) struct Deserializer<'b> {
     slice: &'b [u8],
     index: usize,
+    struct_size_hint: Option<usize>,
+    is_trailing_parsing: bool,
 }
 
 impl<'a> Deserializer<'a> {
     const fn new(slice: &'a [u8]) -> Deserializer<'_> {
-        Deserializer { slice, index: 0 }
+        Deserializer {
+            slice,
+            index: 0,
+            struct_size_hint: None,
+            is_trailing_parsing: false,
+        }
     }
 
     fn eat_char(&mut self) {
@@ -93,6 +100,14 @@ impl<'a> Deserializer<'a> {
         None
     }
 
+    fn set_is_trailing_parsing(&mut self) {
+        self.is_trailing_parsing = true;
+    }
+
+    fn struct_size_hint(&self) -> Option<usize> {
+        self.struct_size_hint
+    }
+
     fn parse_ident(&mut self, ident: &[u8]) -> Result<()> {
         for c in ident {
             if Some(c) != self.next_char() {
@@ -105,43 +120,51 @@ impl<'a> Deserializer<'a> {
 
     fn parse_str(&mut self) -> Result<&'a str> {
         let start = self.index;
-        loop {
-            match self.peek() {
-                Some(b'"') => {
-                    // Counts the number of backslashes in front of the current index.
-                    //
-                    // "some string with \\\" included."
-                    //                  ^^^^^
-                    //                  |||||
-                    //       loop run:  4321|
-                    //                      |
-                    //                   `index`
-                    //
-                    // Since we only get in this code branch if we found a " starting the string and `index` is greater
-                    // than the start position, we know the loop will end no later than this point.
-                    let leading_backslashes = |index: usize| -> usize {
-                        let mut count = 0;
-                        loop {
-                            if self.slice[index - count - 1] == b'\\' {
-                                count += 1;
-                            } else {
-                                return count;
+        if self.is_trailing_parsing {
+            self.index = self.slice.len();
+            return str::from_utf8(&self.slice[start..])
+                .map_err(|_| Error::InvalidUnicodeCodePoint);
+        } else {
+            loop {
+                match self.peek() {
+                    Some(b'"') => {
+                        // Counts the number of backslashes in front of the current index.
+                        //
+                        // "some string with \\\" included."
+                        //                  ^^^^^
+                        //                  |||||
+                        //       loop run:  4321|
+                        //                      |
+                        //                   `index`
+                        //
+                        // Since we only get in this code branch if we found a " starting the string and `index` is greater
+                        // than the start position, we know the loop will end no later than this point.
+                        let leading_backslashes = |index: usize| -> usize {
+                            let mut count = 0;
+                            loop {
+                                if self.slice[index - count - 1] == b'\\' {
+                                    count += 1;
+                                } else {
+                                    return count;
+                                }
                             }
-                        }
-                    };
+                        };
 
-                    let is_escaped = leading_backslashes(self.index) % 2 == 1;
-                    if is_escaped {
-                        self.eat_char(); // just continue
-                    } else {
-                        let end = self.index;
-                        self.eat_char();
-                        return str::from_utf8(&self.slice[start..end])
-                            .map_err(|_| Error::InvalidUnicodeCodePoint);
+                        let is_escaped = leading_backslashes(self.index) % 2 == 1;
+                        if is_escaped {
+                            self.eat_char(); // just continue
+                        } else {
+                            let end = self.index;
+                            self.eat_char();
+                            return str::from_utf8(&self.slice[start..end])
+                                .map_err(|_| Error::InvalidUnicodeCodePoint);
+                        }
+                    }
+                    Some(_) => self.eat_char(),
+                    None => {
+                        return Err(Error::EofWhileParsingString);
                     }
                 }
-                Some(_) => self.eat_char(),
-                None => return Err(Error::EofWhileParsingString),
             }
         }
     }
@@ -149,14 +172,19 @@ impl<'a> Deserializer<'a> {
     fn parse_bytes(&mut self) -> Result<&'a [u8]> {
         let start = self.index;
         loop {
-            if let Some(c) = self.peek() {
-                if (c as char).is_alphanumeric() || (c as char).is_whitespace() {
-                    self.eat_char();
-                } else {
-                    return Err(Error::EofWhileParsingString);
-                }
+            if self.is_trailing_parsing {
+                self.index = self.slice.len();
+                return Ok(&self.slice[start..]);
             } else {
-                return Ok(&self.slice[start..self.index]);
+                if let Some(c) = self.peek() {
+                    if (c as char).is_alphanumeric() || (c as char).is_whitespace() {
+                        self.eat_char();
+                    } else {
+                        return Err(Error::EofWhileParsingString);
+                    }
+                } else {
+                    return Ok(&self.slice[start..self.index]);
+                }
             }
         }
     }
@@ -561,7 +589,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     fn deserialize_struct<V>(
         self,
         _name: &'static str,
-        _fields: &'static [&'static str],
+        fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value>
     where
@@ -577,7 +605,11 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         if self.index == self.slice.len() && self.index > 0 {
             return Err(Error::EofWhileParsingObject);
         }
-        self.deserialize_seq(visitor)
+        self.struct_size_hint = Some(fields.len());
+        let result = self.deserialize_seq(visitor);
+        self.struct_size_hint = None;
+
+        result
     }
 
     fn deserialize_enum<V>(
@@ -831,5 +863,30 @@ mod tests {
         assert_eq!(res, Bytes::<4>::from_slice(b"IMP_").unwrap());
 
         assert_eq!(&res, b"IMP_");
+    }
+
+    #[test]
+    fn trailing_cmgr_parsing() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct Message {
+            state: String<256>,
+            sender: String<256>,
+            size: Option<usize>,
+            date: String<256>,
+            message: String<256>,
+        }
+
+        assert_eq!(
+            crate::from_str(
+                "+CMGR: \"REC UNREAD\",\"+48788899722\",12,\"23/11/21,13:31:39+04\"\r\nINFO,WWW\"\"a"
+            ),
+            Ok(Message {
+                state: String::try_from("REC UNREAD").unwrap(),
+                sender: String::try_from("+48788899722").unwrap(),
+                size: Some(12),
+                date: String::try_from("23/11/21,13:31:39+04").unwrap(),
+                message: String::try_from("INFO,WWW\"\"a").unwrap(),
+            })
+        );
     }
 }
