@@ -21,8 +21,8 @@ name = "atat"
 embedded-io = "0.6.0"
 embedded-io-async = { version = "0.6.0", optional = true }
 futures = { version = "0.3", default-features = false, optional = true }
-embassy-sync = "0.4.0"
-embassy-time = "0.1"
+embassy-sync = "0.5"
+embassy-time = "0.2"
 heapless = { version = "^0.8", features = ["serde"] }
 serde_at = { path = "../serde_at", version = "^0.20.0", optional = true }
 atat_derive = { path = "../atat_derive", version = "^0.20.0", optional = true }
@@ -35,7 +35,7 @@ log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.3", optional = true }
 
 [dev-dependencies]
-embassy-time = { version = "0.1.0", features = ["std", "generic-queue"] }
+embassy-time = { version = "0.2", features = ["std", "generic-queue"] }
 critical-section = { version = "1.1", features = ["std"] }
 tokio = { version = "1", features = ["macros", "rt"] }
 
