@@ -10,6 +10,7 @@ use self::map::MapAccess;
 use self::seq::SeqAccess;
 
 mod enum_;
+pub mod length_delimited;
 mod map;
 mod seq;
 
@@ -557,12 +558,19 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         visitor.visit_seq(SeqAccess::new(self))
     }
 
-    /// Unsupported
-    fn deserialize_tuple<V>(self, _len: usize, _visitor: V) -> Result<V::Value>
+    /// deserialize_tuple is (mis)used for parsing LengthDelimited types.
+    /// They can only be used as the last param as we cannot yet communicate the length
+    /// back to from the visitor to slice the slice.
+    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        unreachable!()
+        visitor
+            .visit_bytes(self.slice[self.index..].as_ref())
+            .map(|v| {
+                self.index = self.slice.len(); // Since we know it is the last param.
+                v
+            })
     }
 
     /// Unsupported
@@ -738,6 +746,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::length_delimited::LengthDelimited;
     use heapless::String;
     use heapless_bytes::Bytes;
     use serde_derive::Deserialize;
@@ -887,6 +896,45 @@ mod tests {
                 date: String::try_from("23/11/21,13:31:39+04").unwrap(),
                 message: String::try_from("INFO,WWW\"\"a").unwrap(),
             })
+        );
+    }
+
+    #[test]
+    fn length_delimited() {
+        #[derive(Clone, Debug, Deserialize)]
+        pub struct PayloadResponse {
+            pub ctx: u8, // Some other params
+            pub id: i8,  // Some other params
+            pub payload: LengthDelimited<32>,
+        }
+
+        let res: PayloadResponse = crate::from_slice(b"1,-1,9,\"ABCD,1234\"").unwrap();
+        assert_eq!(res.ctx, 1);
+        assert_eq!(res.id, -1);
+        assert_eq!(res.payload.len, 9);
+        assert_eq!(
+            res.payload.bytes,
+            Bytes::<32>::from_slice(b"ABCD,1234").unwrap()
+        );
+    }
+
+    #[test]
+    fn length_delimited_json() {
+        #[derive(Clone, Debug, Deserialize)]
+        pub struct PayloadResponse {
+            pub ctx: u8, // Some other params
+            pub id: i8,  // Some other params
+            pub payload: LengthDelimited<32>,
+        }
+        // This tests correct handling of commas in the payload.
+        let res: PayloadResponse =
+            crate::from_slice(b"1,-2,28,\"{\"cmd\": \"blink\", \"pin\": \"2\"}\"").unwrap();
+        assert_eq!(res.ctx, 1);
+        assert_eq!(res.id, -2);
+        assert_eq!(res.payload.len, 28);
+        assert_eq!(
+            res.payload.bytes,
+            Bytes::<32>::from_slice(b"{\"cmd\": \"blink\", \"pin\": \"2\"}").unwrap()
         );
     }
 }
