@@ -919,6 +919,25 @@ mod tests {
     }
 
     #[test]
+    fn length_delimited_no_quotes() {
+        #[derive(Clone, Debug, Deserialize)]
+        pub struct PayloadResponse {
+            pub ctx: u8, // Some other params
+            pub id: i8,  // Some other params
+            pub payload: LengthDelimited<32>,
+        }
+
+        let res: PayloadResponse = crate::from_slice(b"1,-1,9,ABCD,1234").unwrap();
+        assert_eq!(res.ctx, 1);
+        assert_eq!(res.id, -1);
+        assert_eq!(res.payload.len, 9);
+        assert_eq!(
+            res.payload.bytes,
+            Bytes::<32>::from_slice(b"ABCD,1234").unwrap()
+        );
+    }
+
+    #[test]
     fn length_delimited_json() {
         #[derive(Clone, Debug, Deserialize)]
         pub struct PayloadResponse {
@@ -926,7 +945,6 @@ mod tests {
             pub id: i8,  // Some other params
             pub payload: LengthDelimited<32>,
         }
-        // This tests correct handling of commas in the payload.
         let res: PayloadResponse =
             crate::from_slice(b"1,-2,28,\"{\"cmd\": \"blink\", \"pin\": \"2\"}\"").unwrap();
         assert_eq!(res.ctx, 1);

@@ -7,13 +7,15 @@ use serde::{de, Deserialize, Deserializer};
 
 /// Structure for parsing a length delimited bytes payload.
 ///
-/// This assumes that the payload is quoted.
-/// The quotes are in the byte stream but not counted in the length field.
+/// This supports both quoted and non-quoted payloads.
+/// For "quoted" payloads the length is assumed to be excluding the surrounding double quotes.
 ///
 /// For example:
 ///
-/// From this response: `+QMTRECV: 1,0,"topic",4,"ABCD"`
-/// We can parse the last two parameters as a 'LengthDelimited' object:
+/// For both this response: `+QMTRECV: 1,0,"topic",4,"ABCD"`
+/// and this response: `+QTRECV: 1,0,"topic",4,ABCD`
+///
+/// We can parse the last two parameters as a 'LengthDelimited' object which yields:
 /// `'4,"ABCD"' => LengthDelimited { len: 4, bytes: [65, 66, 67, 68] }`
 ///
 #[derive(Clone, Debug)]
@@ -56,8 +58,14 @@ impl<'de, const N: usize> de::Visitor<'de> for LengthDelimitedVisitor<N> {
                 let len = parse_len(&v[0..pos])
                     .map_err(|_| de::Error::custom("expected an unsigned int"))?;
                 // +1 to skip the comma after the length.
-                let start = pos + 1 + 1; // extra +1 to remove outer quotes
-                let end = start + len;
+                let mut start = pos + 1;
+                let mut end = start + len;
+                // Check if payload is surrounded by double quotes not included in len.
+                let slice_len = v.len();
+                if slice_len >= (end + 2) && (v[start] == b'"' && v[end + 1] == b'"') {
+                    start += 1; // Extra +1 to remove first quote (")
+                    end += 1; // Move end by 1 to compensate for the quote.
+                }
                 Ok(LengthDelimited {
                     len,
                     bytes: Bytes::from_slice(&v[start..end])
