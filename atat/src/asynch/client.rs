@@ -17,7 +17,7 @@ pub struct Client<'a, W: Write, const INGRESS_BUF_SIZE: usize> {
 }
 
 impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE> {
-    pub(crate) fn new(
+    pub fn new(
         writer: W,
         res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
         config: Config,

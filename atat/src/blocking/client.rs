@@ -25,7 +25,7 @@ impl<'a, W, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE>
 where
     W: Write,
 {
-    pub(crate) fn new(
+    pub fn new(
         writer: W,
         res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
         config: Config,
