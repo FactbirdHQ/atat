@@ -218,6 +218,7 @@
 #![allow(clippy::fallible_impl_from)]
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 #![cfg_attr(feature = "async", allow(async_fn_in_trait))]
+#![cfg_attr(test, feature(type_alias_impl_trait))]
 
 // This mod MUST go first, so that the others see its macros.
 pub(crate) mod fmt;

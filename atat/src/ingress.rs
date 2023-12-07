@@ -87,7 +87,7 @@ pub struct Ingress<
     const URC_SUBSCRIBERS: usize,
 > {
     digester: D,
-    buf: [u8; INGRESS_BUF_SIZE],
+    buf: &'a mut [u8; INGRESS_BUF_SIZE],
     pos: usize,
     res_publisher: ResponsePublisher<'a, INGRESS_BUF_SIZE>,
     urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
@@ -106,10 +106,11 @@ impl<
         digester: D,
         res_publisher: ResponsePublisher<'a, INGRESS_BUF_SIZE>,
         urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
+        buf: &'a mut [u8; INGRESS_BUF_SIZE],
     ) -> Self {
         Self {
             digester,
-            buf: [0; INGRESS_BUF_SIZE],
+            buf,
             pos: 0,
             res_publisher,
             urc_publisher,
@@ -323,10 +324,12 @@ mod tests {
         let res_channel = ResponseChannel::<100>::new();
         let mut res_subscription = res_channel.subscriber().unwrap();
         let urc_channel = UrcChannel::<Urc, 10, 1>::new();
+        let mut buf = [0; 100];
         let mut ingress: Ingress<_, Urc, 100, 10, 1> = Ingress::new(
             AtDigester::<Urc>::new(),
             res_channel.publisher().unwrap(),
             urc_channel.publisher(),
+            &mut buf,
         );
 
         let mut sub = urc_channel.subscribe().unwrap();
