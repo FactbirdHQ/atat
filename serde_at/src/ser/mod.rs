@@ -1,12 +1,11 @@
 //! Serialize a Rust data structure into AT Command strings
 
-use core::fmt::{self, Write};
+use core::fmt;
 
 use serde::ser;
 
-use heapless::{String, Vec};
-
 mod enum_;
+#[cfg(feature = "heapless")]
 mod hex_str;
 mod struct_;
 
@@ -167,12 +166,21 @@ macro_rules! serialize_signed {
     }};
 }
 
+#[cfg(feature = "heapless")]
 macro_rules! serialize_fmt {
     ($self:ident, $N:expr, $fmt:expr, $v:expr) => {{
-        let mut s: String<$N> = String::new();
+        use fmt::Write;
+        let mut s: heapless::String<$N> = heapless::String::new();
         write!(&mut s, $fmt, $v).unwrap();
         $self.extend_from_slice(s.as_bytes())?;
         Ok(())
+    }};
+}
+
+#[cfg(not(feature = "heapless"))]
+macro_rules! serialize_fmt {
+    ($self:ident, $N:expr, $fmt:expr, $v:expr) => {{
+        todo!()
     }};
 }
 
@@ -388,29 +396,31 @@ impl<'a, 'b> ser::Serializer for &'a mut Serializer<'b> {
     }
 }
 
+#[cfg(feature = "heapless")]
 /// Serializes the given data structure as a string
 pub fn to_string<T, const N: usize>(
     value: &T,
     cmd: &str,
     options: SerializeOptions<'_>,
-) -> Result<String<N>>
+) -> Result<heapless::String<N>>
 where
     T: ser::Serialize + ?Sized,
 {
-    let vec: Vec<u8, N> = to_vec(value, cmd, options)?;
-    Ok(unsafe { String::from_utf8_unchecked(vec) })
+    let vec: heapless::Vec<u8, N> = to_vec(value, cmd, options)?;
+    Ok(unsafe { heapless::String::from_utf8_unchecked(vec) })
 }
 
+#[cfg(feature = "heapless")]
 /// Serializes the given data structure as a byte vector
 pub fn to_vec<T, const N: usize>(
     value: &T,
     cmd: &str,
     options: SerializeOptions<'_>,
-) -> Result<Vec<u8, N>>
+) -> Result<heapless::Vec<u8, N>>
 where
     T: ser::Serialize + ?Sized,
 {
-    let mut buf = Vec::new();
+    let mut buf = heapless::Vec::new();
     buf.resize_default(N).map_err(|_| Error::BufferFull)?;
     let len = to_slice(value, cmd, &mut buf, options)?;
     buf.truncate(len);
@@ -505,7 +515,7 @@ impl ser::SerializeTuple for Unreachable {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "heapless"))]
 mod tests {
     use super::*;
     use crate::HexStr;
