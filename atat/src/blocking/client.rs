@@ -19,6 +19,7 @@ where
     res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
     cooldown_timer: Option<BlockingTimer>,
     config: Config,
+    buf: &'a mut [u8],
 }
 
 impl<'a, W, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE>
@@ -29,19 +30,21 @@ where
         writer: W,
         res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
         config: Config,
+        buf: &'a mut [u8],
     ) -> Self {
         Self {
             writer,
             res_channel,
             cooldown_timer: None,
             config,
+            buf,
         }
     }
 
-    fn send_command(&mut self, cmd: &[u8]) -> Result<(), Error> {
+    fn send_command(&mut self, len: usize) -> Result<(), Error> {
         self.wait_cooldown_timer();
 
-        self.send_inner(cmd)?;
+        self.send_inner(len)?;
 
         self.start_cooldown_timer();
         Ok(())
@@ -49,13 +52,13 @@ where
 
     fn send_request(
         &mut self,
-        cmd: &[u8],
+        len: usize,
         timeout: Duration,
     ) -> Result<Response<INGRESS_BUF_SIZE>, Error> {
         self.wait_cooldown_timer();
 
         let mut response_subscription = self.res_channel.subscriber().unwrap();
-        self.send_inner(cmd)?;
+        self.send_inner(len)?;
 
         let response = self
             .with_timeout(timeout, || response_subscription.try_next_message_pure())
@@ -65,14 +68,16 @@ where
         response
     }
 
-    fn send_inner(&mut self, cmd: &[u8]) -> Result<(), Error> {
-        if cmd.len() < 50 {
-            debug!("Sending command: {:?}", LossyStr(cmd));
+    fn send_inner(&mut self, len: usize) -> Result<(), Error> {
+        if len < 50 {
+            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
         } else {
-            debug!("Sending command with long payload ({} bytes)", cmd.len(),);
+            debug!("Sending command with long payload ({} bytes)", len,);
         }
 
-        self.writer.write_all(cmd).map_err(|_| Error::Write)?;
+        self.writer
+            .write_all(&self.buf[..len])
+            .map_err(|_| Error::Write)?;
         self.writer.flush().map_err(|_| Error::Write)?;
         Ok(())
     }
@@ -109,18 +114,14 @@ impl<W, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRESS_BUF_
 where
     W: Write,
 {
-    fn send<Cmd: AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        cmd: &Cmd,
-    ) -> Result<Cmd::Response, Error> {
-        let cmd_vec = cmd.as_bytes();
-        let cmd_slice = cmd.get_slice(&cmd_vec);
+    fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
+        let len = cmd.write(&mut self.buf);
         if !Cmd::EXPECTS_RESPONSE_CODE {
-            self.send_command(cmd_slice)?;
+            self.send_command(len)?;
             cmd.parse(Ok(&[]))
         } else {
             let response =
-                self.send_request(cmd_slice, Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))?;
+                self.send_request(len, Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))?;
             cmd.parse((&response).into())
         }
     }
@@ -263,10 +264,11 @@ mod test {
             static TX_CHANNEL: PubSubChannel<CriticalSectionRawMutex, String<64>, 1, 1, 1> =
                 PubSubChannel::new();
             static RES_CHANNEL: ResponseChannel<TEST_RX_BUF_LEN> = ResponseChannel::new();
+            static mut BUF: [u8; 1000] = [0; 1000];
 
             let tx_mock = crate::tx_mock::TxMock::new(TX_CHANNEL.publisher().unwrap());
             let client: Client<crate::tx_mock::TxMock, TEST_RX_BUF_LEN> =
-                Client::new(tx_mock, &RES_CHANNEL, $config);
+                Client::new(tx_mock, &RES_CHANNEL, $config, unsafe { BUF.as_mut() });
             (
                 client,
                 TX_CHANNEL.subscriber().unwrap(),

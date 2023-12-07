@@ -35,13 +35,14 @@
 //!
 //! impl AtatResp for GreetingText {};
 //!
-//! impl<'a> AtatCmd<64> for SetGreetingText<'a> {
+//! impl<'a> AtatCmd for SetGreetingText<'a> {
 //!     type Response = NoResponse;
 //!
-//!     fn as_bytes(&self) -> Vec<u8, 64> {
-//!         let mut buf: Vec<u8, 64> = Vec::new();
+//!     fn write(&self, mut buf: &mut [u8]) -> usize {
+//!         let buf_len = buf.len();
+//!         use embedded_io::Write;
 //!         write!(buf, "AT+CSGT={}", self.text);
-//!         buf
+//!         buf_len - buf.len()
 //!     }
 //!
 //!     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error> {
@@ -49,11 +50,14 @@
 //!     }
 //! }
 //!
-//! impl AtatCmd<8> for GetGreetingText {
+//! impl AtatCmd for GetGreetingText {
 //!     type Response = GreetingText;
 //!
-//!     fn as_bytes(&self) -> Vec<u8, 8> {
-//!         Vec::from_slice(b"AT+CSGT?").unwrap()
+//!     fn write(&self, mut buf: &mut [u8]) -> usize {
+//!         let cmd = b"AT+CSGT?";
+//!         let len = cmd.len();
+//!         buf[..len].copy_from_slice(cmd);
+//!         len
 //!     }
 //!
 //!     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error> {

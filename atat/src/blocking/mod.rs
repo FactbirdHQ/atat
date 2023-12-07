@@ -18,12 +18,9 @@ pub trait AtatClient {
     /// This function will also make sure that at least `self.config.cmd_cooldown`
     /// has passed since the last response or URC has been received, to allow
     /// the slave AT device time to deliver URC's.
-    fn send<A: AtatCmd<LEN>, const LEN: usize>(&mut self, cmd: &A) -> Result<A::Response, Error>;
+    fn send<A: AtatCmd>(&mut self, cmd: &A) -> Result<A::Response, Error>;
 
-    fn send_retry<A: AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        cmd: &A,
-    ) -> Result<A::Response, Error> {
+    fn send_retry<A: AtatCmd>(&mut self, cmd: &A) -> Result<A::Response, Error> {
         for attempt in 1..=A::ATTEMPTS {
             if attempt > 1 {
                 debug!("Attempt {}:", attempt);

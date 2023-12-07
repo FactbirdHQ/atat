@@ -14,6 +14,7 @@ pub struct Client<'a, W: Write, const INGRESS_BUF_SIZE: usize> {
     res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
     config: Config,
     cooldown_timer: Option<Timer>,
+    buf: &'a mut [u8],
 }
 
 impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE> {
@@ -21,19 +22,21 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
         writer: W,
         res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
         config: Config,
+        buf: &'a mut [u8],
     ) -> Self {
         Self {
             writer,
             res_channel,
             config,
             cooldown_timer: None,
+            buf,
         }
     }
 
-    async fn send_command(&mut self, cmd: &[u8]) -> Result<(), Error> {
+    async fn send_command(&mut self, len: usize) -> Result<(), Error> {
         self.wait_cooldown_timer().await;
 
-        self.send_inner(cmd).await?;
+        self.send_inner(len).await?;
 
         self.start_cooldown_timer();
         Ok(())
@@ -41,13 +44,13 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
 
     async fn send_request(
         &mut self,
-        cmd: &[u8],
+        len: usize,
         timeout: Duration,
     ) -> Result<Response<INGRESS_BUF_SIZE>, Error> {
         self.wait_cooldown_timer().await;
 
         let mut response_subscription = self.res_channel.subscriber().unwrap();
-        self.send_inner(cmd).await?;
+        self.send_inner(len).await?;
 
         let response = self
             .with_timeout(timeout, response_subscription.next_message_pure())
@@ -58,14 +61,17 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
         response
     }
 
-    async fn send_inner(&mut self, cmd: &[u8]) -> Result<(), Error> {
-        if cmd.len() < 50 {
-            debug!("Sending command: {:?}", LossyStr(cmd));
+    async fn send_inner(&mut self, len: usize) -> Result<(), Error> {
+        if len < 50 {
+            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
         } else {
-            debug!("Sending command with long payload ({} bytes)", cmd.len(),);
+            debug!("Sending command with long payload ({} bytes)", len);
         }
 
-        self.writer.write_all(cmd).await.map_err(|_| Error::Write)?;
+        self.writer
+            .write_all(&self.buf[..len])
+            .await
+            .map_err(|_| Error::Write)?;
         self.writer.flush().await.map_err(|_| Error::Write)?;
         Ok(())
     }
@@ -107,18 +113,14 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
 }
 
 impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRESS_BUF_SIZE> {
-    async fn send<Cmd: AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        cmd: &Cmd,
-    ) -> Result<Cmd::Response, Error> {
-        let cmd_vec = cmd.as_bytes();
-        let cmd_slice = cmd.get_slice(&cmd_vec);
+    async fn send<'a, Cmd: AtatCmd>(&'a mut self, cmd: &'a Cmd) -> Result<Cmd::Response, Error> {
+        let len = cmd.write(&mut self.buf);
         if !Cmd::EXPECTS_RESPONSE_CODE {
-            self.send_command(cmd_slice).await?;
+            self.send_command(len).await?;
             cmd.parse(Ok(&[]))
         } else {
             let response = self
-                .send_request(cmd_slice, Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
+                .send_request(len, Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
                 .await?;
             cmd.parse((&response).into())
         }
@@ -179,10 +181,11 @@ mod tests {
             static TX_CHANNEL: PubSubChannel<CriticalSectionRawMutex, String<64>, 1, 1, 1> =
                 PubSubChannel::new();
             static RES_CHANNEL: ResponseChannel<TEST_RX_BUF_LEN> = ResponseChannel::new();
+            static mut BUF: [u8; 1000] = [0; 1000];
 
             let tx_mock = crate::tx_mock::TxMock::new(TX_CHANNEL.publisher().unwrap());
             let client: Client<crate::tx_mock::TxMock, TEST_RX_BUF_LEN> =
-                Client::new(tx_mock, &RES_CHANNEL, $config);
+                Client::new(tx_mock, &RES_CHANNEL, $config, unsafe { BUF.as_mut() });
             (
                 client,
                 TX_CHANNEL.subscriber().unwrap(),
