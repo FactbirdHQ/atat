@@ -483,12 +483,19 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         }
     }
 
-    /// Unsupported. String is not available in no-std.
+    /// Supported only if alloc feature is enabled
     fn deserialize_string<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        unreachable!()
+        #[cfg(feature = "alloc")]
+        {
+            self.deserialize_str(_visitor)
+        }
+        #[cfg(not(feature = "alloc"))]
+        {
+            unreachable!()
+        }
     }
 
     fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
