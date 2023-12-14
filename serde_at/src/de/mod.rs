@@ -516,12 +516,19 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             })
     }
 
-    /// Unsupported
+    /// Supported only if alloc feature is enabled
     fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        unreachable!()
+        #[cfg(feature = "alloc")]
+        {
+            self.deserialize_bytes(_visitor)
+        }
+        #[cfg(not(feature = "alloc"))]
+        {
+            unreachable!()
+        }
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
