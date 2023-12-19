@@ -45,8 +45,10 @@ pub trait AtatUrc {
 ///
 /// impl<'a> AtatCmd for SetGreetingText<'a> {
 ///     type Response = NoResponse;
+///     const LEN: usize = 64;
 ///
 ///     fn write(&self, mut buf: &mut [u8]) -> usize {
+///         assert!(buf.len() >= Self::LEN);
 ///         let buf_len = buf.len();
 ///         use embedded_io::Write;
 ///         write!(buf, "AT+CSGT={}", self.text);
@@ -61,6 +63,9 @@ pub trait AtatUrc {
 pub trait AtatCmd {
     /// The type of the response. Must implement the `AtatResp` trait.
     type Response: AtatResp;
+
+    /// The size of the buffer required to write the request.
+    const LEN: usize;
 
     /// Whether or not this command can be aborted.
     const CAN_ABORT: bool = false;
@@ -94,6 +99,7 @@ impl<const L: usize> AtatResp for String<L> {}
 
 impl<const L: usize> AtatCmd for String<L> {
     type Response = String<256>;
+    const LEN: usize = L;
 
     fn write(&self, buf: &mut [u8]) -> usize {
         let bytes = self.as_bytes();

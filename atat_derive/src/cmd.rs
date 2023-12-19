@@ -69,6 +69,14 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         None => quote! {},
     };
 
+    let mut cmd_len = cmd_prefix.len() + cmd.len() + termination.len();
+    if value_sep {
+        cmd_len += 1;
+    }
+    if quote_escape_strings {
+        cmd_len += 2;
+    }
+
     let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants
         .iter()
         .map(|f| {
@@ -92,6 +100,8 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         #[automatically_derived]
         impl #impl_generics atat::AtatCmd for #ident #ty_generics #where_clause {
             type Response = #resp;
+
+            const LEN: usize = { #ident_len + #cmd_len };
 
             #timeout
 
