@@ -24,8 +24,8 @@ async fn main() -> ! {
     static URC_CHANNEL: UrcChannel<common::Urc, URC_CAPACITY, URC_SUBSCRIBERS> = UrcChannel::new();
     let ingress = Ingress::new(
         DefaultDigester::<common::Urc>::default(),
-        RES_CHANNEL.publisher().unwrap(),
-        URC_CHANNEL.publisher(),
+        &RES_CHANNEL,
+        &URC_CHANNEL,
     );
     let mut client = Client::new(FromTokio::new(writer), &RES_CHANNEL, Config::default());
 
