@@ -2,10 +2,12 @@
 #![allow(incomplete_features)]
 use atat_examples::common;
 
-use std::process::exit;
-
-use atat::{asynch::AtatClient, AtatIngress, Buffers, Config, DefaultDigester, Ingress};
+use atat::{
+    asynch::{AtatClient, Client},
+    AtatIngress, Config, DefaultDigester, Ingress, ResponseChannel, UrcChannel,
+};
 use embedded_io_adapters::tokio_1::FromTokio;
+use std::process::exit;
 use tokio_serial::SerialStream;
 
 const INGRESS_BUF_SIZE: usize = 1024;
@@ -16,16 +18,16 @@ const URC_SUBSCRIBERS: usize = 3;
 async fn main() -> ! {
     env_logger::init();
 
-    static BUFFERS: Buffers<common::Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS> =
-        Buffers::<common::Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>::new();
-
     let (reader, writer) = SerialStream::pair().expect("Failed to create serial pair");
 
-    let (ingress, mut client) = BUFFERS.split(
-        FromTokio::new(writer),
+    static RES_CHANNEL: ResponseChannel<INGRESS_BUF_SIZE> = ResponseChannel::new();
+    static URC_CHANNEL: UrcChannel<common::Urc, URC_CAPACITY, URC_SUBSCRIBERS> = UrcChannel::new();
+    let ingress = Ingress::new(
         DefaultDigester::<common::Urc>::default(),
-        Config::default(),
+        &RES_CHANNEL,
+        &URC_CHANNEL,
     );
+    let mut client = Client::new(FromTokio::new(writer), &RES_CHANNEL, Config::default());
 
     tokio::spawn(ingress_task(ingress, FromTokio::new(reader)));
 

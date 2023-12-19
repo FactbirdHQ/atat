@@ -226,7 +226,6 @@
 // This mod MUST go first, so that the others see its macros.
 pub(crate) mod fmt;
 
-mod buffers;
 mod config;
 pub mod digest;
 mod error;
@@ -265,15 +264,14 @@ pub use serde_at;
 #[cfg(feature = "derive")]
 pub use heapless;
 
-pub use buffers::Buffers;
 pub use config::Config;
 pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digester, Parser};
 pub use error::{CmeError, CmsError, ConnectionError, Error, InternalError};
-pub use ingress::{AtatIngress, Ingress};
+pub use ingress::{AtatIngress, Error as IngressError, Ingress};
 pub use response::Response;
-pub use response_channel::{ResponseChannel, ResponsePublisher, ResponseSubscription};
+pub use response_channel::ResponseChannel;
 pub use traits::{AtatCmd, AtatResp, AtatUrc};
-pub use urc_channel::{AtatUrcChannel, UrcChannel, UrcSubscription};
+pub use urc_channel::{UrcChannel, UrcSubscription};
 
 #[cfg(test)]
 #[cfg(feature = "defmt")]
