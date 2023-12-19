@@ -88,11 +88,11 @@ pub trait AtatCmd {
     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error>;
 }
 
-impl<'a, T, const L: usize> AtatResp for Vec<T, L> where T: AtatResp {}
+impl<T, const L: usize> AtatResp for Vec<T, L> where T: AtatResp {}
 
 impl<const L: usize> AtatResp for String<L> {}
 
-impl<'a, const L: usize> AtatCmd for String<L> {
+impl<const L: usize> AtatCmd for String<L> {
     type Response = String<256>;
 
     fn write(&self, buf: &mut [u8]) -> usize {

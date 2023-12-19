@@ -57,7 +57,13 @@ async fn main(spawner: Spawner) {
         &RES_CHANNEL,
         &URC_CHANNEL,
     );
-    let mut client = Client::new(writer, RES_CHANNEL.subscriber(), atat::Config::default());
+    let buf = StaticCell::make_static!([0; 1024]);
+    let mut client = Client::new(
+        writer,
+        RES_CHANNEL.subscriber(),
+        buf,
+        atat::Config::default(),
+    );
 
     spawner.spawn(ingress_task(ingress, reader)).unwrap();
 

@@ -17,9 +17,9 @@ where
 {
     writer: W,
     res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
+    buf: &'a mut [u8],
     cooldown_timer: Option<BlockingTimer>,
     config: Config,
-    buf: &'a mut [u8],
 }
 
 impl<'a, W, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE>
@@ -29,15 +29,15 @@ where
     pub fn new(
         writer: W,
         res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
-        config: Config,
         buf: &'a mut [u8],
+        config: Config,
     ) -> Self {
         Self {
             writer,
             res_channel,
+            buf,
             cooldown_timer: None,
             config,
-            buf,
         }
     }
 
@@ -268,7 +268,7 @@ mod test {
 
             let tx_mock = crate::tx_mock::TxMock::new(TX_CHANNEL.publisher().unwrap());
             let client: Client<crate::tx_mock::TxMock, TEST_RX_BUF_LEN> =
-                Client::new(tx_mock, &RES_CHANNEL, $config, unsafe { BUF.as_mut() });
+                Client::new(tx_mock, &RES_CHANNEL, unsafe { BUF.as_mut() }, $config);
             (
                 client,
                 TX_CHANNEL.subscriber().unwrap(),

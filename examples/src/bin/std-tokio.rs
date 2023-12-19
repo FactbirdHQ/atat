@@ -27,7 +27,8 @@ async fn main() -> ! {
         &RES_CHANNEL,
         &URC_CHANNEL,
     );
-    let mut client = Client::new(FromTokio::new(writer), &RES_CHANNEL, Config::default());
+    let buf = StaticCell::make_static!([0; 1024]);
+    let mut client = Client::new(FromTokio::new(writer), &RES_CHANNEL, buf, Config::default());
 
     tokio::spawn(ingress_task(ingress, FromTokio::new(reader)));
 
