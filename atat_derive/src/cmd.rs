@@ -101,7 +101,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         impl #impl_generics atat::AtatCmd for #ident #ty_generics #where_clause {
             type Response = #resp;
 
-            const LEN: usize = { #ident_len + #cmd_len };
+            const MAX_LEN: usize = { #ident_len + #cmd_len };
 
             #timeout
 
