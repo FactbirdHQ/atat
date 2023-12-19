@@ -3,7 +3,8 @@
 use atat_examples::common;
 
 use atat::{
-    asynch::AtatClient, AtatIngress, Config, DefaultDigester, Ingress, ResponseChannel, UrcChannel,
+    asynch::{AtatClient, Client},
+    AtatIngress, Config, DefaultDigester, Ingress, ResponseChannel, UrcChannel,
 };
 use embedded_io_adapters::tokio_1::FromTokio;
 use std::process::exit;
@@ -23,14 +24,10 @@ async fn main() -> ! {
     static URC_CHANNEL: UrcChannel<common::Urc, URC_CAPACITY, URC_SUBSCRIBERS> = UrcChannel::new();
     let ingress = Ingress::new(
         DefaultDigester::<common::Urc>::default(),
-        RES_CHANNEL.publisher(),
+        RES_CHANNEL.publisher().unwrap(),
         URC_CHANNEL.publisher(),
     );
-    let mut client = AtatClient::new(
-        FromTokio::new(writer),
-        RES_CHANNEL.subscriber(),
-        Config::default(),
-    );
+    let mut client = Client::new(FromTokio::new(writer), &RES_CHANNEL, Config::default());
 
     tokio::spawn(ingress_task(ingress, FromTokio::new(reader)));
 
