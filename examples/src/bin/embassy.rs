@@ -51,11 +51,11 @@ async fn main(spawner: Spawner) {
     let (reader, writer) = uart.split();
 
     static RES_CHANNEL: ResponseChannel<INGRESS_BUF_SIZE> = ResponseChannel::new();
-    static URC_CHANNEL: UrcChannel<Urc, URC_CAPACITY, URC_SUBSCRIBERS> = UrcChannel::new();
+    static URC_CHANNEL: UrcChannel<common::Urc, URC_CAPACITY, URC_SUBSCRIBERS> = UrcChannel::new();
     let ingress = Ingress::new(
         DefaultDigester::<common::Urc>::default(),
-        RES_CHANNEL.publisher(),
-        URC_CHANNEL.publisher(),
+        &RES_CHANNEL,
+        &URC_CHANNEL,
     );
     let mut client = Client::new(writer, RES_CHANNEL.subscriber(), atat::Config::default());
 

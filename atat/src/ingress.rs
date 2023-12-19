@@ -1,6 +1,6 @@
 use crate::{
     helpers::LossyStr, response_channel::ResponsePublisher, urc_channel::UrcPublisher, AtatUrc,
-    DigestResult, Digester, Response,
+    DigestResult, Digester, Response, ResponseChannel, UrcChannel,
 };
 
 #[derive(Debug, PartialEq)]
@@ -104,15 +104,15 @@ impl<
 {
     pub fn new(
         digester: D,
-        res_publisher: ResponsePublisher<'a, INGRESS_BUF_SIZE>,
-        urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
+        res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
+        urc_channel: &'a UrcChannel<Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) -> Self {
         Self {
             digester,
             buf: [0; INGRESS_BUF_SIZE],
             pos: 0,
-            res_publisher,
-            urc_publisher,
+            res_publisher: res_channel.publisher().unwrap(),
+            urc_publisher: urc_channel.0.publisher().unwrap(),
         }
     }
 }
@@ -305,7 +305,7 @@ impl<
 mod tests {
     use crate::{
         self as atat, atat_derive::AtatUrc, response_channel::ResponseChannel, AtDigester,
-        AtatUrcChannel, UrcChannel,
+        UrcChannel,
     };
 
     use super::*;
@@ -323,11 +323,8 @@ mod tests {
         let res_channel = ResponseChannel::<100>::new();
         let mut res_subscription = res_channel.subscriber().unwrap();
         let urc_channel = UrcChannel::<Urc, 10, 1>::new();
-        let mut ingress: Ingress<_, Urc, 100, 10, 1> = Ingress::new(
-            AtDigester::<Urc>::new(),
-            res_channel.publisher().unwrap(),
-            urc_channel.publisher(),
-        );
+        let mut ingress: Ingress<_, Urc, 100, 10, 1> =
+            Ingress::new(AtDigester::<Urc>::new(), &res_channel, &urc_channel);
 
         let mut sub = urc_channel.subscribe().unwrap();
 
