@@ -52,7 +52,7 @@ pub fn add_type_parameter_bound(
     let where_type = syn::PredicateType {
         bounded_ty: parse_quote!(#ident),
         colon_token: <syn::Token![:]>::default(),
-        bounds: vec![trait_bound].iter().cloned().collect(),
+        bounds: [trait_bound].iter().cloned().collect(),
         lifetimes: None,
     };
     generics

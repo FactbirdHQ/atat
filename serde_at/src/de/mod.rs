@@ -176,16 +176,14 @@ impl<'a> Deserializer<'a> {
             if self.is_trailing_parsing {
                 self.index = self.slice.len();
                 return Ok(&self.slice[start..]);
-            } else {
-                if let Some(c) = self.peek() {
-                    if (c as char).is_alphanumeric() || (c as char).is_whitespace() {
-                        self.eat_char();
-                    } else {
-                        return Err(Error::EofWhileParsingString);
-                    }
+            } else if let Some(c) = self.peek() {
+                if (c as char).is_alphanumeric() || (c as char).is_whitespace() {
+                    self.eat_char();
                 } else {
-                    return Ok(&self.slice[start..self.index]);
+                    return Err(Error::EofWhileParsingString);
                 }
+            } else {
+                return Ok(&self.slice[start..self.index]);
             }
         }
     }
