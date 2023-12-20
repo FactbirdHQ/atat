@@ -232,7 +232,7 @@ mod error;
 pub mod helpers;
 mod ingress;
 mod response;
-pub mod response_channel;
+pub mod response_slot;
 mod traits;
 #[cfg(test)]
 mod tx_mock;
@@ -269,7 +269,7 @@ pub use digest::{AtDigester, AtDigester as DefaultDigester, DigestResult, Digest
 pub use error::{CmeError, CmsError, ConnectionError, Error, InternalError};
 pub use ingress::{AtatIngress, Error as IngressError, Ingress};
 pub use response::Response;
-pub use response_channel::ResponseChannel;
+pub use response_slot::ResponseSlot;
 pub use traits::{AtatCmd, AtatResp, AtatUrc};
 pub use urc_channel::{UrcChannel, UrcSubscription};
 

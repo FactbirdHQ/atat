@@ -4,7 +4,7 @@ use atat_examples::common;
 
 use atat::{
     asynch::{AtatClient, Client},
-    AtatIngress, Config, DefaultDigester, Ingress, ResponseChannel, UrcChannel,
+    AtatIngress, Config, DefaultDigester, Ingress, ResponseSlot, UrcChannel,
 };
 use embedded_io_adapters::tokio_1::FromTokio;
 use std::process::exit;
@@ -20,15 +20,15 @@ async fn main() -> ! {
 
     let (reader, writer) = SerialStream::pair().expect("Failed to create serial pair");
 
-    static RES_CHANNEL: ResponseChannel<INGRESS_BUF_SIZE> = ResponseChannel::new();
+    static RES_SLOT: ResponseSlot<INGRESS_BUF_SIZE> = ResponseSlot::new();
     static URC_CHANNEL: UrcChannel<common::Urc, URC_CAPACITY, URC_SUBSCRIBERS> = UrcChannel::new();
     let ingress = Ingress::new(
         DefaultDigester::<common::Urc>::default(),
-        &RES_CHANNEL,
+        &RES_SLOT,
         &URC_CHANNEL,
     );
     let buf = StaticCell::make_static!([0; 1024]);
-    let mut client = Client::new(FromTokio::new(writer), &RES_CHANNEL, buf, Config::default());
+    let mut client = Client::new(FromTokio::new(writer), &RES_SLOT, buf, Config::default());
 
     tokio::spawn(ingress_task(ingress, FromTokio::new(reader)));
 

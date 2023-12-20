@@ -5,7 +5,7 @@
 
 use atat::{
     asynch::{AtatClient, Client},
-    AtatIngress, DefaultDigester, Ingress, ResponseChannel, UrcChannel,
+    AtatIngress, DefaultDigester, Ingress, ResponseSlot, UrcChannel,
 };
 use atat_examples::common;
 use embassy_executor::Spawner;
@@ -50,20 +50,15 @@ async fn main(spawner: Spawner) {
     );
     let (reader, writer) = uart.split();
 
-    static RES_CHANNEL: ResponseChannel<INGRESS_BUF_SIZE> = ResponseChannel::new();
+    static RES_SLOT: ResponseSlot<INGRESS_BUF_SIZE> = ResponseSlot::new();
     static URC_CHANNEL: UrcChannel<common::Urc, URC_CAPACITY, URC_SUBSCRIBERS> = UrcChannel::new();
     let ingress = Ingress::new(
         DefaultDigester::<common::Urc>::default(),
-        &RES_CHANNEL,
+        &RES_SLOT,
         &URC_CHANNEL,
     );
     let buf = StaticCell::make_static!([0; 1024]);
-    let mut client = Client::new(
-        writer,
-        RES_CHANNEL.subscriber(),
-        buf,
-        atat::Config::default(),
-    );
+    let mut client = Client::new(writer, &RES_SLOT, buf, atat::Config::default());
 
     spawner.spawn(ingress_task(ingress, reader)).unwrap();
 
