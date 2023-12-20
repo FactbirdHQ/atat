@@ -48,7 +48,7 @@ where
 
         self.wait_cooldown_timer();
 
-        // Clear any pending response
+        // Clear any pending response signal
         self.res_slot.reset();
 
         // Write request
@@ -61,9 +61,15 @@ where
         Ok(())
     }
 
-    fn receive_response(&mut self, timeout: Duration) -> Result<Response<INGRESS_BUF_SIZE>, Error> {
-        self.with_timeout(timeout, || self.res_slot.try_take())
-            .map_err(|_| Error::Timeout)
+    fn wait_response(&mut self, timeout: Duration) -> Result<(), Error> {
+        self.with_timeout(timeout, || {
+            if self.res_slot.available() {
+                Some(())
+            } else {
+                None
+            }
+        })
+        .map_err(|_| Error::Timeout)
     }
 
     fn with_timeout<R>(
@@ -104,9 +110,10 @@ where
         if !Cmd::EXPECTS_RESPONSE_CODE {
             cmd.parse(Ok(&[]))
         } else {
-            let response =
-                self.receive_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))?;
-            cmd.parse((&response).into())
+            self.wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))?;
+            let response = self.res_slot.get();
+            let response: &Response<INGRESS_BUF_SIZE> = &response.borrow();
+            cmd.parse(response.into())
         }
     }
 }
@@ -115,7 +122,7 @@ where
 mod test {
     use super::*;
     use crate::atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc};
-    use crate::{self as atat, InternalError, Response};
+    use crate::{self as atat, InternalError};
     use core::sync::atomic::{AtomicU64, Ordering};
     use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
     use embassy_sync::pubsub::PubSubChannel;
@@ -265,7 +272,8 @@ mod test {
 
         let sent = tokio::spawn(async move {
             tx.next_message_pure().await;
-            rx.signal(Err(InternalError::Error).into());
+            rx.signal_response(Err(InternalError::Error).into())
+                .unwrap();
         });
 
         tokio::task::spawn_blocking(move || {
@@ -288,7 +296,8 @@ mod test {
 
         let sent = tokio::spawn(async move {
             tx.next_message_pure().await;
-            rx.signal(Err(InternalError::Error).into());
+            rx.signal_response(Err(InternalError::Error).into())
+                .unwrap();
         });
 
         tokio::task::spawn_blocking(move || {
@@ -316,10 +325,10 @@ mod test {
 
         let sent = tokio::spawn(async move {
             let sent0 = tx.next_message_pure().await;
-            rx.signal(Response::default());
+            rx.signal_response(Ok(&[])).unwrap();
 
             let sent1 = tx.next_message_pure().await;
-            rx.signal(Response::default());
+            rx.signal_response(Ok(&[])).unwrap();
 
             (sent0, sent1)
         });
@@ -347,7 +356,7 @@ mod test {
 
         let sent = tokio::spawn(async move {
             let sent = tx.next_message_pure().await;
-            rx.signal(Response::default());
+            rx.signal_response(Ok(&[])).unwrap();
             sent
         });
 
@@ -382,10 +391,10 @@ mod test {
 
         let sent = tokio::spawn(async move {
             let sent0 = tx.next_message_pure().await;
-            rx.signal(Response::ok(response0));
+            rx.signal_response(Ok(response0)).unwrap();
 
             let sent1 = tx.next_message_pure().await;
-            rx.signal(Response::ok(response1));
+            rx.signal_response(Ok(response1)).unwrap();
 
             (sent0, sent1)
         });
@@ -426,7 +435,7 @@ mod test {
 
         let sent = tokio::spawn(async move {
             tx.next_message_pure().await;
-            rx.signal(Response::ok(b"+CUN: 22,16,22"));
+            rx.signal_response(Ok(b"+CUN: 22,16,22")).unwrap();
         });
 
         tokio::task::spawn_blocking(move || {
@@ -511,7 +520,7 @@ mod test {
             tx.next_message_pure().await;
             // Emit response in the extended timeout timeframe
             Timer::after(Duration::from_millis(300)).await;
-            rx.signal(Response::default());
+            rx.signal_response(Ok(&[])).unwrap();
         });
 
         tokio::task::spawn_blocking(move || {

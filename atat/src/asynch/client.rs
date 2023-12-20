@@ -40,7 +40,7 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
 
         self.wait_cooldown_timer().await;
 
-        // Clear any pending response
+        // Clear any pending response signal
         self.res_slot.reset();
 
         // Write request
@@ -54,10 +54,7 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
         Ok(())
     }
 
-    async fn receive_response(
-        &mut self,
-        timeout: Duration,
-    ) -> Result<Response<INGRESS_BUF_SIZE>, Error> {
+    async fn wait_response(&mut self, timeout: Duration) -> Result<(), Error> {
         self.with_timeout(timeout, self.res_slot.wait())
             .await
             .map_err(|_| Error::Timeout)
@@ -106,10 +103,11 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
         if !Cmd::EXPECTS_RESPONSE_CODE {
             cmd.parse(Ok(&[]))
         } else {
-            let response = self
-                .receive_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
+            self.wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
                 .await?;
-            cmd.parse((&response).into())
+            let response = self.res_slot.get();
+            let response: &Response<INGRESS_BUF_SIZE> = &response.borrow();
+            cmd.parse(response.into())
         }
     }
 }
@@ -119,7 +117,7 @@ mod tests {
     use super::*;
     use crate as atat;
     use crate::atat_derive::{AtatCmd, AtatEnum, AtatResp};
-    use crate::{Error, Response};
+    use crate::Error;
     use core::sync::atomic::{AtomicU64, Ordering};
     use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
     use embassy_sync::pubsub::PubSubChannel;
@@ -250,7 +248,7 @@ mod tests {
             tx.next_message_pure().await;
             // Emit response in the extended timeout timeframe
             Timer::after(Duration::from_millis(300)).await;
-            rx.signal(Response::default());
+            rx.signal_response(Ok(&[])).unwrap();
         });
 
         let send = tokio::task::spawn(async move {

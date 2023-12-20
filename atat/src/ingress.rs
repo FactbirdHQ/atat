@@ -1,11 +1,12 @@
 use crate::{
-    helpers::LossyStr, urc_channel::UrcPublisher, AtatUrc, DigestResult, Digester, Response,
-    ResponseSlot, UrcChannel,
+    helpers::LossyStr, urc_channel::UrcPublisher, AtatUrc, DigestResult, Digester, ResponseSlot,
+    UrcChannel,
 };
 
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
+    ResponseSlotBusy,
     UrcChannelFull,
 }
 
@@ -149,7 +150,10 @@ impl<
                 (DigestResult::Prompt(prompt), swallowed) => {
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
-                    self.res_slot.signal(Response::Prompt(prompt));
+                    if self.res_slot.signal_prompt(prompt).is_err() {
+                        error!("Received prompt but a response is already pending");
+                    }
+
                     swallowed
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
@@ -192,7 +196,9 @@ impl<
                         }
                     }
 
-                    self.res_slot.signal(resp.into());
+                    if self.res_slot.signal_response(resp).is_err() {
+                        error!("Received response but a response is already pending");
+                    }
                     swallowed
                 }
             };
@@ -230,7 +236,9 @@ impl<
                 (DigestResult::Prompt(prompt), swallowed) => {
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
-                    self.res_slot.signal(Response::Prompt(prompt));
+                    if self.res_slot.signal_prompt(prompt).is_err() {
+                        error!("Received prompt but a response is already pending");
+                    }
                     swallowed
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
@@ -273,7 +281,9 @@ impl<
                         }
                     }
 
-                    self.res_slot.signal(resp.into());
+                    if self.res_slot.signal_response(resp).is_err() {
+                        error!("Received response but a response is already pending");
+                    }
                     swallowed
                 }
             };
@@ -295,7 +305,8 @@ impl<
 #[cfg(test)]
 mod tests {
     use crate::{
-        self as atat, atat_derive::AtatUrc, response_slot::ResponseSlot, AtDigester, UrcChannel,
+        self as atat, atat_derive::AtatUrc, response_slot::ResponseSlot, AtDigester, Response,
+        UrcChannel,
     };
 
     use super::*;
@@ -325,7 +336,8 @@ mod tests {
         assert_eq!(Urc::ConnectOk, sub.try_next_message_pure().unwrap());
         assert_eq!(Urc::ConnectFail, sub.try_next_message_pure().unwrap());
 
-        let response = res_slot.try_take().unwrap();
-        assert_eq!(Response::default(), response);
+        let response = res_slot.get();
+        let response: &Response<100> = &response.borrow();
+        assert_eq!(&Response::default(), response);
     }
 }
