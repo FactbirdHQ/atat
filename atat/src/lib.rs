@@ -37,6 +37,7 @@
 //!
 //! impl<'a> AtatCmd for SetGreetingText<'a> {
 //!     type Response = NoResponse;
+//!     const MAX_LEN: usize = 64;
 //!
 //!     fn write(&self, mut buf: &mut [u8]) -> usize {
 //!         let buf_len = buf.len();
@@ -52,6 +53,7 @@
 //!
 //! impl AtatCmd for GetGreetingText {
 //!     type Response = GreetingText;
+//!     const MAX_LEN: usize = 8;
 //!
 //!     fn write(&self, mut buf: &mut [u8]) -> usize {
 //!         let cmd = b"AT+CSGT?";
