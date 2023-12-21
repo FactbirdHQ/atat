@@ -97,7 +97,7 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
 }
 
 impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRESS_BUF_SIZE> {
-    async fn send<'a, Cmd: AtatCmd>(&'a mut self, cmd: &'a Cmd) -> Result<Cmd::Response, Error> {
+    async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
         let len = cmd.write(&mut self.buf);
         self.send_request(len).await?;
         if !Cmd::EXPECTS_RESPONSE_CODE {
@@ -203,7 +203,7 @@ mod tests {
             // Do not emit a response effectively causing a timeout
         });
 
-        let send = tokio::task::spawn(async move {
+        let send = tokio::spawn(async move {
             assert_eq!(Err(Error::Timeout), client.send(&cmd).await);
         });
 
@@ -251,7 +251,7 @@ mod tests {
             rx.signal_response(Ok(&[])).unwrap();
         });
 
-        let send = tokio::task::spawn(async move {
+        let send = tokio::spawn(async move {
             assert_eq!(Ok(NoResponse), client.send(&cmd).await);
         });
 
