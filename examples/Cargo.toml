@@ -50,6 +50,7 @@ tokio = { version = "1.26", default-features = false, features = [
 ], optional = true }
 tokio-serial = { version = "5.4.4", optional = true }
 static_cell = { version = "2", features = ["nightly"] }
+portable-atomic = "1.6.0"
 
 [features]
 embedded = [
@@ -72,5 +73,5 @@ std = [
     "critical-section/std",
     "embedded-io-adapters",
     "embedded-io-adapters/tokio-1",
-    "static_cell/std",
+    "portable-atomic/std",
 ]
