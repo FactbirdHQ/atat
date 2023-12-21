@@ -62,7 +62,7 @@ where
     }
 
     fn wait_response(&mut self, timeout: Duration) -> Result<(), Error> {
-        self.with_timeout(timeout, || self.res_slot.try_get().map(|_| ()))
+        self.with_timeout(timeout, || self.res_slot.signaled().then_some(()))
             .map_err(|_| Error::Timeout)
     }
 
@@ -105,6 +105,7 @@ where
             cmd.parse(Ok(&[]))
         } else {
             self.wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))?;
+            assert!(self.res_slot.signaled());
             let response = self.res_slot.try_get().unwrap();
             let response: &Response<INGRESS_BUF_SIZE> = &response.borrow();
             cmd.parse(response.into())

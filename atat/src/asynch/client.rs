@@ -4,7 +4,7 @@ use embassy_time::{Duration, Instant, TimeoutError, Timer};
 use embedded_io_async::Write;
 use futures::{
     future::{select, Either},
-    pin_mut, Future, FutureExt,
+    pin_mut, Future,
 };
 
 pub struct Client<'a, W: Write, const INGRESS_BUF_SIZE: usize> {
@@ -55,7 +55,7 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
     }
 
     async fn wait_response(&mut self, timeout: Duration) -> Result<(), Error> {
-        self.with_timeout(timeout, self.res_slot.wait().map(|_| ()))
+        self.with_timeout(timeout, self.res_slot.wait())
             .await
             .map_err(|_| Error::Timeout)
     }
@@ -105,6 +105,7 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
         } else {
             self.wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
                 .await?;
+            assert!(self.res_slot.signaled());
             let response = self.res_slot.try_get().unwrap();
             let response: &Response<INGRESS_BUF_SIZE> = &response.borrow();
             cmd.parse(response.into())
@@ -175,90 +176,90 @@ mod tests {
         }};
     }
 
-    // #[tokio::test]
-    // async fn custom_timeout() {
-    //     static CALL_COUNT: AtomicU64 = AtomicU64::new(0);
+    #[tokio::test]
+    async fn custom_timeout() {
+        static CALL_COUNT: AtomicU64 = AtomicU64::new(0);
 
-    //     fn custom_response_timeout(sent: Instant, timeout: Duration) -> Instant {
-    //         CALL_COUNT.fetch_add(1, Ordering::Relaxed);
-    //         assert_eq!(
-    //             Duration::from_millis(SetModuleFunctionality::MAX_TIMEOUT_MS.into()),
-    //             timeout
-    //         );
-    //         // Effectively ignoring the timeout configured for the command
-    //         // The default response timeout is "sent + timeout"
-    //         sent + Duration::from_millis(100)
-    //     }
+        fn custom_response_timeout(sent: Instant, timeout: Duration) -> Instant {
+            CALL_COUNT.fetch_add(1, Ordering::Relaxed);
+            assert_eq!(
+                Duration::from_millis(SetModuleFunctionality::MAX_TIMEOUT_MS.into()),
+                timeout
+            );
+            // Effectively ignoring the timeout configured for the command
+            // The default response timeout is "sent + timeout"
+            sent + Duration::from_millis(100)
+        }
 
-    //     let (mut client, mut tx, _rx) =
-    //         setup!(Config::new().get_response_timeout(custom_response_timeout));
+        let (mut client, mut tx, _rx) =
+            setup!(Config::new().get_response_timeout(custom_response_timeout));
 
-    //     let cmd = SetModuleFunctionality {
-    //         fun: Functionality::APM,
-    //         rst: Some(ResetMode::DontReset),
-    //     };
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
 
-    //     let sent = tokio::spawn(async move {
-    //         tx.next_message_pure().await;
-    //         // Do not emit a response effectively causing a timeout
-    //     });
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            // Do not emit a response effectively causing a timeout
+        });
 
-    //     let send = tokio::spawn(async move {
-    //         assert_eq!(Err(Error::Timeout), client.send(&cmd).await);
-    //     });
+        let send = tokio::spawn(async move {
+            assert_eq!(Err(Error::Timeout), client.send(&cmd).await);
+        });
 
-    //     let (sent, send) = join!(sent, send);
-    //     sent.unwrap();
-    //     send.unwrap();
+        let (sent, send) = join!(sent, send);
+        sent.unwrap();
+        send.unwrap();
 
-    //     assert_ne!(0, CALL_COUNT.load(Ordering::Relaxed));
-    // }
+        assert_ne!(0, CALL_COUNT.load(Ordering::Relaxed));
+    }
 
-    // #[tokio::test]
-    // async fn custom_timeout_modified_during_request() {
-    //     static CALL_COUNT: AtomicU64 = AtomicU64::new(0);
+    #[tokio::test]
+    async fn custom_timeout_modified_during_request() {
+        static CALL_COUNT: AtomicU64 = AtomicU64::new(0);
 
-    //     fn custom_response_timeout(sent: Instant, timeout: Duration) -> Instant {
-    //         CALL_COUNT.fetch_add(1, Ordering::Relaxed);
-    //         assert_eq!(
-    //             Duration::from_millis(SetModuleFunctionality::MAX_TIMEOUT_MS.into()),
-    //             timeout
-    //         );
-    //         // Effectively ignoring the timeout configured for the command
-    //         // The default response timeout is "sent + timeout"
-    //         // Let the timeout instant be extended depending on the current time
-    //         if Instant::now() < sent + Duration::from_millis(100) {
-    //             // Initial timeout
-    //             sent + Duration::from_millis(200)
-    //         } else {
-    //             // Extended timeout
-    //             sent + Duration::from_millis(500)
-    //         }
-    //     }
+        fn custom_response_timeout(sent: Instant, timeout: Duration) -> Instant {
+            CALL_COUNT.fetch_add(1, Ordering::Relaxed);
+            assert_eq!(
+                Duration::from_millis(SetModuleFunctionality::MAX_TIMEOUT_MS.into()),
+                timeout
+            );
+            // Effectively ignoring the timeout configured for the command
+            // The default response timeout is "sent + timeout"
+            // Let the timeout instant be extended depending on the current time
+            if Instant::now() < sent + Duration::from_millis(100) {
+                // Initial timeout
+                sent + Duration::from_millis(200)
+            } else {
+                // Extended timeout
+                sent + Duration::from_millis(500)
+            }
+        }
 
-    //     let (mut client, mut tx, rx) =
-    //         setup!(Config::new().get_response_timeout(custom_response_timeout));
+        let (mut client, mut tx, rx) =
+            setup!(Config::new().get_response_timeout(custom_response_timeout));
 
-    //     let cmd = SetModuleFunctionality {
-    //         fun: Functionality::APM,
-    //         rst: Some(ResetMode::DontReset),
-    //     };
+        let cmd = SetModuleFunctionality {
+            fun: Functionality::APM,
+            rst: Some(ResetMode::DontReset),
+        };
 
-    //     let sent = tokio::spawn(async move {
-    //         tx.next_message_pure().await;
-    //         // Emit response in the extended timeout timeframe
-    //         Timer::after(Duration::from_millis(300)).await;
-    //         rx.signal_response(Ok(&[])).unwrap();
-    //     });
+        let sent = tokio::spawn(async move {
+            tx.next_message_pure().await;
+            // Emit response in the extended timeout timeframe
+            Timer::after(Duration::from_millis(300)).await;
+            rx.signal_response(Ok(&[])).unwrap();
+        });
 
-    //     let send = tokio::spawn(async move {
-    //         assert_eq!(Ok(NoResponse), client.send(&cmd).await);
-    //     });
+        let send = tokio::spawn(async move {
+            assert_eq!(Ok(NoResponse), client.send(&cmd).await);
+        });
 
-    //     let (sent, send) = join!(sent, send);
-    //     sent.unwrap();
-    //     send.unwrap();
+        let (sent, send) = join!(sent, send);
+        sent.unwrap();
+        send.unwrap();
 
-    //     assert_ne!(0, CALL_COUNT.load(Ordering::Relaxed));
-    // }
+        assert_ne!(0, CALL_COUNT.load(Ordering::Relaxed));
+    }
 }
