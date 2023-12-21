@@ -1,4 +1,4 @@
-#![feature(async_fn_in_trait)]
+#![feature(type_alias_impl_trait)]
 #![allow(incomplete_features)]
 use atat_examples::common;
 
@@ -27,7 +27,7 @@ async fn main() -> ! {
         &RES_SLOT,
         &URC_CHANNEL,
     );
-    let buf = StaticCell::make_static!([0; 1024]);
+    let buf = static_cell::make_static!([0; 1024]);
     let mut client = Client::new(FromTokio::new(writer), &RES_SLOT, buf, Config::default());
 
     tokio::spawn(ingress_task(ingress, FromTokio::new(reader)));

@@ -100,6 +100,19 @@ impl<'a> Serializer<'a> {
             Err(Error::BufferFull)
         }
     }
+
+    fn write_buf(&mut self) -> &mut [u8] {
+        &mut self.buf[self.written..]
+    }
+
+    fn commit(&mut self, amount: usize) -> Result<()> {
+        if self.written + amount <= self.buf.len() {
+            self.written += amount;
+            Ok(())
+        } else {
+            Err(Error::BufferFull)
+        }
+    }
 }
 
 // NOTE(serialize_*signed) This is basically the numtoa implementation minus the lookup tables,
@@ -166,21 +179,49 @@ macro_rules! serialize_signed {
     }};
 }
 
-#[cfg(feature = "heapless")]
-macro_rules! serialize_fmt {
-    ($self:ident, $N:expr, $fmt:expr, $v:expr) => {{
-        use fmt::Write;
-        let mut s: heapless::String<$N> = heapless::String::new();
-        write!(&mut s, $fmt, $v).unwrap();
-        $self.extend_from_slice(s.as_bytes())?;
-        Ok(())
-    }};
+struct FmtWrapper<'a> {
+    buf: &'a mut [u8],
+    offset: usize,
 }
 
-#[cfg(not(feature = "heapless"))]
+impl<'a> FmtWrapper<'a> {
+    fn new(buf: &'a mut [u8]) -> Self {
+        FmtWrapper {
+            buf: buf,
+            offset: 0,
+        }
+    }
+}
+
+impl<'a> fmt::Write for FmtWrapper<'a> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let bytes = s.as_bytes();
+
+        // Skip over already-copied data
+        let remainder = &mut self.buf[self.offset..];
+        // Check if there is space remaining (return error instead of panicking)
+        if remainder.len() < bytes.len() {
+            return Err(core::fmt::Error);
+        }
+        // Make the two slices the same length
+        let remainder = &mut remainder[..bytes.len()];
+        // Copy
+        remainder.copy_from_slice(bytes);
+
+        // Update offset to avoid overwriting
+        self.offset += bytes.len();
+
+        Ok(())
+    }
+}
+
 macro_rules! serialize_fmt {
-    ($self:ident, $N:expr, $fmt:expr, $v:expr) => {{
-        todo!()
+    ($self:ident, $fmt:expr, $v:expr) => {{
+        use fmt::Write;
+        let mut wrapper = FmtWrapper::new($self.write_buf());
+        write!(wrapper, $fmt, $v).unwrap();
+        let written = wrapper.offset;
+        $self.commit(written)
     }};
 }
 
@@ -246,11 +287,11 @@ impl<'a, 'b> ser::Serializer for &'a mut Serializer<'b> {
     }
 
     fn serialize_f32(self, v: f32) -> Result<Self::Ok> {
-        serialize_fmt!(self, 16, "{:e}", v)
+        serialize_fmt!(self, "{}", v)
     }
 
     fn serialize_f64(self, v: f64) -> Result<Self::Ok> {
-        serialize_fmt!(self, 32, "{:e}", v)
+        serialize_fmt!(self, "{}", v)
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok> {
@@ -648,6 +689,24 @@ mod tests {
         let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
 
         assert_eq!(s, String::<32>::try_from("AT+CMD=\"value\"\r\n").unwrap());
+    }
+
+    #[test]
+    fn fmt_float() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct Floats {
+            f32: f32,
+            f64: f64,
+        }
+
+        let value = Floats {
+            f32: 1.23,
+            f64: 4.56,
+        };
+
+        let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+
+        assert_eq!(s, String::<32>::try_from("AT+CMD=1.23,4.56\r\n").unwrap());
     }
 
     #[test]

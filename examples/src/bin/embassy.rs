@@ -9,22 +9,12 @@ use atat::{
 };
 use atat_examples::common;
 use embassy_executor::Spawner;
-use embassy_executor::_export::StaticCell;
 use embassy_rp::{
     interrupt,
     peripherals::UART0,
     uart::{self, BufferedUart, BufferedUartRx},
 };
 use {defmt_rtt as _, panic_probe as _};
-
-macro_rules! singleton {
-    ($val:expr) => {{
-        type T = impl Sized;
-        static STATIC_CELL: StaticCell<T> = StaticCell::new();
-        let (x,) = STATIC_CELL.init(($val,));
-        x
-    }};
-}
 
 const INGRESS_BUF_SIZE: usize = 1024;
 const URC_CAPACITY: usize = 128;
@@ -37,8 +27,8 @@ async fn main(spawner: Spawner) {
     let (tx_pin, rx_pin, uart) = (p.PIN_0, p.PIN_1, p.UART0);
 
     let irq = interrupt::take!(UART0_IRQ);
-    let tx_buf = &mut singleton!([0u8; 16])[..];
-    let rx_buf = &mut singleton!([0u8; 16])[..];
+    let tx_buf = static_cell::make_static!([0u8; 16]);
+    let rx_buf = static_cell::make_static!([0u8; 16]);
     let uart = BufferedUart::new(
         uart,
         irq,
@@ -57,7 +47,7 @@ async fn main(spawner: Spawner) {
         &RES_SLOT,
         &URC_CHANNEL,
     );
-    let buf = StaticCell::make_static!([0; 1024]);
+    let buf = static_cell::make_static!([0; 1024]);
     let mut client = Client::new(writer, &RES_SLOT, buf, atat::Config::default());
 
     spawner.spawn(ingress_task(ingress, reader)).unwrap();
