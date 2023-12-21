@@ -103,10 +103,8 @@ jobs:
         include:
           - target: "x86_64-unknown-linux-gnu"
             extra_features: "std,log"
-          - target: "x86_64-unknown-linux-gnu"
-            extra_features: "std,defmt"
           - target: "thumbv6m-none-eabi"
-            extra_features: "embedded"
+            extra_features: "embedded,defmt"
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
