@@ -32,17 +32,7 @@ impl<const N: usize> ResponseSlot<N> {
         self.1.reset();
     }
 
-    /// Get whether a response is available
-    pub fn signaled(&self) -> bool {
-        self.1.signaled()
-    }
-
-    ///  Wait for a response to become available
-    pub async fn wait(&self) {
-        self.1.wait().await;
-    }
-
-    ///  Wait for a response to become available and get a guard to the response
+    /// Wait for a response to be signaled and get a guard to the response
     pub async fn get<'a>(&'a self) -> ResponseSlotGuard<'a, N> {
         self.1.wait().await;
 
@@ -50,7 +40,7 @@ impl<const N: usize> ResponseSlot<N> {
         self.0.try_lock().unwrap()
     }
 
-    ///  If available, get a guard to the response
+    /// If signaled, get a guard to the response
     pub fn try_get<'a>(&'a self) -> Option<ResponseSlotGuard<'a, N>> {
         if self.1.signaled() {
             // The mutex is not locked when signal is emitted

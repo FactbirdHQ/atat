@@ -2,7 +2,11 @@ use embassy_time::{Duration, Instant, TimeoutError};
 use embedded_io::Write;
 
 use super::{blocking_timer::BlockingTimer, AtatClient};
-use crate::{helpers::LossyStr, response_slot::ResponseSlot, AtatCmd, Config, Error, Response};
+use crate::{
+    helpers::LossyStr,
+    response_slot::{ResponseSlot, ResponseSlotGuard},
+    AtatCmd, Config, Error, Response,
+};
 
 /// Client responsible for handling send, receive and timeout from the
 /// userfacing side. The client is decoupled from the ingress-manager through
@@ -61,8 +65,11 @@ where
         Ok(())
     }
 
-    fn wait_response(&mut self, timeout: Duration) -> Result<(), Error> {
-        self.with_timeout(timeout, || self.res_slot.signaled().then_some(()))
+    fn wait_response<'guard>(
+        &'guard mut self,
+        timeout: Duration,
+    ) -> Result<ResponseSlotGuard<'guard, INGRESS_BUF_SIZE>, Error> {
+        self.with_timeout(timeout, || self.res_slot.try_get())
             .map_err(|_| Error::Timeout)
     }
 
@@ -104,9 +111,7 @@ where
         if !Cmd::EXPECTS_RESPONSE_CODE {
             cmd.parse(Ok(&[]))
         } else {
-            self.wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))?;
-            assert!(self.res_slot.signaled());
-            let response = self.res_slot.try_get().unwrap();
+            let response = self.wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))?;
             let response: &Response<INGRESS_BUF_SIZE> = &response.borrow();
             cmd.parse(response.into())
         }
