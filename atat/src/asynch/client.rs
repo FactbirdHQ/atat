@@ -4,7 +4,7 @@ use embassy_time::{Duration, Instant, TimeoutError, Timer};
 use embedded_io_async::Write;
 use futures::{
     future::{select, Either},
-    pin_mut, Future,
+    pin_mut, Future, FutureExt,
 };
 
 pub struct Client<'a, W: Write, const INGRESS_BUF_SIZE: usize> {
@@ -55,7 +55,7 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
     }
 
     async fn wait_response(&mut self, timeout: Duration) -> Result<(), Error> {
-        self.with_timeout(timeout, self.res_slot.wait())
+        self.with_timeout(timeout, self.res_slot.wait().map(|_| ()))
             .await
             .map_err(|_| Error::Timeout)
     }
@@ -105,7 +105,7 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
         } else {
             self.wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
                 .await?;
-            let response = self.res_slot.get();
+            let response = self.res_slot.try_get().unwrap();
             let response: &Response<INGRESS_BUF_SIZE> = &response.borrow();
             cmd.parse(response.into())
         }

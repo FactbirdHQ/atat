@@ -32,28 +32,38 @@ impl<const N: usize> ResponseSlot<N> {
         self.1.reset();
     }
 
-    /// Wait for a response to become available
-    pub async fn wait(&self) {
-        self.1.wait().await
-    }
+    ///  Wait for a response to become available and get a guard to the response
+    pub async fn wait<'a>(&'a self) -> ResponseSlotGuard<'a, N> {
+        self.1.wait().await;
 
-    /// Get whether a response is available
-    pub fn available(&self) -> bool {
-        self.1.signaled()
-    }
-
-    /// Get a guard to response
-    pub fn get<'a>(&'a self) -> ResponseSlotGuard<'a, N> {
+        // The mutex is not locked when signal is emitted
         self.0.try_lock().unwrap()
+    }
+
+    ///  Wait for a response to become available and get a guard to the response
+    pub fn try_get<'a>(&'a self) -> Option<ResponseSlotGuard<'a, N>> {
+        if self.1.signaled() {
+            // The mutex is not locked when signal is emitted
+            Some(self.0.try_lock().unwrap())
+        } else {
+            None
+        }
     }
 
     pub(crate) fn signal_prompt(&self, prompt: u8) -> Result<(), SlotInUseError> {
         if self.1.signaled() {
             return Err(SlotInUseError);
         }
-        let buf = self.0.try_lock().unwrap();
-        let mut res = buf.borrow_mut();
-        *res = Response::Prompt(prompt);
+
+        // Not currently signaled: We know that the client is not currently holding the response slot guard
+
+        {
+            let buf = self.0.try_lock().unwrap();
+            let mut res = buf.borrow_mut();
+            *res = Response::Prompt(prompt);
+        }
+
+        // Mutex is unlocked before we signal
         self.1.signal(());
         Ok(())
     }
@@ -65,9 +75,16 @@ impl<const N: usize> ResponseSlot<N> {
         if self.1.signaled() {
             return Err(SlotInUseError);
         }
-        let buf = self.0.try_lock().unwrap();
-        let mut res = buf.borrow_mut();
-        *res = response.into();
+
+        // Not currently signaled: We know that the client is not currently holding the response slot guard
+
+        {
+            let buf = self.0.try_lock().unwrap();
+            let mut res = buf.borrow_mut();
+            *res = response.into();
+        }
+
+        // Mutex is unlocked before we signal
         self.1.signal(());
         Ok(())
     }
