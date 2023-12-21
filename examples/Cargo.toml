@@ -33,6 +33,8 @@ panic-probe = { version = "0.3.0", features = ["print-defmt"], optional = true }
 embassy-executor = { version = "0.3", features = [
     "defmt",
     "nightly",
+    "arch-cortex-m",
+    "executor-thread",
     "integrated-timers",
 ], optional = true }
 embassy-time = "0.2"

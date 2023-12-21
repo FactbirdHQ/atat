@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
-#![allow(incomplete_features)]
 
 use atat::{
     asynch::{AtatClient, Client},
@@ -10,9 +9,9 @@ use atat::{
 use atat_examples::common;
 use embassy_executor::Spawner;
 use embassy_rp::{
-    interrupt,
+    bind_interrupts,
     peripherals::UART0,
-    uart::{self, BufferedUart, BufferedUartRx},
+    uart::{self, BufferedInterruptHandler, BufferedUart, BufferedUartRx},
 };
 use {defmt_rtt as _, panic_probe as _};
 
@@ -20,18 +19,21 @@ const INGRESS_BUF_SIZE: usize = 1024;
 const URC_CAPACITY: usize = 128;
 const URC_SUBSCRIBERS: usize = 3;
 
+bind_interrupts!(struct Irqs {
+    UART0_IRQ => BufferedInterruptHandler<UART0>;
+});
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
     let (tx_pin, rx_pin, uart) = (p.PIN_0, p.PIN_1, p.UART0);
 
-    let irq = interrupt::take!(UART0_IRQ);
     let tx_buf = static_cell::make_static!([0u8; 16]);
     let rx_buf = static_cell::make_static!([0u8; 16]);
     let uart = BufferedUart::new(
         uart,
-        irq,
+        Irqs,
         tx_pin,
         rx_pin,
         tx_buf,
