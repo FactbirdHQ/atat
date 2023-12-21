@@ -103,10 +103,12 @@ jobs:
         include:
           - target: "x86_64-unknown-linux-gnu"
             features: "derive"
-            std: ", std"
+            std: ",std"
           - target: "x86_64-unknown-linux-gnu"
             features: "derive, log"
-            std: ", std"
+            std: ",std"
+          - target: "thumbv6m-none-eabi"
+            embedded: ",embedded"
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
@@ -123,7 +125,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --all --target '${{ matrix.target }}' --features '${{ matrix.features }}${{ matrix.std }}'
+          args: --all --target '${{ matrix.target }}' --features '${{ matrix.features }}${{ matrix.std }}${{ matrix.embedded }}'
 
   test:
     name: Test
