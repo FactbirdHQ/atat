@@ -72,4 +72,5 @@ std = [
     "critical-section/std",
     "embedded-io-adapters",
     "embedded-io-adapters/tokio-1",
+    "static_cell/std",
 ]
