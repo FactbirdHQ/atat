@@ -10,6 +10,7 @@ use self::map::MapAccess;
 use self::seq::SeqAccess;
 
 mod enum_;
+#[cfg(feature = "heapless")]
 pub mod length_delimited;
 mod map;
 mod seq;
@@ -756,7 +757,7 @@ where
     from_slice(s.as_bytes())
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "heapless"))]
 mod tests {
     use super::length_delimited::LengthDelimited;
     use heapless::String;

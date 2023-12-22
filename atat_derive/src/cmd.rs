@@ -69,8 +69,6 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         None => quote! {},
     };
 
-    // let quote_escape_strings = !matches!(quote_escape_strings, Some(false));
-
     let mut cmd_len = cmd_prefix.len() + cmd.len() + termination.len();
     if value_sep {
         cmd_len += 1;
@@ -100,8 +98,10 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         const #ident_len: usize = #struct_len;
 
         #[automatically_derived]
-        impl #impl_generics atat::AtatCmd<{ #ident_len + #cmd_len }> for #ident #ty_generics #where_clause {
+        impl #impl_generics atat::AtatCmd for #ident #ty_generics #where_clause {
             type Response = #resp;
+
+            const MAX_LEN: usize = { #ident_len + #cmd_len };
 
             #timeout
 
@@ -112,8 +112,8 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             #reattempt_on_parse_err
 
             #[inline]
-            fn as_bytes(&self) -> atat::heapless::Vec<u8, { #ident_len + #cmd_len }> {
-                match atat::serde_at::to_vec(self, #cmd, atat::serde_at::SerializeOptions {
+            fn write(&self, buf: &mut [u8]) -> usize {
+                match atat::serde_at::to_slice(self, #cmd, buf, atat::serde_at::SerializeOptions {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,
                     termination: #termination,

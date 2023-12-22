@@ -97,16 +97,14 @@ jobs:
           [
             "",
             "derive",
-            "derive, log",
-            "derive, defmt",
+            "async",
+            "derive,async",
           ]
         include:
           - target: "x86_64-unknown-linux-gnu"
-            features: "derive"
-            std: ", std"
-          - target: "x86_64-unknown-linux-gnu"
-            features: "derive, log"
-            std: ", std"
+            extra_features: "std,log"
+          - target: "thumbv6m-none-eabi"
+            extra_features: "embedded,defmt"
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
@@ -123,7 +121,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --all --target '${{ matrix.target }}' --features '${{ matrix.features }}${{ matrix.std }}'
+          args: --workspace --target '${{ matrix.target }}' --features '${{ matrix.features }},${{ matrix.extra_features }}'
 
   test:
     name: Test
@@ -142,4 +140,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all --features std
+          args: --workspace --features std,heapless

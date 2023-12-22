@@ -1,12 +1,12 @@
 use crate::{
-    helpers::LossyStr, response_channel::ResponsePublisher, urc_channel::UrcPublisher, AtatUrc,
-    DigestResult, Digester, Response, ResponseChannel, UrcChannel,
+    helpers::LossyStr, urc_channel::UrcPublisher, AtatUrc, DigestResult, Digester, ResponseSlot,
+    UrcChannel,
 };
 
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
-    ResponseQueueFull,
+    ResponseSlotBusy,
     UrcChannelFull,
 }
 
@@ -89,7 +89,7 @@ pub struct Ingress<
     digester: D,
     buf: [u8; INGRESS_BUF_SIZE],
     pos: usize,
-    res_publisher: ResponsePublisher<'a, INGRESS_BUF_SIZE>,
+    res_slot: &'a ResponseSlot<INGRESS_BUF_SIZE>,
     urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
 
@@ -104,14 +104,14 @@ impl<
 {
     pub fn new(
         digester: D,
-        res_channel: &'a ResponseChannel<INGRESS_BUF_SIZE>,
+        res_slot: &'a ResponseSlot<INGRESS_BUF_SIZE>,
         urc_channel: &'a UrcChannel<Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) -> Self {
         Self {
             digester,
             buf: [0; INGRESS_BUF_SIZE],
             pos: 0,
-            res_publisher: res_channel.publisher().unwrap(),
+            res_slot,
             urc_publisher: urc_channel.0.publisher().unwrap(),
         }
     }
@@ -150,9 +150,10 @@ impl<
                 (DigestResult::Prompt(prompt), swallowed) => {
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
-                    self.res_publisher
-                        .try_publish(Response::Prompt(prompt))
-                        .map_err(|_| Error::ResponseQueueFull)?;
+                    if self.res_slot.signal_prompt(prompt).is_err() {
+                        error!("Received prompt but a response is already pending");
+                    }
+
                     swallowed
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
@@ -195,9 +196,9 @@ impl<
                         }
                     }
 
-                    self.res_publisher
-                        .try_publish(resp.into())
-                        .map_err(|_| Error::ResponseQueueFull)?;
+                    if self.res_slot.signal_response(resp).is_err() {
+                        error!("Received response but a response is already pending");
+                    }
                     swallowed
                 }
             };
@@ -235,8 +236,8 @@ impl<
                 (DigestResult::Prompt(prompt), swallowed) => {
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
-                    if let Err(frame) = self.res_publisher.try_publish(Response::Prompt(prompt)) {
-                        self.res_publisher.publish(frame).await;
+                    if self.res_slot.signal_prompt(prompt).is_err() {
+                        error!("Received prompt but a response is already pending");
                     }
                     swallowed
                 }
@@ -280,8 +281,8 @@ impl<
                         }
                     }
 
-                    if let Err(frame) = self.res_publisher.try_publish(resp.into()) {
-                        self.res_publisher.publish(frame).await;
+                    if self.res_slot.signal_response(resp).is_err() {
+                        error!("Received response but a response is already pending");
                     }
                     swallowed
                 }
@@ -304,7 +305,7 @@ impl<
 #[cfg(test)]
 mod tests {
     use crate::{
-        self as atat, atat_derive::AtatUrc, response_channel::ResponseChannel, AtDigester,
+        self as atat, atat_derive::AtatUrc, response_slot::ResponseSlot, AtDigester, Response,
         UrcChannel,
     };
 
@@ -320,11 +321,10 @@ mod tests {
 
     #[test]
     fn advance_can_processes_multiple_digest_results() {
-        let res_channel = ResponseChannel::<100>::new();
-        let mut res_subscription = res_channel.subscriber().unwrap();
+        let res_slot = ResponseSlot::<100>::new();
         let urc_channel = UrcChannel::<Urc, 10, 1>::new();
         let mut ingress: Ingress<_, Urc, 100, 10, 1> =
-            Ingress::new(AtDigester::<Urc>::new(), &res_channel, &urc_channel);
+            Ingress::new(AtDigester::<Urc>::new(), &res_slot, &urc_channel);
 
         let mut sub = urc_channel.subscribe().unwrap();
 
@@ -336,7 +336,8 @@ mod tests {
         assert_eq!(Urc::ConnectOk, sub.try_next_message_pure().unwrap());
         assert_eq!(Urc::ConnectFail, sub.try_next_message_pure().unwrap());
 
-        let response = res_subscription.try_next_message_pure().unwrap();
-        assert_eq!(Response::default(), response);
+        let response = res_slot.try_get().unwrap();
+        let response: &Response<100> = &response.borrow();
+        assert_eq!(&Response::default(), response);
     }
 }

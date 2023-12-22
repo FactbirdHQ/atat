@@ -43,13 +43,16 @@ pub trait AtatUrc {
 ///
 /// impl AtatResp for NoResponse {};
 ///
-/// impl<'a> AtatCmd<64> for SetGreetingText<'a> {
+/// impl<'a> AtatCmd for SetGreetingText<'a> {
 ///     type Response = NoResponse;
+///     const MAX_LEN: usize = 64;
 ///
-///     fn as_bytes(&self) -> Vec<u8, 64> {
-///         let mut buf: Vec<u8, 64> = Vec::new();
+///     fn write(&self, mut buf: &mut [u8]) -> usize {
+///         assert!(buf.len() >= Self::MAX_LEN);
+///         let buf_len = buf.len();
+///         use embedded_io::Write;
 ///         write!(buf, "AT+CSGT={}", self.text);
-///         buf
+///         buf_len - buf.len()
 ///     }
 ///
 ///     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error> {
@@ -57,9 +60,12 @@ pub trait AtatUrc {
 ///     }
 /// }
 /// ```
-pub trait AtatCmd<const LEN: usize> {
+pub trait AtatCmd {
     /// The type of the response. Must implement the `AtatResp` trait.
     type Response: AtatResp;
+
+    /// The size of the buffer required to write the request.
+    const MAX_LEN: usize;
 
     /// Whether or not this command can be aborted.
     const CAN_ABORT: bool = false;
@@ -80,12 +86,8 @@ pub trait AtatCmd<const LEN: usize> {
     /// Implemented to enhance expandability of ATAT
     const EXPECTS_RESPONSE_CODE: bool = true;
 
-    /// Return the command as a heapless `Vec` of bytes.
-    fn as_bytes(&self) -> Vec<u8, LEN>;
-
-    fn get_slice<'a>(&'a self, bytes: &'a Vec<u8, LEN>) -> &'a [u8] {
-        bytes
-    }
+    /// Write the command and return the number of written bytes.
+    fn write(&self, buf: &mut [u8]) -> usize;
 
     /// Parse the response into a `Self::Response` or `Error` instance.
     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error>;
@@ -95,11 +97,15 @@ impl<T, const L: usize> AtatResp for Vec<T, L> where T: AtatResp {}
 
 impl<const L: usize> AtatResp for String<L> {}
 
-impl<const L: usize> AtatCmd<L> for String<L> {
+impl<const L: usize> AtatCmd for String<L> {
     type Response = String<256>;
+    const MAX_LEN: usize = L;
 
-    fn as_bytes(&self) -> Vec<u8, L> {
-        self.clone().into_bytes()
+    fn write(&self, buf: &mut [u8]) -> usize {
+        let bytes = self.as_bytes();
+        let len = bytes.len();
+        buf[..len].copy_from_slice(bytes);
+        len
     }
 
     fn parse(&self, resp: Result<&[u8], InternalError>) -> Result<Self::Response, Error> {

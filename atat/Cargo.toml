@@ -37,6 +37,9 @@ defmt = { version = "^0.3", optional = true }
 [dev-dependencies]
 embassy-time = { version = "0.2", features = ["std", "generic-queue"] }
 critical-section = { version = "1.1", features = ["std"] }
+serde_at = { path = "../serde_at", version = "^0.20.0", features = [
+    "heapless",
+] }
 tokio = { version = "1", features = ["macros", "rt"] }
 
 [features]
