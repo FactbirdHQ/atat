@@ -87,13 +87,6 @@ impl<'a> Deserializer<'a> {
         self.index += 1;
     }
 
-    fn end(&mut self) -> Result<()> {
-        match self.parse_whitespace() {
-            Some(_) => Err(Error::TrailingCharacters),
-            None => Ok(()),
-        }
-    }
-
     fn next_char(&mut self) -> Option<&u8> {
         if let Some(ch) = self.slice.get(self.index) {
             self.index += 1;
@@ -745,7 +738,6 @@ where
 {
     let mut de = Deserializer::new(trim_ascii_whitespace(v));
     let value = de::Deserialize::deserialize(&mut de)?;
-    de.end()?;
     Ok(value)
 }
 
