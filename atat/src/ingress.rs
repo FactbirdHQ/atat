@@ -20,7 +20,6 @@ pub trait AtatIngress {
     fn try_advance(&mut self, commit: usize) -> Result<(), Error>;
 
     /// Commit a given number of written bytes to the ingress and make them visible to the digester.
-    #[cfg(feature = "async")]
     async fn advance(&mut self, commit: usize);
 
     /// Write a buffer to the ingress and return how many bytes were written.
@@ -42,7 +41,6 @@ pub trait AtatIngress {
     }
 
     /// Write a buffer to the ingress
-    #[cfg(feature = "async")]
     async fn write(&mut self, buf: &[u8]) {
         let mut buf = buf;
         while !buf.is_empty() {
@@ -56,7 +54,6 @@ pub trait AtatIngress {
 
     /// Read all bytes from the provided serial and ingest the read bytes into
     /// the ingress from where they will be processed
-    #[cfg(feature = "async")]
     async fn read_from(&mut self, serial: &mut impl embedded_io_async::Read) -> ! {
         use embedded_io::Error;
         loop {
@@ -214,7 +211,6 @@ impl<
         Ok(())
     }
 
-    #[cfg(feature = "async")]
     async fn advance(&mut self, commit: usize) {
         self.pos += commit;
         assert!(self.pos <= self.buf.len());

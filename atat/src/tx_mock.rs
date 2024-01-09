@@ -44,7 +44,6 @@ impl embedded_io::Write for TxMock<'_> {
     }
 }
 
-#[cfg(feature = "async")]
 impl embedded_io_async::Write for TxMock<'_> {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         for c in buf {

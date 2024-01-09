@@ -223,7 +223,7 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::fallible_impl_from)]
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
-#![cfg_attr(feature = "async", allow(async_fn_in_trait))]
+#![allow(async_fn_in_trait)]
 
 // This mod MUST go first, so that the others see its macros.
 pub(crate) mod fmt;
@@ -241,10 +241,8 @@ mod tx_mock;
 pub mod urc_channel;
 pub use nom;
 
-pub mod blocking;
-
-#[cfg(feature = "async")]
 pub mod asynch;
+pub mod blocking;
 
 #[cfg(feature = "bytes")]
 pub use serde_bytes;

@@ -20,7 +20,7 @@ name = "std-tokio"
 required-features = ["std"]
 
 [dependencies]
-atat = { path = "../atat", features = ["async"] }
+atat = { path = "../atat" }
 embedded-io = "0.6"
 embedded-io-async = "0.6"
 embedded-io-adapters = { version = "0.6", optional = true }
@@ -30,9 +30,8 @@ cortex-m = { version = "0.7.6", optional = true }
 cortex-m-rt = { version = "0.7.3", optional = true }
 defmt-rtt = { version = "0.4", optional = true }
 panic-probe = { version = "0.3.0", features = ["print-defmt"], optional = true }
-embassy-executor = { version = "0.3", features = [
+embassy-executor = { version = "0.4", features = [
     "defmt",
-    "nightly",
     "arch-cortex-m",
     "executor-thread",
     "integrated-timers",
@@ -51,7 +50,7 @@ tokio = { version = "1.26", default-features = false, features = [
     "macros",
 ], optional = true }
 tokio-serial = { version = "5.4.4", optional = true }
-static_cell = { version = "2", features = ["nightly"] }
+static_cell = "2"
 portable-atomic = "1.6.0"
 
 [features]
