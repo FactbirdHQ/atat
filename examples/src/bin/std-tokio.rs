@@ -1,4 +1,3 @@
-#![feature(type_alias_impl_trait)]
 use atat_examples::common;
 
 use atat::{
@@ -6,6 +5,7 @@ use atat::{
     AtatIngress, Config, DefaultDigester, Ingress, ResponseSlot, UrcChannel,
 };
 use embedded_io_adapters::tokio_1::FromTokio;
+use static_cell::StaticCell;
 use std::process::exit;
 use tokio_serial::SerialStream;
 
@@ -26,7 +26,8 @@ async fn main() -> ! {
         &RES_SLOT,
         &URC_CHANNEL,
     );
-    let buf = static_cell::make_static!([0; 1024]);
+    static BUF: StaticCell<[u8; 1024]> = StaticCell::new();
+    let buf = BUF.init([0; 1024]);
     let mut client = Client::new(FromTokio::new(writer), &RES_SLOT, buf, Config::default());
 
     tokio::spawn(ingress_task(ingress, FromTokio::new(reader)));
