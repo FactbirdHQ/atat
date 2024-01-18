@@ -30,13 +30,13 @@ cortex-m = { version = "0.7.6", optional = true }
 cortex-m-rt = { version = "0.7.3", optional = true }
 defmt-rtt = { version = "0.4", optional = true }
 panic-probe = { version = "0.3.0", features = ["print-defmt"], optional = true }
-embassy-executor = { version = "0.4", features = [
+embassy-executor = { version = "0.5", features = [
     "defmt",
     "arch-cortex-m",
     "executor-thread",
     "integrated-timers",
 ], optional = true }
-embassy-time = "0.2"
+embassy-time = "0.3"
 embassy-rp = { version = "0.1", features = [
     "unstable-pac",
     "time-driver",

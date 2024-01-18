@@ -40,8 +40,3 @@ incremental = false
 lto = 'fat'
 opt-level = "s"          # <-
 overflow-checks = false  # <-
-
-[patch.crates-io]
-embassy-executor = { version = "0.4", git = "https://github.com/embassy-rs/embassy", rev = "49ee0564" }
-embassy-rp = { version = "0.1", git = "https://github.com/embassy-rs/embassy", rev = "49ee0564" }
-embassy-time = { version = "0.2", git = "https://github.com/embassy-rs/embassy", rev = "49ee0564" }
