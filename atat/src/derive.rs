@@ -204,18 +204,20 @@ mod tests {
 
     #[test]
     fn test_length_serialize() {
+        let mut buf = [0; 360];
+        let len = LengthTester {
+            x: 8,
+            y: String::try_from("SomeString").unwrap(),
+            z: 2,
+            w: "whatup",
+            a: SimpleEnum::A,
+            b: SimpleEnumU32::A,
+            c: SimpleEnumU32::B,
+            // d: Vec::new()
+        }
+        .write(&mut buf);
         assert_eq!(
-            LengthTester {
-                x: 8,
-                y: String::try_from("SomeString").unwrap(),
-                z: 2,
-                w: "whatup",
-                a: SimpleEnum::A,
-                b: SimpleEnumU32::A,
-                c: SimpleEnumU32::B,
-                // d: Vec::new()
-            }
-            .as_bytes(),
+            &buf[..len],
             Vec::<u8, 360>::from_slice(b"AT+CFUN=8,\"SomeString\",2,\"whatup\",0,0,1\r\n").unwrap()
         );
     }

@@ -10,6 +10,7 @@ use self::map::MapAccess;
 use self::seq::SeqAccess;
 
 mod enum_;
+#[cfg(feature = "heapless")]
 pub mod length_delimited;
 mod map;
 mod seq;
@@ -176,16 +177,14 @@ impl<'a> Deserializer<'a> {
             if self.is_trailing_parsing {
                 self.index = self.slice.len();
                 return Ok(&self.slice[start..]);
-            } else {
-                if let Some(c) = self.peek() {
-                    if (c as char).is_alphanumeric() || (c as char).is_whitespace() {
-                        self.eat_char();
-                    } else {
-                        return Err(Error::EofWhileParsingString);
-                    }
+            } else if let Some(c) = self.peek() {
+                if (c as char).is_alphanumeric() || (c as char).is_whitespace() {
+                    self.eat_char();
                 } else {
-                    return Ok(&self.slice[start..self.index]);
+                    return Err(Error::EofWhileParsingString);
                 }
+            } else {
+                return Ok(&self.slice[start..self.index]);
             }
         }
     }
@@ -483,12 +482,19 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         }
     }
 
-    /// Unsupported. String is not available in no-std.
+    /// Supported only if alloc feature is enabled
     fn deserialize_string<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        unreachable!()
+        #[cfg(feature = "alloc")]
+        {
+            self.deserialize_str(_visitor)
+        }
+        #[cfg(not(feature = "alloc"))]
+        {
+            unreachable!()
+        }
     }
 
     fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
@@ -509,12 +515,19 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             })
     }
 
-    /// Unsupported
+    /// Supported only if alloc feature is enabled
     fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        unreachable!()
+        #[cfg(feature = "alloc")]
+        {
+            self.deserialize_bytes(_visitor)
+        }
+        #[cfg(not(feature = "alloc"))]
+        {
+            unreachable!()
+        }
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
@@ -744,7 +757,7 @@ where
     from_slice(s.as_bytes())
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "heapless"))]
 mod tests {
     use super::length_delimited::LengthDelimited;
     use heapless::String;

@@ -1,12 +1,12 @@
 use crate::{
-    helpers::LossyStr, response_channel::ResponsePublisher, urc_channel::UrcPublisher, AtatUrc,
-    DigestResult, Digester, Response,
+    helpers::LossyStr, urc_channel::UrcPublisher, AtatUrc, DigestResult, Digester, ResponseSlot,
+    UrcChannel,
 };
 
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
-    ResponseQueueFull,
+    ResponseSlotBusy,
     UrcChannelFull,
 }
 
@@ -20,7 +20,6 @@ pub trait AtatIngress {
     fn try_advance(&mut self, commit: usize) -> Result<(), Error>;
 
     /// Commit a given number of written bytes to the ingress and make them visible to the digester.
-    #[cfg(feature = "async")]
     async fn advance(&mut self, commit: usize);
 
     /// Write a buffer to the ingress and return how many bytes were written.
@@ -42,7 +41,6 @@ pub trait AtatIngress {
     }
 
     /// Write a buffer to the ingress
-    #[cfg(feature = "async")]
     async fn write(&mut self, buf: &[u8]) {
         let mut buf = buf;
         while !buf.is_empty() {
@@ -56,7 +54,6 @@ pub trait AtatIngress {
 
     /// Read all bytes from the provided serial and ingest the read bytes into
     /// the ingress from where they will be processed
-    #[cfg(feature = "async")]
     async fn read_from(&mut self, serial: &mut impl embedded_io_async::Read) -> ! {
         use embedded_io::Error;
         loop {
@@ -89,7 +86,7 @@ pub struct Ingress<
     digester: D,
     buf: &'a mut [u8; INGRESS_BUF_SIZE],
     pos: usize,
-    res_publisher: ResponsePublisher<'a, INGRESS_BUF_SIZE>,
+    res_slot: &'a ResponseSlot<INGRESS_BUF_SIZE>,
     urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
 
@@ -107,13 +104,15 @@ impl<
         res_publisher: ResponsePublisher<'a, INGRESS_BUF_SIZE>,
         urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
         buf: &'a mut [u8; INGRESS_BUF_SIZE],
+        res_slot: &'a ResponseSlot<INGRESS_BUF_SIZE>,
+        urc_channel: &'a UrcChannel<Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) -> Self {
         Self {
             digester,
             buf,
             pos: 0,
-            res_publisher,
-            urc_publisher,
+            res_slot,
+            urc_publisher: urc_channel.0.publisher().unwrap(),
         }
     }
 }
@@ -151,9 +150,10 @@ impl<
                 (DigestResult::Prompt(prompt), swallowed) => {
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
-                    self.res_publisher
-                        .try_publish(Response::Prompt(prompt))
-                        .map_err(|_| Error::ResponseQueueFull)?;
+                    if self.res_slot.signal_prompt(prompt).is_err() {
+                        error!("Received prompt but a response is already pending");
+                    }
+
                     swallowed
                 }
                 (DigestResult::Urc(urc_line), swallowed) => {
@@ -196,9 +196,9 @@ impl<
                         }
                     }
 
-                    self.res_publisher
-                        .try_publish(resp.into())
-                        .map_err(|_| Error::ResponseQueueFull)?;
+                    if self.res_slot.signal_response(resp).is_err() {
+                        error!("Received response but a response is already pending");
+                    }
                     swallowed
                 }
             };
@@ -214,7 +214,6 @@ impl<
         Ok(())
     }
 
-    #[cfg(feature = "async")]
     async fn advance(&mut self, commit: usize) {
         self.pos += commit;
         assert!(self.pos <= self.buf.len());
@@ -236,8 +235,8 @@ impl<
                 (DigestResult::Prompt(prompt), swallowed) => {
                     debug!("Received prompt ({}/{})", swallowed, self.pos);
 
-                    if let Err(frame) = self.res_publisher.try_publish(Response::Prompt(prompt)) {
-                        self.res_publisher.publish(frame).await;
+                    if self.res_slot.signal_prompt(prompt).is_err() {
+                        error!("Received prompt but a response is already pending");
                     }
                     swallowed
                 }
@@ -281,8 +280,8 @@ impl<
                         }
                     }
 
-                    if let Err(frame) = self.res_publisher.try_publish(resp.into()) {
-                        self.res_publisher.publish(frame).await;
+                    if self.res_slot.signal_response(resp).is_err() {
+                        error!("Received response but a response is already pending");
                     }
                     swallowed
                 }
@@ -305,8 +304,8 @@ impl<
 #[cfg(test)]
 mod tests {
     use crate::{
-        self as atat, atat_derive::AtatUrc, response_channel::ResponseChannel, AtDigester,
-        AtatUrcChannel, UrcChannel,
+        self as atat, atat_derive::AtatUrc, response_slot::ResponseSlot, AtDigester, Response,
+        UrcChannel,
     };
 
     use super::*;
@@ -321,8 +320,7 @@ mod tests {
 
     #[test]
     fn advance_can_processes_multiple_digest_results() {
-        let res_channel = ResponseChannel::<100>::new();
-        let mut res_subscription = res_channel.subscriber().unwrap();
+        let res_slot = ResponseSlot::<100>::new();
         let urc_channel = UrcChannel::<Urc, 10, 1>::new();
         let mut buf = [0; 100];
         let mut ingress: Ingress<_, Urc, 100, 10, 1> = Ingress::new(
@@ -331,6 +329,8 @@ mod tests {
             urc_channel.publisher(),
             &mut buf,
         );
+        let mut ingress: Ingress<_, Urc, 100, 10, 1> =
+            Ingress::new(AtDigester::<Urc>::new(), &res_slot, &urc_channel);
 
         let mut sub = urc_channel.subscribe().unwrap();
 
@@ -342,7 +342,8 @@ mod tests {
         assert_eq!(Urc::ConnectOk, sub.try_next_message_pure().unwrap());
         assert_eq!(Urc::ConnectFail, sub.try_next_message_pure().unwrap());
 
-        let response = res_subscription.try_next_message_pure().unwrap();
-        assert_eq!(Response::default(), response);
+        let response = res_slot.try_get().unwrap();
+        let response: &Response<100> = &response.borrow();
+        assert_eq!(&Response::default(), response);
     }
 }
