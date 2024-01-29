@@ -29,6 +29,7 @@ async fn main(spawner: Spawner) {
 
     let (tx_pin, rx_pin, uart) = (p.PIN_0, p.PIN_1, p.UART0);
 
+    static INGRESS_BUF: StaticCell<[u8; INGRESS_BUF_SIZE]> = StaticCell::new();
     static TX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
     static RX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
     let uart = BufferedUart::new(
@@ -46,6 +47,7 @@ async fn main(spawner: Spawner) {
     static URC_CHANNEL: UrcChannel<common::Urc, URC_CAPACITY, URC_SUBSCRIBERS> = UrcChannel::new();
     let ingress = Ingress::new(
         DefaultDigester::<common::Urc>::default(),
+        INGRESS_BUF,
         &RES_SLOT,
         &URC_CHANNEL,
     );
@@ -55,7 +57,6 @@ async fn main(spawner: Spawner) {
         &RES_SLOT,
         BUF.init([0; 1024]),
         atat::Config::default(),
-        ingress_buf,
     );
 
     spawner.spawn(ingress_task(ingress, reader)).unwrap();

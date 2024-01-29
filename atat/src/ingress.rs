@@ -101,8 +101,6 @@ impl<
 {
     pub fn new(
         digester: D,
-        res_publisher: ResponsePublisher<'a, INGRESS_BUF_SIZE>,
-        urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
         buf: &'a mut [u8; INGRESS_BUF_SIZE],
         res_slot: &'a ResponseSlot<INGRESS_BUF_SIZE>,
         urc_channel: &'a UrcChannel<Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
@@ -323,14 +321,9 @@ mod tests {
         let res_slot = ResponseSlot::<100>::new();
         let urc_channel = UrcChannel::<Urc, 10, 1>::new();
         let mut buf = [0; 100];
-        let mut ingress: Ingress<_, Urc, 100, 10, 1> = Ingress::new(
-            AtDigester::<Urc>::new(),
-            res_channel.publisher().unwrap(),
-            urc_channel.publisher(),
-            &mut buf,
-        );
+
         let mut ingress: Ingress<_, Urc, 100, 10, 1> =
-            Ingress::new(AtDigester::<Urc>::new(), &res_slot, &urc_channel);
+            Ingress::new(AtDigester::<Urc>::new(), &mut buf, &res_slot, &urc_channel);
 
         let mut sub = urc_channel.subscribe().unwrap();
 
