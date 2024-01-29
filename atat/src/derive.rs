@@ -302,4 +302,30 @@ mod tests {
             from_str::<MixedEnum<'_>>("6,\"abc\"")
         );
     }
+
+    fn custom_parse(response: &[u8]) -> Result<CustomResponseParse, atat::Error> {
+        Ok(CustomResponseParse {
+            arg1: core::str::from_utf8(&response[6..])
+                .unwrap()
+                .parse()
+                .unwrap(),
+        })
+    }
+
+    #[derive(Debug, PartialEq, AtatResp)]
+    struct CustomResponseParse {
+        arg1: u8,
+    }
+
+    #[derive(Debug, PartialEq, AtatCmd)]
+    #[at_cmd("+CFUN", CustomResponseParse, parse = custom_parse)]
+    struct RequestWithCustomResponseParse;
+
+    #[test]
+    fn test_custom_parse() {
+        assert_eq!(
+            RequestWithCustomResponseParse.parse(Ok(b"ignore123")),
+            Ok(CustomResponseParse { arg1: 123 })
+        );
+    }
 }

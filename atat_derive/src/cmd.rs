@@ -17,6 +17,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
     let CmdAttributes {
         cmd,
         resp,
+        parse,
         timeout_ms,
         attempts,
         reattempt_on_parse_err,
@@ -89,6 +90,32 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
     let ident_len = format_ident!("ATAT_{}_LEN", ident.to_string().to_uppercase());
 
+    let parse = if let Some(parse) = parse {
+        quote! {
+            #[inline]
+            fn parse(&self, res: Result<&[u8], atat::InternalError>) -> core::result::Result<Self::Response, atat::Error> {
+                match res {
+                    Ok(resp) => #parse(resp).map_err(|e| {
+                        atat::Error::Parse
+                    }),
+                    Err(e) => Err(e.into())
+                }
+            }
+        }
+    } else {
+        quote! {
+            #[inline]
+           fn parse(&self, res: Result<&[u8], atat::InternalError>) -> core::result::Result<Self::Response, atat::Error> {
+               match res {
+                   Ok(resp) => atat::serde_at::from_slice::<#resp>(resp).map_err(|e| {
+                       atat::Error::Parse
+                   }),
+                   Err(e) => Err(e.into())
+               }
+           }
+        }
+    };
+
     TokenStream::from(quote! {
         #[automatically_derived]
         impl #impl_generics atat::AtatLen for #ident #ty_generics #where_clause {
@@ -124,15 +151,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
                 }
             }
 
-            #[inline]
-            fn parse(&self, res: Result<&[u8], atat::InternalError>) -> core::result::Result<Self::Response, atat::Error> {
-                match res {
-                    Ok(resp) => atat::serde_at::from_slice::<#resp>(resp).map_err(|e| {
-                        atat::Error::Parse
-                    }),
-                    Err(e) => Err(e.into())
-                }
-            }
+            #parse
         }
 
         #[automatically_derived]
