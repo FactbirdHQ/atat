@@ -154,6 +154,9 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 /// - `termination`: **string** Overwrite the line termination of the command
 ///   (default '\r\n'). Can also be set to '' (empty).
 /// - `quote_escape_strings`: **bool** Whether to escape strings in commands (default true).
+/// - `parse`: **function** Function that should be used to parse the response instead of using
+///    default `atat::serde_at::from_slice` function. The passed functions needs to have a signature
+///    `Result<Response, E>` where `Response` is the type of the response passed in the `at_cmd`
 ///
 /// ### Field attribute (`#[at_arg(..)]`)
 /// The `AtatCmd` derive macro comes with an optional field attribute

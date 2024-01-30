@@ -1,8 +1,8 @@
 use proc_macro2::Span;
 use syn::parse::{Error, Parse, ParseStream, Result};
 use syn::{
-    Attribute, Data, DataEnum, DataStruct, DeriveInput, Expr, ExprLit, Fields, Generics, Ident,
-    Lit, LitByteStr, Path, Type,
+    Attribute, Data, DataEnum, DataStruct, DeriveInput, Expr, ExprLit, ExprPath, Fields, Generics,
+    Ident, Lit, LitByteStr, Path, Type,
 };
 
 #[derive(Clone)]
@@ -19,6 +19,7 @@ pub struct ParseInput {
 pub struct CmdAttributes {
     pub cmd: String,
     pub resp: Path,
+    pub parse: Option<Path>,
     pub timeout_ms: Option<u32>,
     pub attempts: Option<u8>,
     pub abortable: Option<bool>,
@@ -251,6 +252,7 @@ impl Parse for CmdAttributes {
         let mut at_cmd = Self {
             cmd: cmd.value(),
             resp: response_ident,
+            parse: None,
             timeout_ms: None,
             attempts: None,
             abortable: None,
@@ -290,6 +292,13 @@ impl Parse for CmdAttributes {
                             "expected integer value for 'attempts'",
                         ))
                     }
+                }
+            } else if optional.path.is_ident("parse") {
+                match optional.value {
+                    Expr::Path(ExprPath { path, .. }) => {
+                        at_cmd.parse = Some(path);
+                    }
+                    _ => return Err(Error::new(call_site, "expected function for 'parse'")),
                 }
             } else if optional.path.is_ident("reattempt_on_parse_err") {
                 match optional.value {
