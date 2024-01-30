@@ -13,16 +13,26 @@ const INGRESS_BUF_SIZE: usize = 1024;
 const URC_CAPACITY: usize = 128;
 const URC_SUBSCRIBERS: usize = 3;
 
+macro_rules! singleton {
+    ($val:expr) => {{
+        type T = impl Sized;
+        static STATIC_CELL: StaticCell<T> = StaticCell::new();
+        let (x,) = STATIC_CELL.init(($val,));
+        x
+    }};
+}
+
 #[tokio::main]
 async fn main() -> ! {
     env_logger::init();
 
     let (reader, writer) = SerialStream::pair().expect("Failed to create serial pair");
-
+    static INGRESS_BUF: StaticCell<[u8; INGRESS_BUF_SIZE]> = StaticCell::new();
     static RES_SLOT: ResponseSlot<INGRESS_BUF_SIZE> = ResponseSlot::new();
     static URC_CHANNEL: UrcChannel<common::Urc, URC_CAPACITY, URC_SUBSCRIBERS> = UrcChannel::new();
     let ingress = Ingress::new(
         DefaultDigester::<common::Urc>::default(),
+        INGRESS_BUF.init([0; INGRESS_BUF_SIZE]),
         &RES_SLOT,
         &URC_CHANNEL,
     );

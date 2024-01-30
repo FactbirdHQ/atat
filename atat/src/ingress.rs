@@ -79,14 +79,14 @@ pub struct Ingress<
     'a,
     D: Digester,
     Urc: AtatUrc,
-    const INGRESS_BUF_SIZE: usize,
+    const RES_BUF_SIZE: usize,
     const URC_CAPACITY: usize,
     const URC_SUBSCRIBERS: usize,
 > {
     digester: D,
-    buf: [u8; INGRESS_BUF_SIZE],
+    buf: &'a mut [u8],
     pos: usize,
-    res_slot: &'a ResponseSlot<INGRESS_BUF_SIZE>,
+    res_slot: &'a ResponseSlot<RES_BUF_SIZE>,
     urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
 
@@ -94,19 +94,20 @@ impl<
         'a,
         D: Digester,
         Urc: AtatUrc,
-        const INGRESS_BUF_SIZE: usize,
+        const RES_BUF_SIZE: usize,
         const URC_CAPACITY: usize,
         const URC_SUBSCRIBERS: usize,
-    > Ingress<'a, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
+    > Ingress<'a, D, Urc, RES_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     pub fn new(
         digester: D,
-        res_slot: &'a ResponseSlot<INGRESS_BUF_SIZE>,
+        buf: &'a mut [u8],
+        res_slot: &'a ResponseSlot<RES_BUF_SIZE>,
         urc_channel: &'a UrcChannel<Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) -> Self {
         Self {
             digester,
-            buf: [0; INGRESS_BUF_SIZE],
+            buf,
             pos: 0,
             res_slot,
             urc_publisher: urc_channel.0.publisher().unwrap(),
@@ -117,10 +118,10 @@ impl<
 impl<
         D: Digester,
         Urc: AtatUrc,
-        const INGRESS_BUF_SIZE: usize,
+        const RES_BUF_SIZE: usize,
         const URC_CAPACITY: usize,
         const URC_SUBSCRIBERS: usize,
-    > AtatIngress for Ingress<'_, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
+    > AtatIngress for Ingress<'_, D, Urc, RES_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     fn write_buf(&mut self) -> &mut [u8] {
         &mut self.buf[self.pos..]
@@ -319,8 +320,10 @@ mod tests {
     fn advance_can_processes_multiple_digest_results() {
         let res_slot = ResponseSlot::<100>::new();
         let urc_channel = UrcChannel::<Urc, 10, 1>::new();
+        let mut buf = [0; 100];
+
         let mut ingress: Ingress<_, Urc, 100, 10, 1> =
-            Ingress::new(AtDigester::<Urc>::new(), &res_slot, &urc_channel);
+            Ingress::new(AtDigester::<Urc>::new(), &mut buf, &res_slot, &urc_channel);
 
         let mut sub = urc_channel.subscribe().unwrap();
 
