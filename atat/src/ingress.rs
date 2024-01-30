@@ -79,14 +79,14 @@ pub struct Ingress<
     'a,
     D: Digester,
     Urc: AtatUrc,
-    const INGRESS_BUF_SIZE: usize,
+    const RES_BUF_SIZE: usize,
     const URC_CAPACITY: usize,
     const URC_SUBSCRIBERS: usize,
 > {
     digester: D,
-    buf: &'a mut [u8; INGRESS_BUF_SIZE],
+    buf: &'a mut [u8],
     pos: usize,
-    res_slot: &'a ResponseSlot<INGRESS_BUF_SIZE>,
+    res_slot: &'a ResponseSlot<RES_BUF_SIZE>,
     urc_publisher: UrcPublisher<'a, Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
 
@@ -94,15 +94,15 @@ impl<
         'a,
         D: Digester,
         Urc: AtatUrc,
-        const INGRESS_BUF_SIZE: usize,
+        const RES_BUF_SIZE: usize,
         const URC_CAPACITY: usize,
         const URC_SUBSCRIBERS: usize,
-    > Ingress<'a, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
+    > Ingress<'a, D, Urc, RES_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     pub fn new(
         digester: D,
-        buf: &'a mut [u8; INGRESS_BUF_SIZE],
-        res_slot: &'a ResponseSlot<INGRESS_BUF_SIZE>,
+        buf: &'a mut [u8],
+        res_slot: &'a ResponseSlot<RES_BUF_SIZE>,
         urc_channel: &'a UrcChannel<Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
     ) -> Self {
         Self {
@@ -118,10 +118,10 @@ impl<
 impl<
         D: Digester,
         Urc: AtatUrc,
-        const INGRESS_BUF_SIZE: usize,
+        const RES_BUF_SIZE: usize,
         const URC_CAPACITY: usize,
         const URC_SUBSCRIBERS: usize,
-    > AtatIngress for Ingress<'_, D, Urc, INGRESS_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
+    > AtatIngress for Ingress<'_, D, Urc, RES_BUF_SIZE, URC_CAPACITY, URC_SUBSCRIBERS>
 {
     fn write_buf(&mut self) -> &mut [u8] {
         &mut self.buf[self.pos..]
