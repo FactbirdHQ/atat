@@ -328,8 +328,8 @@ pub mod parser {
                 nom::combinator::success(&b""[..]),
             )),
             tuple((
-                take_until_including("\r\nCONNECT"),
-                recognize(take_until_including("\r\n")),
+                take_until_including("\r\nCONNECT\r\n"),
+                nom::combinator::success(&b""[..]),
             )),
         ))(buf)?;
 
