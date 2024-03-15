@@ -4,7 +4,7 @@ use crate::{
     response_slot::{ResponseSlot, ResponseSlotGuard},
     AtatCmd, Config, Error, Response,
 };
-use embassy_time::{Duration, Instant, TimeoutError, Timer};
+use embassy_time::{with_timeout, Duration, Instant, TimeoutError, Timer};
 use embedded_io_async::Write;
 use futures::{
     future::{select, Either},
@@ -48,11 +48,18 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
         self.res_slot.reset();
 
         // Write request
-        self.writer
-            .write_all(&self.buf[..len])
+        with_timeout(
+            self.config.tx_timeout,
+            self.writer.write_all(&self.buf[..len]),
+        )
+        .await
+        .map_err(|_| Error::Timeout)?
+        .map_err(|_| Error::Write)?;
+
+        with_timeout(self.config.flush_timeout, self.writer.flush())
             .await
+            .map_err(|_| Error::Timeout)?
             .map_err(|_| Error::Write)?;
-        self.writer.flush().await.map_err(|_| Error::Write)?;
 
         self.start_cooldown_timer();
         Ok(())

@@ -19,8 +19,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             cmd_cooldown: Duration::from_millis(20),
-            tx_timeout: Duration::from_ticks(0),
-            flush_timeout: Duration::from_ticks(0),
+            tx_timeout: Duration::from_millis(1000),
+            flush_timeout: Duration::from_millis(1000),
             get_response_timeout,
         }
     }
