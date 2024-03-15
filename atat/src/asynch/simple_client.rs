@@ -1,6 +1,6 @@
 use super::AtatClient;
 use crate::{helpers::LossyStr, AtatCmd, Config, DigestResult, Digester, Error, Response};
-use embassy_time::{Duration, Timer};
+use embassy_time::{with_timeout, Duration, Timer};
 use embedded_io_async::{Read, Write};
 
 pub struct SimpleClient<'a, RW: Read + Write, D: Digester> {
@@ -34,11 +34,15 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
         self.wait_cooldown_timer().await;
 
         // Write request
-        self.rw
-            .write_all(&self.buf[..len])
+        with_timeout(self.config.tx_timeout, self.rw.write_all(&self.buf[..len]))
             .await
+            .map_err(|_| Error::Timeout)?
             .map_err(|_| Error::Write)?;
-        self.rw.flush().await.map_err(|_| Error::Write)?;
+
+        with_timeout(self.config.flush_timeout, self.rw.flush())
+            .await
+            .map_err(|_| Error::Timeout)?
+            .map_err(|_| Error::Write)?;
 
         self.start_cooldown_timer();
         Ok(())
@@ -53,7 +57,7 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
                 _ => return Err(Error::Read),
             };
 
-            debug!("Buffer contents: '{:?}'", LossyStr(&self.buf[..self.pos]));
+            trace!("Buffer contents: '{:?}'", LossyStr(&self.buf[..self.pos]));
 
             while self.pos > 0 {
                 let (res, swallowed) = match self.digester.digest(&self.buf[..self.pos]) {
