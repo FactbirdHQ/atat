@@ -10,6 +10,7 @@ pub enum DigestResult<'a> {
     None,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
     Incomplete,
     NoMatch,
@@ -351,7 +352,7 @@ pub mod parser {
         recognize(nom::bytes::complete::take_until("\r\n"))(buf)
     }
 
-    fn take_until_including<T, Input, Error: ParseError<Input>>(
+    pub fn take_until_including<T, Input, Error: ParseError<Input>>(
         tag: T,
     ) -> impl Fn(Input) -> IResult<Input, (Input, Input), Error>
     where

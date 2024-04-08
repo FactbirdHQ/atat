@@ -60,6 +60,18 @@ pub fn derive_atat_resp(input: TokenStream) -> TokenStream {
 /// Automatically derive [`atat::AtatUrc`] trait
 ///
 /// [`atat::AtatUrc`]: ../atat/trait.AtatUrc.html
+///
+/// ### Field attribute (`#[at_urc(..)]`)
+/// The `AtatUrc` derive macro comes with a required field attribute
+/// `#[at_urc(..)]`, that is used to specify the URC token to match for.
+///
+/// The first argument is required, and must be either a string or a byte
+/// literal, specifying the URC token to match for.
+///
+/// Allowed optionals for `at_urc` are:
+/// - `parse`: **function** Function that should be used to parse for the URC
+///    instead of using default `atat::digest::parser::urc_helper` function. The
+///    passed functions needs to have a valid non signature.
 #[proc_macro_derive(AtatUrc, attributes(at_urc))]
 pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
     urc::atat_urc(input)
@@ -77,10 +89,11 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 /// Furthermore it automatically implements [`atat::AtatLen`], based on the data
 /// type given in the container attribute.
 ///
-/// **NOTE**: When using this derive macro with struct or tuple variants in the enum, one
-/// should take extra care to avoid large size variations of the variants, as the
-/// resulting `AtatLen` of the enum will be the length of the representation
-/// (see `#[at_enum(..)]`) together with the largest sum of field values in the variant.
+/// **NOTE**: When using this derive macro with struct or tuple variants in the
+/// enum, one should take extra care to avoid large size variations of the
+/// variants, as the resulting `AtatLen` of the enum will be the length of the
+/// representation (see `#[at_enum(..)]`) together with the largest sum of field
+/// values in the variant.
 ///
 /// Eg.
 /// ```ignore
@@ -102,8 +115,8 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 /// `LargeSizeVariations::VariantOne`
 ///
 /// ### Container attribute (`#[at_enum(..)]`)
-/// The `AtatEnum` derive macro comes with an option of annotating the struct with
-/// a container attribute `#[at_enum(..)]`.
+/// The `AtatEnum` derive macro comes with an option of annotating the struct
+/// with a container attribute `#[at_enum(..)]`.
 ///
 /// The container attribute only allows specifying a single parameter, that is
 /// non-optional if the container attribute is present. The parameter allows
@@ -116,10 +129,10 @@ pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
 ///
 /// ### Field attribute (`#[at_arg(..)]`)
 /// The `AtatEnum` derive macro comes with an optional field attribute
-/// `#[at_arg(..)]`, that can be specified o some or all of the fields.
+/// `#[at_arg(..)]`, that can be specified for some or all of the fields.
 ///
 /// Allowed options for `at_arg` are:
-/// - `value` **integer** The value of the serialized field
+/// - `value`: **integer** The value of the serialized field
 #[proc_macro_derive(AtatEnum, attributes(at_enum, at_arg))]
 pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
     enum_::atat_enum(input)
@@ -153,10 +166,12 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 ///   'AT'). Can also be set to '' (empty).
 /// - `termination`: **string** Overwrite the line termination of the command
 ///   (default '\r\n'). Can also be set to '' (empty).
-/// - `quote_escape_strings`: **bool** Whether to escape strings in commands (default true).
-/// - `parse`: **function** Function that should be used to parse the response instead of using
-///    default `atat::serde_at::from_slice` function. The passed functions needs to have a signature
-///    `Result<Response, E>` where `Response` is the type of the response passed in the `at_cmd`
+/// - `quote_escape_strings`: **bool** Whether to escape strings in commands
+///   (default true).
+/// - `parse`: **function** Function that should be used to parse the response
+///    instead of using default `atat::serde_at::from_slice` function. The
+///    passed functions needs to have a signature `Result<Response, E>` where
+///    `Response` is the type of the response passed in the `at_cmd`
 ///
 /// ### Field attribute (`#[at_arg(..)]`)
 /// The `AtatCmd` derive macro comes with an optional field attribute

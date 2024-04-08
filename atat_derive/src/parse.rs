@@ -42,6 +42,7 @@ pub struct ArgAttributes {
 #[derive(Clone)]
 pub struct UrcAttributes {
     pub code: LitByteStr,
+    pub parse: Option<Path>,
 }
 
 /// Parsed attributes of `#[at_enum(..)]`
@@ -78,8 +79,7 @@ pub fn parse_field_attr(attributes: &[Attribute]) -> Result<FieldAttributes> {
     for attr in attributes {
         if attr.path().is_ident("at_arg") {
             attrs.at_arg = Some(attr.parse_args()?);
-        }
-        if attr.path().is_ident("at_urc") {
+        } else if attr.path().is_ident("at_urc") {
             attrs.at_urc = Some(attr.parse_args()?);
         }
     }
@@ -227,9 +227,9 @@ impl Parse for ArgAttributes {
 
 impl Parse for UrcAttributes {
     fn parse(input: ParseStream) -> Result<Self> {
-        let code = match input.parse::<syn::Lit>()? {
-            Lit::ByteStr(b) => b,
-            Lit::Str(s) => LitByteStr::new(s.value().as_bytes(), input.span()),
+        let code = match input.parse::<syn::Lit>() {
+            Ok(Lit::ByteStr(b)) => b,
+            Ok(Lit::Str(s)) => LitByteStr::new(s.value().as_bytes(), input.span()),
             _ => {
                 return Err(Error::new(
                     input.span(),
@@ -238,13 +238,26 @@ impl Parse for UrcAttributes {
             }
         };
 
-        Ok(Self { code })
+        let mut at_urc = Self { code, parse: None };
+
+        while input.parse::<syn::token::Comma>().is_ok() {
+            let optional = input.parse::<syn::MetaNameValue>()?;
+            if optional.path.is_ident("parse") {
+                match optional.value {
+                    Expr::Path(ExprPath { path, .. }) => {
+                        at_urc.parse = Some(path);
+                    }
+                    _ => return Err(Error::new(input.span(), "expected function for 'parse'")),
+                }
+            }
+        }
+
+        Ok(at_urc)
     }
 }
 
 impl Parse for CmdAttributes {
     fn parse(input: ParseStream) -> Result<Self> {
-        let call_site = Span::call_site();
         let cmd = input.parse::<syn::LitStr>()?;
         let _comma = input.parse::<syn::token::Comma>()?;
         let response_ident = input.parse::<Path>()?;
@@ -274,7 +287,7 @@ impl Parse for CmdAttributes {
                     }
                     _ => {
                         return Err(Error::new(
-                            call_site,
+                            Span::call_site(),
                             "expected integer value for 'timeout_ms'",
                         ))
                     }
@@ -288,7 +301,7 @@ impl Parse for CmdAttributes {
                     }
                     _ => {
                         return Err(Error::new(
-                            call_site,
+                            Span::call_site(),
                             "expected integer value for 'attempts'",
                         ))
                     }
@@ -298,7 +311,12 @@ impl Parse for CmdAttributes {
                     Expr::Path(ExprPath { path, .. }) => {
                         at_cmd.parse = Some(path);
                     }
-                    _ => return Err(Error::new(call_site, "expected function for 'parse'")),
+                    _ => {
+                        return Err(Error::new(
+                            Span::call_site(),
+                            "expected function for 'parse'",
+                        ))
+                    }
                 }
             } else if optional.path.is_ident("reattempt_on_parse_err") {
                 match optional.value {
@@ -309,7 +327,7 @@ impl Parse for CmdAttributes {
                     }
                     _ => {
                         return Err(Error::new(
-                            call_site,
+                            Span::call_site(),
                             "expected bool value for 'reattempt_on_parse_err'",
                         ))
                     }
@@ -321,7 +339,12 @@ impl Parse for CmdAttributes {
                     }) => {
                         at_cmd.abortable = Some(v.value);
                     }
-                    _ => return Err(Error::new(call_site, "expected bool value for 'abortable'")),
+                    _ => {
+                        return Err(Error::new(
+                            Span::call_site(),
+                            "expected bool value for 'abortable'",
+                        ))
+                    }
                 }
             } else if optional.path.is_ident("value_sep") {
                 match optional.value {
@@ -330,7 +353,12 @@ impl Parse for CmdAttributes {
                     }) => {
                         at_cmd.value_sep = v.value;
                     }
-                    _ => return Err(Error::new(call_site, "expected bool value for 'value_sep'")),
+                    _ => {
+                        return Err(Error::new(
+                            Span::call_site(),
+                            "expected bool value for 'value_sep'",
+                        ))
+                    }
                 }
             } else if optional.path.is_ident("cmd_prefix") {
                 match optional.value {
@@ -341,7 +369,7 @@ impl Parse for CmdAttributes {
                     }
                     _ => {
                         return Err(Error::new(
-                            call_site,
+                            Span::call_site(),
                             "expected string value for 'cmd_prefix'",
                         ))
                     }
@@ -355,7 +383,7 @@ impl Parse for CmdAttributes {
                     }
                     _ => {
                         return Err(Error::new(
-                            call_site,
+                            Span::call_site(),
                             "expected string value for 'termination'",
                         ))
                     }
@@ -369,7 +397,7 @@ impl Parse for CmdAttributes {
                     }
                     _ => {
                         return Err(Error::new(
-                            call_site,
+                            Span::call_site(),
                             "expected bool value for 'quote_escape_strings'",
                         ))
                     }

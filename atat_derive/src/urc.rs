@@ -19,7 +19,8 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
 
     let (match_arms, digest_arms): (Vec<_>, Vec<_>) = variants.iter().map(|variant| {
         let UrcAttributes {
-            code
+            code,
+            parse
         } = variant.attrs.at_urc.clone().unwrap_or_else(|| {
             panic!(
                 "missing #[at_urc(...)] attribute",
@@ -49,8 +50,14 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
             }
         };
 
-        let digest_arm = quote! {
-            atat::digest::parser::urc_helper(&#code[..]),
+        let digest_arm = if let Some(parse_fn) = parse {
+            quote! {
+                #parse_fn(&#code[..]),
+            }
+        } else {
+            quote! {
+                atat::digest::parser::urc_helper(&#code[..]),
+            }
         };
 
         (parse_arm, digest_arm)
