@@ -778,6 +778,14 @@ mod tests {
         p3: Option<bool>,
     }
 
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct OptionEmpty {
+        p1: u8,
+        p2: i16,
+        p3: Option<bool>,
+        p4: bool,
+    }
+
     #[derive(Clone, Debug, Deserialize, PartialEq)]
     pub struct CCID {
         pub ccid: u128,
@@ -809,6 +817,16 @@ mod tests {
                 p1: 2,
                 p2: 56,
                 p3: None
+            })
+        );
+
+        assert_eq!(
+            crate::from_str("+CFG: 2,56,,true"),
+            Ok(OptionEmpty {
+                p1: 2,
+                p2: 56,
+                p3: None,
+                p4: true
             })
         );
 
