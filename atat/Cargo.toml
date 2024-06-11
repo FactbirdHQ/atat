@@ -21,7 +21,7 @@ name = "atat"
 embedded-io = "0.6.0"
 embedded-io-async = "0.6.0"
 futures = { version = "0.3", default-features = false }
-embassy-sync = "0.5"
+embassy-sync = "0.6"
 embassy-time = "0.3"
 heapless = { version = "^0.8", features = ["serde"] }
 serde_at = { path = "../serde_at", version = "^0.22.0", optional = true }

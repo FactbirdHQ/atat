@@ -1,5 +1,5 @@
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::pubsub::{PubSubBehavior, PubSubChannel, Publisher, Subscriber};
+use embassy_sync::pubsub::{PubSubChannel, Publisher, Subscriber};
 
 use crate::AtatUrc;
 
@@ -31,7 +31,7 @@ impl<Urc: AtatUrc, const CAPACITY: usize, const SUBSCRIBERS: usize>
             .map_err(|_| Error::MaximumSubscribersReached)
     }
 
-    pub fn space(&self) -> usize {
-        self.0.space()
+    pub fn free_capacity(&self) -> usize {
+        self.0.free_capacity()
     }
 }

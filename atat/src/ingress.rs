@@ -54,7 +54,7 @@ pub trait AtatIngress {
 
     /// Read all bytes from the provided serial and ingest the read bytes into
     /// the ingress from where they will be processed
-    async fn read_from(&mut self, serial: &mut impl embedded_io_async::Read) -> ! {
+    async fn read_from<R: embedded_io_async::Read>(&mut self, mut serial: R) -> ! {
         use embedded_io::Error;
         loop {
             let buf = self.write_buf();
@@ -158,7 +158,7 @@ impl<
                     if let Some(urc) = Urc::parse(urc_line) {
                         debug!(
                             "Received URC/{} ({}/{}): {:?}",
-                            self.urc_publisher.space(),
+                            self.urc_publisher.free_capacity(),
                             swallowed,
                             self.pos,
                             LossyStr(urc_line)
@@ -242,7 +242,7 @@ impl<
                     if let Some(urc) = Urc::parse(urc_line) {
                         debug!(
                             "Received URC/{} ({}/{}): {:?}",
-                            self.urc_publisher.space(),
+                            self.urc_publisher.free_capacity(),
                             swallowed,
                             self.pos,
                             LossyStr(urc_line)
