@@ -17,12 +17,7 @@ pub type GetTimeout = fn(Instant, Duration) -> Instant;
 
 impl Default for Config {
     fn default() -> Self {
-        Self {
-            cmd_cooldown: Duration::from_millis(20),
-            tx_timeout: Duration::from_millis(1000),
-            flush_timeout: Duration::from_millis(1000),
-            get_response_timeout,
-        }
+        Self::new()
     }
 }
 
@@ -32,8 +27,13 @@ fn get_response_timeout(start: Instant, duration: Duration) -> Instant {
 
 impl Config {
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        Self {
+            cmd_cooldown: Duration::from_millis(20),
+            tx_timeout: Duration::from_millis(1000),
+            flush_timeout: Duration::from_millis(1000),
+            get_response_timeout,
+        }
     }
 
     #[must_use]

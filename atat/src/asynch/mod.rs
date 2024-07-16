@@ -35,3 +35,12 @@ pub trait AtatClient {
         Err(Error::Timeout)
     }
 }
+
+impl<T> AtatClient for &mut T
+where
+    T: AtatClient,
+{
+    async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
+        T::send(self, cmd).await
+    }
+}
