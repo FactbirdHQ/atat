@@ -84,6 +84,7 @@ impl From<u16> for CmsError {
     }
 }
 
+#[cfg(feature = "string_errors")]
 impl CmsError {
     pub const fn from_msg(s: &[u8]) -> Self {
         // FIXME:
