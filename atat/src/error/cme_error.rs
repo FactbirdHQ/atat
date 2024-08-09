@@ -502,6 +502,7 @@ impl From<u16> for CmeError {
     }
 }
 
+#[cfg(feature = "string_errors")]
 impl CmeError {
     pub const fn from_msg(s: &[u8]) -> Self {
         // FIXME:
