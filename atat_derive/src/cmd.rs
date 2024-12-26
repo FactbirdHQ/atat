@@ -62,10 +62,10 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         None => quote! {},
     };
 
-    let response_code = match response_code {
-        Some(resp) => {
+    let response = match response_code {
+        Some(is_resp) => {
             quote! {
-                const EXPECTS_RESPONSE_CODE: bool = #resp;
+                const EXPECTS_RESPONSE_CODE: bool = #is_resp;
             }
         }
         None => quote! {},
@@ -146,7 +146,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
             #attempts
 
-            #response_code
+            #response
 
             #reattempt_on_parse_err
 
