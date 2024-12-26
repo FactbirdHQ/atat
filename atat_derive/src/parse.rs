@@ -404,6 +404,20 @@ impl Parse for CmdAttributes {
                         ))
                     }
                 }
+            } else if optional.path.is_ident("response_code") {
+                match optional.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Bool(v), ..
+                    }) => {
+                        at_cmd.response_code = Some(v.value);
+                    }
+                    _ => {
+                        return Err(Error::new(
+                            Span::call_site(),
+                            "expected bool value for 'response_code'",
+                        ))
+                    }
+                }
             }
         }
 
