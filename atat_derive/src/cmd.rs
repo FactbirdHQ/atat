@@ -22,6 +22,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         attempts,
         reattempt_on_parse_err,
         abortable,
+        response_code,
         value_sep,
         cmd_prefix,
         termination,
@@ -56,6 +57,15 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         Some(attempts) => {
             quote! {
                 const ATTEMPTS: u8 = #attempts;
+            }
+        }
+        None => quote! {},
+    };
+
+    let response_code = match response_code {
+        Some(resp) => {
+            quote! {
+                const EXPECTS_RESPONSE_CODE: bool = #resp;
             }
         }
         None => quote! {},
@@ -135,6 +145,8 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             #abortable
 
             #attempts
+
+            #response_code
 
             #reattempt_on_parse_err
 
