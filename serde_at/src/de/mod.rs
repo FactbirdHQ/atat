@@ -66,16 +66,16 @@ pub enum Error {
     CustomErrorWithMessage(heapless::String<128>),
 }
 
-pub(crate) struct Deserializer<'b> {
-    slice: &'b [u8],
+pub(crate) struct Deserializer<'a> {
+    slice: &'a [u8],
     index: usize,
     struct_size_hint: Option<usize>,
     is_trailing_parsing: bool,
 }
 
 impl<'a> Deserializer<'a> {
-    const fn new(slice: &'a [u8]) -> Deserializer<'_> {
-        Deserializer {
+    const fn new(slice: &'a [u8]) -> Self {
+        Self {
             slice,
             index: 0,
             struct_size_hint: None,

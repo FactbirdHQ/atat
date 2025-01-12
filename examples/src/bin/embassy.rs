@@ -41,7 +41,7 @@ async fn main(spawner: Spawner) {
         RX_BUF.init([0; 16]),
         uart::Config::default(),
     );
-    let (reader, writer) = uart.split();
+    let (writer, reader) = uart.split();
 
     static RES_SLOT: ResponseSlot<INGRESS_BUF_SIZE> = ResponseSlot::new();
     static URC_CHANNEL: UrcChannel<common::Urc, URC_CAPACITY, URC_SUBSCRIBERS> = UrcChannel::new();
