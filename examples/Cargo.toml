@@ -30,20 +30,19 @@ cortex-m = { version = "0.7.6", optional = true }
 cortex-m-rt = { version = "0.7.3", optional = true }
 defmt-rtt = { version = "0.4", optional = true }
 panic-probe = { version = "0.3.0", features = ["print-defmt"], optional = true }
-embassy-executor = { version = "0.5", features = [
+embassy-executor = { version = "0.7", features = [
     "defmt",
     "arch-cortex-m",
     "executor-thread",
-    "integrated-timers",
 ], optional = true }
-embassy-time = "0.3"
-embassy-rp = { version = "0.1", features = [
+embassy-time = "0.4"
+embassy-rp = { version = "0.3", features = [
     "unstable-pac",
     "time-driver",
     "critical-section-impl",
 ], optional = true }
 
-env_logger = { version = "0.10", optional = true }
+env_logger = { version = "0.11", optional = true }
 tokio = { version = "1.26", default-features = false, features = [
     "time",
     "rt-multi-thread",
@@ -71,7 +70,6 @@ std = [
     "dep:tokio-serial",
     "atat/log",
     "embassy-time/std",
-    "embassy-time/generic-queue",
     "critical-section/std",
     "embedded-io-adapters",
     "embedded-io-adapters/tokio-1",
