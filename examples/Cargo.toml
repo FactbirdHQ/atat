@@ -35,8 +35,9 @@ embassy-executor = { version = "0.7", features = [
     "arch-cortex-m",
     "executor-thread",
 ], optional = true }
-embassy-time = "0.4"
+embassy-time = { version = "0.4" }
 embassy-rp = { version = "0.3", features = [
+    "rp2040",
     "unstable-pac",
     "time-driver",
     "critical-section-impl",
@@ -69,6 +70,7 @@ std = [
     "dep:tokio",
     "dep:tokio-serial",
     "atat/log",
+    "embassy-time/generic-queue-8",
     "embassy-time/std",
     "critical-section/std",
     "embedded-io-adapters",
