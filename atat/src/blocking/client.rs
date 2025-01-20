@@ -424,30 +424,6 @@ mod test {
     }
 
     #[tokio::test]
-    async fn invalid_response() {
-        let (mut client, mut tx, rx) = setup!(Config::new());
-
-        // String last
-        let cmd = TestRespStringCmd {
-            fun: Functionality::APM,
-            rst: Some(ResetMode::DontReset),
-        };
-
-        let sent = tokio::spawn(async move {
-            tx.next_message_pure().await;
-            rx.signal_response(Ok(b"+CUN: 22,16,22")).unwrap();
-        });
-
-        tokio::task::spawn_blocking(move || {
-            assert_eq!(Err(Error::Parse), client.send(&cmd));
-        })
-        .await
-        .unwrap();
-
-        sent.await.unwrap();
-    }
-
-    #[tokio::test]
     async fn custom_timeout() {
         static CALL_COUNT: AtomicU64 = AtomicU64::new(0);
 

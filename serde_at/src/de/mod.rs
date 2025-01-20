@@ -178,7 +178,7 @@ impl<'a> Deserializer<'a> {
                 self.index = self.slice.len();
                 return Ok(&self.slice[start..]);
             } else if let Some(c) = self.peek() {
-                if (c as char).is_alphanumeric() || (c as char).is_whitespace() {
+                if (c as char).is_ascii() && c >= 32 {
                     self.eat_char();
                 } else {
                     return Err(Error::EofWhileParsingString);
@@ -473,7 +473,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
                 visitor.visit_borrowed_str(self.parse_str()?)
             }
             _ => {
-                if (peek as char).is_alphabetic() {
+                if (peek as char).is_ascii() && peek >= 32 {
                     visitor.visit_bytes(self.parse_bytes()?)
                 } else {
                     Err(Error::InvalidType)
