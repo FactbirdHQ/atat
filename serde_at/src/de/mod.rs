@@ -178,7 +178,7 @@ impl<'a> Deserializer<'a> {
                 self.index = self.slice.len();
                 return Ok(&self.slice[start..]);
             } else if let Some(c) = self.peek() {
-                if (c as char).is_ascii() && c >= 32  {
+                if (c as char).is_ascii() && c >= 32 {
                     self.eat_char();
                 } else {
                     return Err(Error::EofWhileParsingString);
