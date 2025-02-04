@@ -57,7 +57,11 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
                 _ => return Err(Error::Read),
             };
 
-            trace!("Buffer contents: '{:?}'", LossyStr(&self.buf[..self.pos]));
+            trace!(
+                "Buffer contents: ({:?} bytes) '{:?}'",
+                self.pos,
+                LossyStr(&self.buf[..self.pos])
+            );
 
             while self.pos > 0 {
                 let (res, swallowed) = match self.digester.digest(&self.buf[..self.pos]) {
@@ -108,6 +112,7 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
                 };
 
                 if swallowed == 0 {
+                    embassy_futures::yield_now().await;
                     break;
                 }
 
