@@ -24,6 +24,7 @@ pub struct CmdAttributes {
     pub attempts: Option<u8>,
     pub abortable: Option<bool>,
     pub reattempt_on_parse_err: Option<bool>,
+    pub response_code: Option<bool>,
     pub value_sep: bool,
     pub cmd_prefix: String,
     pub termination: String,
@@ -270,6 +271,7 @@ impl Parse for CmdAttributes {
             attempts: None,
             abortable: None,
             reattempt_on_parse_err: None,
+            response_code: None,
             value_sep: true,
             cmd_prefix: String::from("AT"),
             termination: String::from("\r\n"),
@@ -399,6 +401,20 @@ impl Parse for CmdAttributes {
                         return Err(Error::new(
                             Span::call_site(),
                             "expected bool value for 'quote_escape_strings'",
+                        ))
+                    }
+                }
+            } else if optional.path.is_ident("response_code") {
+                match optional.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Bool(v), ..
+                    }) => {
+                        at_cmd.response_code = Some(v.value);
+                    }
+                    _ => {
+                        return Err(Error::new(
+                            Span::call_site(),
+                            "expected bool value for 'response_code'",
                         ))
                     }
                 }
