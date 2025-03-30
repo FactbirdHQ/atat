@@ -17,8 +17,7 @@ static INGRESS_BUF: StaticCell<[u8; INGRESS_BUF_SIZE]> = StaticCell::new();
 static RES_SLOT: ResponseSlot<INGRESS_BUF_SIZE> = ResponseSlot::new();
 static URC_CHANNEL: UrcChannel<common::Urc, URC_CAPACITY, URC_SUBSCRIBERS> = UrcChannel::new();
 
-
-// Responses: Trigger 
+// Responses: Trigger
 #[allow(dead_code)]
 const RESPONSE_ERROR: &str = "\r\nERROR\r\n";
 #[allow(dead_code)]
