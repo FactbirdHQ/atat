@@ -19,6 +19,10 @@ required-features = ["embedded"]
 name = "std-tokio"
 required-features = ["std"]
 
+[[bin]]
+name = "std-tokio-mock"
+required-features = ["std"]
+
 [dependencies]
 atat = { path = "../atat" }
 embedded-io = "0.6"
@@ -29,6 +33,7 @@ critical-section = "1.1.1"
 cortex-m = { version = "0.7.6", optional = true }
 cortex-m-rt = { version = "0.7.3", optional = true }
 defmt-rtt = { version = "0.4", optional = true }
+log = { version = "0.4", optional = true }
 panic-probe = { version = "0.3.0", features = ["print-defmt"], optional = true }
 embassy-executor = { version = "0.7", features = [
     "defmt",
@@ -66,6 +71,7 @@ embedded = [
     "portable-atomic/critical-section",
 ]
 std = [
+    "log",
     "dep:env_logger",
     "dep:tokio",
     "dep:tokio-serial",
