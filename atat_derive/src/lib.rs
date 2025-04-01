@@ -71,7 +71,7 @@ pub fn derive_atat_resp(input: TokenStream) -> TokenStream {
 /// Allowed optionals for `at_urc` are:
 /// - `parse`: **function** Function that should be used to parse for the URC
 ///    instead of using default `atat::digest::parser::urc_helper` function. The
-///    passed functions needs to have a valid non signature.
+///    passed functions need to have a valid `nom` signature `(arguments) -> impl Fn(Input) -> IResult<Input, Output, Error>`.
 #[proc_macro_derive(AtatUrc, attributes(at_urc))]
 pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
     urc::atat_urc(input)
