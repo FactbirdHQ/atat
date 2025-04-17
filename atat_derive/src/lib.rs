@@ -19,7 +19,7 @@
 //! [`AtatCmd`]: derive.AtatCmd.html
 //!
 //! ```ignore
-//! // Serializing the following struct, results in `AT+USORD=<socket>,<length>\r\n`
+//! // Serializing the following struct, results in `AT+USORD=<socket>,<length>\r`
 //! #[derive(AtatCmd)]
 //! #[at_cmd("+USORD", SocketData)]
 //! pub struct ReadSocketData {
@@ -165,7 +165,7 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 /// - `cmd_prefix`: **string** Overwrite the prefix of the command (default
 ///   'AT'). Can also be set to '' (empty).
 /// - `termination`: **string** Overwrite the line termination of the command
-///   (default '\r\n'). Can also be set to '' (empty).
+///   (default '\r'). Can also be set to '' (empty).
 /// - `quote_escape_strings`: **bool** Whether to escape strings in commands
 ///   (default true).
 /// - `parse`: **function** Function that should be used to parse the response

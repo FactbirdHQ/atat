@@ -341,8 +341,8 @@ mod test {
         .unwrap();
 
         let (sent0, sent1) = sent.await.unwrap();
-        assert_eq!("AT+CFUN=4,0\r\n", &sent0);
-        assert_eq!("AT+FUN=1,6\r\n", &sent1);
+        assert_eq!("AT+CFUN=4,0\r", &sent0);
+        assert_eq!("AT+FUN=1,6\r", &sent1);
     }
 
     #[tokio::test]
@@ -367,7 +367,7 @@ mod test {
         .unwrap();
 
         let sent = sent.await.unwrap();
-        assert_eq!("AT+CFUN=4,0\r\n", &sent);
+        assert_eq!("AT+CFUN=4,0\r", &sent);
     }
 
     // Test response containing string
