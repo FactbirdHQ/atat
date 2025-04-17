@@ -41,7 +41,7 @@ impl<'a> Default for SerializeOptions<'a> {
         SerializeOptions {
             value_sep: true,
             cmd_prefix: "AT",
-            termination: "\r\n",
+            termination: "\r",
             quote_escape_strings: true,
         }
     }
@@ -639,7 +639,7 @@ mod tests {
 
         let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
 
-        assert_eq!(s, String::<32>::try_from("AT+CMD\r\n").unwrap());
+        assert_eq!(s, String::<32>::try_from("AT+CMD\r").unwrap());
     }
 
     #[test]
@@ -653,7 +653,7 @@ mod tests {
 
         let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
 
-        assert_eq!(s, String::<32>::try_from("AT+CMD=\"value\"\r\n").unwrap());
+        assert_eq!(s, String::<32>::try_from("AT+CMD=\"value\"\r").unwrap());
     }
 
     #[test]
@@ -667,7 +667,7 @@ mod tests {
             s: Bytes::new(&slice[..]),
         };
         let s: String<32> = to_string(&b, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<32>::try_from("AT+CMD=Some bytes\r\n").unwrap());
+        assert_eq!(s, String::<32>::try_from("AT+CMD=Some bytes\r").unwrap());
     }
 
     #[test]
@@ -688,7 +688,7 @@ mod tests {
 
         let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
 
-        assert_eq!(s, String::<32>::try_from("AT+CMD=\"value\"\r\n").unwrap());
+        assert_eq!(s, String::<32>::try_from("AT+CMD=\"value\"\r").unwrap());
     }
 
     #[test]
@@ -706,7 +706,7 @@ mod tests {
 
         let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
 
-        assert_eq!(s, String::<32>::try_from("AT+CMD=1.23,4.56\r\n").unwrap());
+        assert_eq!(s, String::<32>::try_from("AT+CMD=1.23,4.56\r").unwrap());
     }
 
     #[test]
@@ -797,7 +797,7 @@ mod tests {
         assert_eq!(
             s,
             String::<600>::try_from(
-                "AT+CMD=0x0000FF00,000055AA,0x000000ff,0000aa55,0x0:0:0:0:F:F:0:0,00-00-55-AA,0x0:0:0:0:0:0:f:f,00-00-00-00-aa-55-00-ff\r\n"
+                "AT+CMD=0x0000FF00,000055AA,0x000000ff,0000aa55,0x0:0:0:0:F:F:0:0,00-00-55-AA,0x0:0:0:0:0:0:f:f,00-00-00-00-aa-55-00-ff\r"
             ).unwrap()
         );
 
@@ -875,7 +875,7 @@ mod tests {
         assert_eq!(
             s,
             String::<600>::try_from(
-                "AT+CMD=0xFF00,55AA,0xff,aa55,0xF:F:0:0,55-AA,0xf:f,aa-55-00-ff\r\n"
+                "AT+CMD=0xFF00,55AA,0xff,aa55,0xF:F:0:0,55-AA,0xf:f,aa-55-00-ff\r"
             )
             .unwrap()
         );

@@ -274,7 +274,7 @@ impl Parse for CmdAttributes {
             response_code: None,
             value_sep: true,
             cmd_prefix: String::from("AT"),
-            termination: String::from("\r\n"),
+            termination: String::from("\r"),
             quote_escape_strings: true,
         };
 

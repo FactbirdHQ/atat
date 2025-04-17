@@ -218,7 +218,7 @@ mod tests {
         .write(&mut buf);
         assert_eq!(
             &buf[..len],
-            Vec::<u8, 360>::from_slice(b"AT+CFUN=8,\"SomeString\",2,\"whatup\",0,0,1\r\n").unwrap()
+            Vec::<u8, 360>::from_slice(b"AT+CFUN=8,\"SomeString\",2,\"whatup\",0,0,1\r").unwrap()
         );
     }
 
