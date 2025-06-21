@@ -21,7 +21,7 @@ name = "atat"
 embedded-io = "0.6"
 embedded-io-async = "0.6"
 futures = { version = "0.3", default-features = false }
-embassy-sync = "0.6"
+embassy-sync = "0.7"
 embassy-time = "0.4"
 embassy-futures = "0.1"
 heapless = { version = "^0.8", features = ["serde"] }
