@@ -68,7 +68,7 @@ pub struct AtDigester<P: Parser> {
     _urc_parser: PhantomData<P>,
     custom_success: fn(&[u8]) -> Result<(&[u8], usize), ParseError>,
     custom_error: fn(&[u8]) -> Result<(&[u8], usize), ParseError>,
-    custom_prompt: fn(&[u8]) -> Result<(u8, usize), ParseError>,
+    custom_prompt: Option<fn(&[u8]) -> Result<(u8, usize), ParseError>>,
 }
 
 impl<P: Parser> AtDigester<P> {
@@ -78,7 +78,7 @@ impl<P: Parser> AtDigester<P> {
             _urc_parser: PhantomData,
             custom_success: |_| Err(ParseError::NoMatch),
             custom_error: |_| Err(ParseError::NoMatch),
-            custom_prompt: |_| Err(ParseError::NoMatch),
+            custom_prompt: None,
         }
     }
 
@@ -101,7 +101,7 @@ impl<P: Parser> AtDigester<P> {
     #[must_use]
     pub fn with_custom_prompt(self, f: fn(&[u8]) -> Result<(u8, usize), ParseError>) -> Self {
         Self {
-            custom_prompt: f,
+            custom_prompt: Some(f),
             ..self
         }
     }
@@ -155,17 +155,20 @@ impl<P: Parser> Digester for AtDigester<P> {
         }
 
         // Custom prompts for data replies first, if any
-        match (self.custom_prompt)(buf) {
-            Ok((response, len)) => {
-                return (DigestResult::Prompt(response), len + space_and_echo_bytes)
+        match self.custom_prompt {
+            Some(prompt) => match (prompt)(buf) {
+                Ok((response, len)) => {
+                    return (DigestResult::Prompt(response), len + space_and_echo_bytes)
+                }
+                Err(ParseError::Incomplete) => return incomplete,
+                _ => {}
+            },
+            None => {
+                // Generic prompts for data
+                if let Ok((_, (result, len))) = parser::prompt_response(buf) {
+                    return (result, len + space_and_echo_bytes);
+                }
             }
-            Err(ParseError::Incomplete) => return incomplete,
-            _ => {}
-        }
-
-        // Generic prompts for data
-        if let Ok((_, (result, len))) = parser::prompt_response(buf) {
-            return (result, len + space_and_echo_bytes);
         }
 
         // 4. Parse for error responses
