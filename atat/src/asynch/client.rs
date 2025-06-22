@@ -1,3 +1,5 @@
+use core::ops::{Deref, DerefMut};
+
 use super::AtatClient;
 use crate::{
     helpers::LossyStr,
@@ -17,6 +19,20 @@ pub struct Client<'a, W: Write, const INGRESS_BUF_SIZE: usize> {
     buf: &'a mut [u8],
     config: Config,
     cooldown_timer: Option<Timer>,
+}
+
+impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Deref for Client<'a, W, INGRESS_BUF_SIZE> {
+    type Target = W;
+
+    fn deref(&self) -> &Self::Target {
+        &self.writer
+    }
+}
+
+impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> DerefMut for Client<'a, W, INGRESS_BUF_SIZE> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.writer
+    }
 }
 
 impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE> {
