@@ -244,11 +244,7 @@ macro_rules! deserialize_unsigned {
 
         match peek {
             b'-' => Err(Error::InvalidNumber),
-            b'0' => {
-                $self.eat_char();
-                $visitor.$visit_uxx(0)
-            }
-            b'1'..=b'9' => {
+            b'0'..=b'9' => {
                 $self.eat_char();
 
                 let mut number = (peek - b'0') as $uxx;
@@ -285,11 +281,7 @@ macro_rules! deserialize_signed {
         };
 
         match $self.peek().ok_or(Error::EofWhileParsingValue)? {
-            b'0' => {
-                $self.eat_char();
-                $visitor.$visit_ixx(0)
-            }
-            c @ b'1'..=b'9' => {
+            c @ b'0'..=b'9' => {
                 $self.eat_char();
 
                 let mut number = (c - b'0') as $ixx * if signed { -1 } else { 1 };
@@ -1192,6 +1184,64 @@ mod tests {
         assert_eq!(
             crate::from_str("+TEST: \t\n 2.718 "),
             Ok(F32Test { value: 2.718 })
+        );
+    }
+
+    #[test]
+    fn qgpsloc() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct GpsLocation {
+            pub utc: Option<f64>,
+            pub latitude: Option<f64>,
+            pub longitude: Option<f64>,
+            pub hdop: Option<f32>,
+            pub altitude: Option<f32>,
+            pub fix: Option<i16>,
+            pub course_over_ground: Option<f32>,
+            pub speed_km: Option<f32>,
+            pub speed_knots: Option<f32>,
+            pub date: Option<i32>,
+            pub nsat: Option<i8>,
+        }
+
+        let res = crate::from_str(
+            "+QGPSLOC: 000040.000,30.28653,120.03266,1.2,84.1,3,0.00,0.0,0.0,240725,07",
+        );
+
+        assert_eq!(
+            res,
+            Ok(GpsLocation {
+                utc: Some(40.0),
+                latitude: Some(30.28653),
+                longitude: Some(120.03266),
+                hdop: Some(1.2),
+                altitude: Some(84.1),
+                fix: Some(3),
+                course_over_ground: Some(0.0),
+                speed_km: Some(0.0),
+                speed_knots: Some(0.0),
+                date: Some(240725),
+                nsat: Some(7),
+            })
+        );
+
+        let res = crate::from_str("+QGPSLOC: , , , , , , , , , ,");
+
+        assert_eq!(
+            res,
+            Ok(GpsLocation {
+                utc: None,
+                latitude: None,
+                longitude: None,
+                hdop: None,
+                altitude: None,
+                fix: None,
+                course_over_ground: None,
+                speed_km: None,
+                speed_knots: None,
+                date: None,
+                nsat: None,
+            })
         );
     }
 }
