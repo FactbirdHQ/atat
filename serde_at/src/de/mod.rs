@@ -244,11 +244,7 @@ macro_rules! deserialize_unsigned {
 
         match peek {
             b'-' => Err(Error::InvalidNumber),
-            b'0' => {
-                $self.eat_char();
-                $visitor.$visit_uxx(0)
-            }
-            b'1'..=b'9' => {
+            b'0'..=b'9' => {
                 $self.eat_char();
 
                 let mut number = (peek - b'0') as $uxx;
@@ -285,11 +281,7 @@ macro_rules! deserialize_signed {
         };
 
         match $self.peek().ok_or(Error::EofWhileParsingValue)? {
-            b'0' => {
-                $self.eat_char();
-                $visitor.$visit_ixx(0)
-            }
-            c @ b'1'..=b'9' => {
+            c @ b'0'..=b'9' => {
                 $self.eat_char();
 
                 let mut number = (c - b'0') as $ixx * if signed { -1 } else { 1 };
@@ -317,19 +309,19 @@ macro_rules! deserialize_fromstr {
         let start = $self.index;
         loop {
             match $self.peek() {
-                Some(c) => {
-                    if $pattern.iter().find(|&&d| d == c).is_some() {
-                        $self.eat_char();
-                    } else {
-                        let s = unsafe {
-                            // already checked that it contains only ascii
-                            str::from_utf8_unchecked(&$self.slice[start..$self.index])
-                        };
-                        let v = $typ::from_str(s).or(Err(Error::InvalidNumber))?;
-                        return $visitor.$visit_fn(v);
-                    }
+                Some(c) if $pattern.iter().find(|&&d| d == c).is_some() => {
+                    $self.eat_char();
                 }
-                None => return Err(Error::EofWhileParsingNumber),
+                Some(_) | None => {
+                    // either found a character not in the pattern, or reached end of input
+                    // in both cases, parse the accumulated string
+                    let s = unsafe {
+                        // already checked that it contains only ascii
+                        str::from_utf8_unchecked(&$self.slice[start..$self.index])
+                    };
+                    let v = $typ::from_str(s).or(Err(Error::InvalidNumber))?;
+                    return $visitor.$visit_fn(v);
+                }
             }
         }
     }};
@@ -1003,6 +995,253 @@ mod tests {
         assert_eq!(
             res.payload.bytes,
             Bytes::<32>::from_slice(b"{\"cmd\": \"blink\", \"pin\": \"2\"}").unwrap()
+        );
+    }
+
+    #[test]
+    fn f32_basic_numbers() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct F32Test {
+            pub value: f32,
+        }
+
+        assert_eq!(crate::from_str("+TEST: 42"), Ok(F32Test { value: 42.0 }));
+
+        assert_eq!(crate::from_str("+TEST: -42"), Ok(F32Test { value: -42.0 }));
+
+        assert_eq!(crate::from_str("+TEST: 0"), Ok(F32Test { value: 0.0 }));
+
+        assert_eq!(crate::from_str("+TEST: 3.14"), Ok(F32Test { value: 3.14 }));
+
+        assert_eq!(
+            crate::from_str("+TEST: -2.718"),
+            Ok(F32Test { value: -2.718 })
+        );
+    }
+
+    #[test]
+    fn f32_scientific_notation() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct F32Test {
+            pub value: f32,
+        }
+
+        assert_eq!(
+            crate::from_str("+TEST: 1.23e4"),
+            Ok(F32Test { value: 1.23e4 })
+        );
+
+        assert_eq!(
+            crate::from_str("+TEST: 1.23E4"),
+            Ok(F32Test { value: 1.23E4 })
+        );
+
+        assert_eq!(
+            crate::from_str("+TEST: 1.23e-4"),
+            Ok(F32Test { value: 1.23e-4 })
+        );
+
+        assert_eq!(
+            crate::from_str("+TEST: 1.23e+4"),
+            Ok(F32Test { value: 1.23e+4 })
+        );
+
+        assert_eq!(
+            crate::from_str("+TEST: -1.23e4"),
+            Ok(F32Test { value: -1.23e4 })
+        );
+    }
+
+    #[test]
+    fn f64_basic_numbers() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct F64Test {
+            pub value: f64,
+        }
+
+        assert_eq!(crate::from_str("+TEST: 42"), Ok(F64Test { value: 42.0 }));
+
+        assert_eq!(crate::from_str("+TEST: -42"), Ok(F64Test { value: -42.0 }));
+
+        assert_eq!(crate::from_str("+TEST: 0"), Ok(F64Test { value: 0.0 }));
+
+        assert_eq!(
+            crate::from_str("+TEST: 3.141592653589793"),
+            Ok(F64Test {
+                value: 3.141592653589793
+            })
+        );
+
+        assert_eq!(
+            crate::from_str("+TEST: -2.718281828459045"),
+            Ok(F64Test {
+                value: -2.718281828459045
+            })
+        );
+    }
+
+    #[test]
+    fn f64_scientific_notation() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct F64Test {
+            pub value: f64,
+        }
+
+        assert_eq!(
+            crate::from_str("+TEST: 1.23456789e15"),
+            Ok(F64Test {
+                value: 1.23456789e15
+            })
+        );
+
+        assert_eq!(
+            crate::from_str("+TEST: 1.23456789E15"),
+            Ok(F64Test {
+                value: 1.23456789E15
+            })
+        );
+
+        assert_eq!(
+            crate::from_str("+TEST: 1.23456789e-15"),
+            Ok(F64Test {
+                value: 1.23456789e-15
+            })
+        );
+
+        assert_eq!(
+            crate::from_str("+TEST: 1.23456789e+15"),
+            Ok(F64Test {
+                value: 1.23456789e+15
+            })
+        );
+
+        assert_eq!(
+            crate::from_str("+TEST: -1.23456789e15"),
+            Ok(F64Test {
+                value: -1.23456789e15
+            })
+        );
+    }
+
+    #[test]
+    fn float_edge_cases() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct F32Test {
+            pub value: f32,
+        }
+
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct F64Test {
+            pub value: f64,
+        }
+
+        assert_eq!(crate::from_str("+TEST: .5"), Ok(F32Test { value: 0.5 }));
+
+        assert_eq!(crate::from_str("+TEST: -.5"), Ok(F32Test { value: -0.5 }));
+
+        assert_eq!(crate::from_str("+TEST: 42."), Ok(F32Test { value: 42.0 }));
+
+        assert_eq!(
+            crate::from_str("+TEST: 1e-10"),
+            Ok(F64Test { value: 1e-10 })
+        );
+
+        assert_eq!(crate::from_str("+TEST: 1e10"), Ok(F64Test { value: 1e10 }));
+    }
+
+    #[test]
+    fn float_in_struct_with_multiple_fields() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct MixedTest {
+            pub id: u8,
+            pub temperature: f32,
+            pub pressure: f64,
+            pub active: bool,
+        }
+
+        assert_eq!(
+            crate::from_str("+SENSOR: 1,23.5,-1.013e5,true"),
+            Ok(MixedTest {
+                id: 1,
+                temperature: 23.5,
+                pressure: -1.013e5,
+                active: true,
+            })
+        );
+    }
+
+    #[test]
+    fn float_with_whitespace() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct F32Test {
+            pub value: f32,
+        }
+        assert_eq!(
+            crate::from_str("+TEST:   3.14"),
+            Ok(F32Test { value: 3.14 })
+        );
+
+        assert_eq!(
+            crate::from_str("+TEST: \t\n 2.718 "),
+            Ok(F32Test { value: 2.718 })
+        );
+    }
+
+    #[test]
+    fn qgpsloc() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct GpsLocation {
+            pub utc: Option<f64>,
+            pub latitude: Option<f64>,
+            pub longitude: Option<f64>,
+            pub hdop: Option<f32>,
+            pub altitude: Option<f32>,
+            pub fix: Option<i16>,
+            pub course_over_ground: Option<f32>,
+            pub speed_km: Option<f32>,
+            pub speed_knots: Option<f32>,
+            pub date: Option<i32>,
+            pub nsat: Option<i8>,
+        }
+
+        let res = crate::from_str(
+            "+QGPSLOC: 000040.000,30.28653,120.03266,1.2,84.1,3,0.00,0.0,0.0,240725,07",
+        );
+
+        assert_eq!(
+            res,
+            Ok(GpsLocation {
+                utc: Some(40.0),
+                latitude: Some(30.28653),
+                longitude: Some(120.03266),
+                hdop: Some(1.2),
+                altitude: Some(84.1),
+                fix: Some(3),
+                course_over_ground: Some(0.0),
+                speed_km: Some(0.0),
+                speed_knots: Some(0.0),
+                date: Some(240725),
+                nsat: Some(7),
+            })
+        );
+
+        let res = crate::from_str("+QGPSLOC: , , , , , , , , , ,");
+
+        assert_eq!(
+            res,
+            Ok(GpsLocation {
+                utc: None,
+                latitude: None,
+                longitude: None,
+                hdop: None,
+                altitude: None,
+                fix: None,
+                course_over_ground: None,
+                speed_km: None,
+                speed_knots: None,
+                date: None,
+                nsat: None,
+            })
         );
     }
 }

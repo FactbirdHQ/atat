@@ -32,9 +32,7 @@ impl<'a, 'de> de::SeqAccess<'de> for SeqAccess<'a, 'de> {
         match self.de.parse_whitespace() {
             Some(b',') => {
                 self.de.eat_char();
-                self.de
-                    .parse_whitespace()
-                    .ok_or(Error::EofWhileParsingValue)?;
+                self.de.parse_whitespace();
             }
             Some(c) => {
                 if self.first {
