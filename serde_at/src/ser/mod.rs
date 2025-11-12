@@ -998,37 +998,62 @@ mod tests {
         // Test backslash escaping (\ → \5C)
         let value = WithString { s: "test1234\\" };
         let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<64>::try_from("AT+CMD=\"test1234\\5C\"\r").unwrap());
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test1234\\5C\"\r").unwrap()
+        );
 
         // Test quote escaping (" → \22)
         let value = WithString { s: "test\"quote" };
         let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<64>::try_from("AT+CMD=\"test\\22quote\"\r").unwrap());
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test\\22quote\"\r").unwrap()
+        );
 
         // Test newline escaping (\n → \0A)
         let value = WithString { s: "test\nline" };
         let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<64>::try_from("AT+CMD=\"test\\0Aline\"\r").unwrap());
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test\\0Aline\"\r").unwrap()
+        );
 
         // Test carriage return escaping (\r → \0D)
-        let value = WithString { s: "test\rcarriage" };
+        let value = WithString {
+            s: "test\rcarriage",
+        };
         let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<64>::try_from("AT+CMD=\"test\\0Dcarriage\"\r").unwrap());
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test\\0Dcarriage\"\r").unwrap()
+        );
 
         // Test tab escaping (\t → \09)
         let value = WithString { s: "test\ttab" };
         let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<64>::try_from("AT+CMD=\"test\\09tab\"\r").unwrap());
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test\\09tab\"\r").unwrap()
+        );
 
         // Test null character escaping (\0 → \00)
         let value = WithString { s: "test\0null" };
         let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<64>::try_from("AT+CMD=\"test\\00null\"\r").unwrap());
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test\\00null\"\r").unwrap()
+        );
 
         // Test multiple escape sequences
-        let value = WithString { s: "path\\to\"file\"\n" };
+        let value = WithString {
+            s: "path\\to\"file\"\n",
+        };
         let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<64>::try_from("AT+CMD=\"path\\5Cto\\22file\\22\\0A\"\r").unwrap());
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"path\\5Cto\\22file\\22\\0A\"\r").unwrap()
+        );
     }
 
     #[test]
@@ -1038,9 +1063,14 @@ mod tests {
             s: &'a str,
         }
 
-        let value = WithString { s: "normalstring123" };
+        let value = WithString {
+            s: "normalstring123",
+        };
         let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
-        assert_eq!(s, String::<64>::try_from("AT+CMD=\"normalstring123\"\r").unwrap());
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"normalstring123\"\r").unwrap()
+        );
     }
 
     #[test]
