@@ -26,7 +26,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         value_sep,
         cmd_prefix,
         termination,
-        quote_escape_strings,
+        escape_strings,
     } = at_cmd.expect("missing #[at_cmd(...)] attribute");
 
     let ident_str = ident.to_string();
@@ -84,7 +84,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
     if value_sep {
         cmd_len += 1;
     }
-    if quote_escape_strings {
+    if escape_strings {
         cmd_len += 2;
     }
 
@@ -156,7 +156,7 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
                     value_sep: #value_sep,
                     cmd_prefix: #cmd_prefix,
                     termination: #termination,
-                    quote_escape_strings: #quote_escape_strings
+                    escape_strings: #escape_strings
                 }) {
                     Ok(s) => s,
                     Err(_) => panic!("Failed to serialize command")
