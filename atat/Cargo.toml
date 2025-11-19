@@ -37,7 +37,7 @@ log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.3", optional = true }
 
 [dev-dependencies]
-embassy-time = { version = "0.4", features = ["std"] }
+embassy-time = { version = "0.5", features = ["std"] }
 critical-section = { version = "1.1", features = ["std"] }
 serde_at = { path = "../serde_at", version = "^0.24.1", features = [
     "heapless",
