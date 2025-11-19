@@ -166,7 +166,7 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 ///   'AT'). Can also be set to '' (empty).
 /// - `termination`: **string** Overwrite the line termination of the command
 ///   (default '\r'). Can also be set to '' (empty).
-/// - `quote_escape_strings`: **bool** Whether to escape strings in commands
+/// - `escape_strings`: **bool** Whether to escape and quote strings in commands
 ///   (default true).
 /// - `parse`: **function** Function that should be used to parse the response
 ///    instead of using default `atat::serde_at::from_slice` function. The
