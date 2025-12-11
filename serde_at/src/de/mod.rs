@@ -191,7 +191,11 @@ impl<'a> Deserializer<'a> {
 
     fn parse_at(&mut self) -> Result<Option<()>> {
         // If we find a '+', check if it is an AT command identifier, ending in ':'
-        if self.parse_whitespace() == Some(b'+') {
+        if self.parse_whitespace().map(|s| match s {
+            b'+' | b'#' | b'$' | b'&' | b'%' => true,
+            _ => false,
+        }) == Some(true)
+        {
             let index = self.index;
             loop {
                 match self.peek() {
