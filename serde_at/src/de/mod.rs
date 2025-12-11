@@ -1244,4 +1244,16 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    fn gpsant() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct GpsAntenna {
+            pub ant_type: u8,
+        }
+
+        let res = crate::from_str("$GPSAT: 1");
+
+        assert_eq!(res, Ok(GpsAntenna { ant_type: 1 }));
+    }
 }
