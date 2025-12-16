@@ -190,8 +190,12 @@ impl<'a> Deserializer<'a> {
     }
 
     fn parse_at(&mut self) -> Result<Option<()>> {
-        // If we find a '+', check if it is an AT command identifier, ending in ':'
-        if self.parse_whitespace() == Some(b'+') {
+        // match AT command identifier starting in known prefixes and ending in ':'
+        if self.parse_whitespace().map(|c| match c {
+            b'+' | b'#' | b'$' | b'&' | b'%' => true,
+            _ => false,
+        }) == Some(true)
+        {
             let index = self.index;
             loop {
                 match self.peek() {
@@ -1243,5 +1247,17 @@ mod tests {
                 nsat: None,
             })
         );
+    }
+
+    #[test]
+    fn gpsant() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        pub struct GpsAntenna {
+            pub ant_type: u8,
+        }
+
+        let res = crate::from_str("$GPSAT: 1");
+
+        assert_eq!(res, Ok(GpsAntenna { ant_type: 1 }));
     }
 }
