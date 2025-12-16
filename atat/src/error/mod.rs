@@ -5,31 +5,43 @@ mod connection_error;
 pub use cme_error::CmeError;
 pub use cms_error::CmsError;
 pub use connection_error::ConnectionError;
+use thiserror::Error;
 
 /// Errors returned used internally within the crate
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum InternalError<'a> {
     /// Serial read error
+    #[error("Serial read error")]
     Read,
     /// Serial write error
+    #[error("Serial write error")]
     Write,
     /// Timed out while waiting for a response
+    #[error("Timed out while waiting for a response")]
     Timeout,
     /// Invalid response from module
+    #[error("Invalid response from module")]
     InvalidResponse,
     /// Command was aborted
+    #[error("Command was aborted")]
     Aborted,
     /// Failed to parse received response
+    #[error("Failed to parse received response")]
     Parse,
     /// Error response containing any error message
+    #[error("Generic error response")]
     Error,
     /// GSM Equipment related error
+    #[error("GSM Equipment related error")]
     CmeError(CmeError),
     /// GSM Network related error
+    #[error("GSM Network related error")]
     CmsError(CmsError),
     /// Connection Error
+    #[error("Connection Error")]
     ConnectionError(ConnectionError),
     /// Custom error match
+    #[error("Custom error match: {0:?}")]
     Custom(&'a [u8]),
 }
 
@@ -57,32 +69,44 @@ impl<'a> defmt::Format for InternalError<'a> {
 }
 
 /// Errors returned by the crate
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     /// Serial read error
+    #[error("Serial read error")]
     Read,
     /// Serial write error
+    #[error("Serial write error")]
     Write,
     /// Timed out while waiting for a response
+    #[error("Timed out while waiting for a response")]
     Timeout,
     /// Invalid response from module
+    #[error("Invalid response from module")]
     InvalidResponse,
     /// Command was aborted
+    #[error("Command was aborted")]
     Aborted,
     /// Failed to parse received response
+    #[error("Failed to parse received response")]
     Parse,
     /// Generic error response without any error message
+    #[error("Generic error response")]
     Error,
     /// GSM Equipment related error
+    #[error("GSM Equipment related error")]
     CmeError(CmeError),
     /// GSM Network related error
+    #[error("GSM Network related error")]
     CmsError(CmsError),
     /// Connection Error
+    #[error("Connection Error")]
     ConnectionError(ConnectionError),
     /// Error response containing any error message
+    #[error("Custom error response")]
     Custom,
     #[cfg(feature = "custom-error-messages")]
+    #[error("Error response containing any error message {0:?}")]
     CustomMessage(heapless::Vec<u8, 64>),
 }
 
