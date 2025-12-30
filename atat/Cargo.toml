@@ -18,8 +18,8 @@ maintenance = { status = "actively-developed" }
 name = "atat"
 
 [dependencies]
-embedded-io = "0.6"
-embedded-io-async = "0.6"
+embedded-io = "0.7.1"
+embedded-io-async = "0.7.0"
 futures = { version = "0.3", default-features = false }
 embassy-sync = "0.7.2"
 embassy-time = "0.5.0"
@@ -35,7 +35,7 @@ heapless-bytes = { workspace = true, optional = true }
 nom = { version = "^7.1", default-features = false }
 
 log = { version = "^0.4", default-features = false, optional = true }
-defmt = { version = "^0.3", optional = true }
+defmt = { version = "^1.0.1", optional = true }
 
 [dev-dependencies]
 embassy-time = { version = "0.5", features = ["std", "generic-queue-8"] }
@@ -48,7 +48,7 @@ static_cell = { version = "2.0.0" }
 
 [features]
 default = ["derive", "bytes"]
-defmt = ["dep:defmt", "embedded-io-async/defmt-03", "heapless/defmt"]
+defmt = ["dep:defmt", "embedded-io-async/defmt", "heapless/defmt"]
 derive = ["atat_derive", "serde_at"]
 bytes = ["heapless-bytes", "serde_bytes"]
 custom-error-messages = []
