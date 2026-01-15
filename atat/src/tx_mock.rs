@@ -1,3 +1,4 @@
+use core::fmt;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::Publisher};
 use embedded_io::ErrorType;
 use heapless::String;
@@ -9,6 +10,14 @@ pub struct TxMock<'a> {
 
 #[derive(Debug)]
 pub struct IoError;
+
+impl fmt::Display for IoError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "IoError")
+    }
+}
+
+impl core::error::Error for IoError {}
 
 impl embedded_io::Error for IoError {
     fn kind(&self) -> embedded_io::ErrorKind {

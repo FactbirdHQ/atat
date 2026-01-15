@@ -305,8 +305,10 @@ mod tests {
         assert_eq!(SimpleEnum::try_from(3), Ok(SimpleEnum::D));
         assert_eq!(SimpleEnumU32::try_from(1), Ok(SimpleEnumU32::B));
         assert_eq!(
-            to_string::<_, 1>(&MixedEnum::UnitVariant, "CMD", SerializeOptions::default()).unwrap(),
-            String::<1>::try_from("0").unwrap()
+            to_string::<_, 1>(&MixedEnum::UnitVariant, "CMD", SerializeOptions::default())
+                .unwrap()
+                .as_str(),
+            "0"
         );
         assert_eq!(
             to_string::<_, 10>(
@@ -314,8 +316,9 @@ mod tests {
                 "CMD",
                 SerializeOptions::default()
             )
-            .unwrap(),
-            String::<10>::try_from("1,15").unwrap()
+            .unwrap()
+            .as_str(),
+            "1,15"
         );
         assert_eq!(
             to_string::<_, 50>(
@@ -328,8 +331,9 @@ mod tests {
                 "CMD",
                 SerializeOptions::default()
             )
-            .unwrap(),
-            String::<50>::try_from("2,25,\"testing\",-54,0").unwrap()
+            .unwrap()
+            .as_str(),
+            "2,25,\"testing\",-54,0"
         );
         assert_eq!(
             to_string::<_, 10>(
@@ -337,8 +341,9 @@ mod tests {
                 "CMD",
                 SerializeOptions::default()
             )
-            .unwrap(),
-            String::<10>::try_from("3,35").unwrap()
+            .unwrap()
+            .as_str(),
+            "3,35"
         );
 
         assert_eq!(
@@ -352,8 +357,9 @@ mod tests {
                 "CMD",
                 SerializeOptions::default()
             )
-            .unwrap(),
-            String::<50>::try_from("4,77,\"whaat\",88,1").unwrap()
+            .unwrap()
+            .as_str(),
+            "4,77,\"whaat\",88,1"
         );
 
         assert_eq!(Ok(MixedEnum::UnitVariant), from_str::<MixedEnum<'_>>("0"));
