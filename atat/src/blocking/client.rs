@@ -106,7 +106,7 @@ where
     W: Write,
 {
     fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
-        let len = cmd.write(&mut self.buf);
+        let len = cmd.write(self.buf);
         self.send_request(len)?;
         if !Cmd::EXPECTS_RESPONSE_CODE {
             cmd.parse(Ok(&[]))

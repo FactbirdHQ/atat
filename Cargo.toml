@@ -40,3 +40,13 @@ incremental = false
 lto = 'fat'
 opt-level = "s"          # <-
 overflow-checks = false  # <-
+
+[patch.crates-io]
+embassy-executor = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
+embassy-time = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
+embassy-rp = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
+embassy-sync = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
+embassy-futures = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
+embassy-usb-driver = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
+embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
+embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }

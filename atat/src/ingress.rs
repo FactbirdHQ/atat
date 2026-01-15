@@ -2,12 +2,30 @@ use crate::{
     helpers::LossyStr, urc_channel::UrcPublisher, AtatUrc, DigestResult, Digester, ResponseSlot,
     UrcChannel,
 };
+use core::fmt;
 
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     ResponseSlotBusy,
     UrcChannelFull,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::ResponseSlotBusy => write!(f, "Response slot busy"),
+            Error::UrcChannelFull => write!(f, "URC channel full"),
+        }
+    }
+}
+
+impl core::error::Error for Error {}
+
+impl embedded_io::Error for Error {
+    fn kind(&self) -> embedded_io::ErrorKind {
+        embedded_io::ErrorKind::Other
+    }
 }
 
 pub trait AtatIngress {
