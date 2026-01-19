@@ -48,7 +48,7 @@ static_cell = { version = "2.0.0" }
 
 [features]
 default = ["derive", "bytes"]
-defmt = ["dep:defmt", "embedded-io-async/defmt", "heapless/defmt"]
+defmt = ["dep:defmt", "embedded-io-async/defmt"]
 derive = ["atat_derive", "serde_at"]
 bytes = ["heapless-bytes", "serde_bytes"]
 custom-error-messages = []
