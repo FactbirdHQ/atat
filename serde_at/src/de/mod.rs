@@ -9,6 +9,9 @@ use self::enum_::VariantAccess;
 use self::map::MapAccess;
 use self::seq::SeqAccess;
 
+#[cfg(feature = "log")]
+use log;
+
 mod enum_;
 #[cfg(feature = "heapless")]
 pub mod length_delimited;
@@ -739,10 +742,27 @@ pub fn from_slice<'a, T>(v: &'a [u8]) -> Result<T>
 where
     T: de::Deserialize<'a>,
 {
-    let mut de = Deserializer::new(trim_ascii_whitespace(v));
-    let value = de::Deserialize::deserialize(&mut de)?;
-    de.end()?;
-    Ok(value)
+    fn _from_slice<'a, T>(v: &'a [u8]) -> Result<T>
+    where
+        T: de::Deserialize<'a>,
+    {
+        let mut de = Deserializer::new(trim_ascii_whitespace(v));
+        let value = de::Deserialize::deserialize(&mut de)?;
+        de.end()?;
+        Ok(value)
+    }
+
+    #[allow(clippy::map_identity)]
+    _from_slice(v).map_err(|error| {
+        #[cfg(feature = "log")]
+        log::warn!(
+            "Unable to deserialize the slice {:?} into the type {}. Error: {error}",
+            str::from_utf8(v).unwrap_or("<~~ invalid UTF-8 ~~>"),
+            core::any::type_name::<T>(),
+        );
+
+        error
+    })
 }
 
 /// Deserializes an instance of type T from a string of AT Response text
