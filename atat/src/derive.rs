@@ -1,3 +1,5 @@
+use core::num::NonZero;
+
 use heapless::{String, Vec};
 use serde_at::HexStr;
 
@@ -72,8 +74,32 @@ impl<const L: usize> AtatLen for HexStr<[u8; L]> {
     const LEN: usize = (2 + L * 4 - 1) * 2;
 }
 
+// Currently, stable rust (version at the time of writing: 1.93)
+// does not allow to implement
+// traits on generic NonZero<T>.
+macro_rules! impl_nonzero_length {
+    ($type:ty) => {
+        impl AtatLen for NonZero<$type> {
+            const LEN: usize = <$type as AtatLen>::LEN;
+        }
+    };
+}
+impl_nonzero_length!(isize);
+impl_nonzero_length!(usize);
+impl_nonzero_length!(u8);
+impl_nonzero_length!(u16);
+impl_nonzero_length!(u32);
+impl_nonzero_length!(u64);
+impl_nonzero_length!(u128);
+impl_nonzero_length!(i8);
+impl_nonzero_length!(i16);
+impl_nonzero_length!(i32);
+impl_nonzero_length!(i64);
+impl_nonzero_length!(i128);
+
 #[cfg(test)]
 mod tests {
+    use core::num::NonZero;
     use std::convert::TryFrom;
 
     use crate as atat;
@@ -200,6 +226,22 @@ mod tests {
             <MixedEnum<'_> as AtatLen>::LEN,
             (3 + 3 + (1 + 10 + 1) + 20 + 10) + 4
         );
+    }
+
+    #[test]
+    fn test_atatlen_nonzero() {
+        assert_eq!(<isize as AtatLen>::LEN, <NonZero<isize> as AtatLen>::LEN);
+        assert_eq!(<usize as AtatLen>::LEN, <NonZero<usize> as AtatLen>::LEN);
+        assert_eq!(<u8 as AtatLen>::LEN, <NonZero<u8> as AtatLen>::LEN);
+        assert_eq!(<u16 as AtatLen>::LEN, <NonZero<u16> as AtatLen>::LEN);
+        assert_eq!(<u32 as AtatLen>::LEN, <NonZero<u32> as AtatLen>::LEN);
+        assert_eq!(<u64 as AtatLen>::LEN, <NonZero<u64> as AtatLen>::LEN);
+        assert_eq!(<u128 as AtatLen>::LEN, <NonZero<u128> as AtatLen>::LEN);
+        assert_eq!(<i8 as AtatLen>::LEN, <NonZero<i8> as AtatLen>::LEN);
+        assert_eq!(<i16 as AtatLen>::LEN, <NonZero<i16> as AtatLen>::LEN);
+        assert_eq!(<i32 as AtatLen>::LEN, <NonZero<i32> as AtatLen>::LEN);
+        assert_eq!(<i64 as AtatLen>::LEN, <NonZero<i64> as AtatLen>::LEN);
+        assert_eq!(<i128 as AtatLen>::LEN, <NonZero<i128> as AtatLen>::LEN);
     }
 
     #[test]
