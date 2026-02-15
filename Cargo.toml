@@ -40,3 +40,13 @@ incremental = false
 lto = 'fat'
 opt-level = "s"          # <-
 overflow-checks = false  # <-
+
+[patch.crates-io]
+embassy-executor = { git = "https://github.com/embassy-rs/embassy.git", rev = "b80c3994f507a174845cc003c4cad0f4ae3740cc" }
+embassy-time = { git = "https://github.com/embassy-rs/embassy.git", rev = "b80c3994f507a174845cc003c4cad0f4ae3740cc" }
+embassy-rp = { git = "https://github.com/embassy-rs/embassy.git", rev = "b80c3994f507a174845cc003c4cad0f4ae3740cc" }
+embassy-sync = { git = "https://github.com/embassy-rs/embassy.git", rev = "b80c3994f507a174845cc003c4cad0f4ae3740cc" }
+embassy-futures = { git = "https://github.com/embassy-rs/embassy.git", rev = "b80c3994f507a174845cc003c4cad0f4ae3740cc" }
+embassy-usb-driver = { git = "https://github.com/embassy-rs/embassy.git", rev = "b80c3994f507a174845cc003c4cad0f4ae3740cc" }
+embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy.git", rev = "b80c3994f507a174845cc003c4cad0f4ae3740cc" }
+embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy.git", rev = "b80c3994f507a174845cc003c4cad0f4ae3740cc" }

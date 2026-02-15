@@ -5,6 +5,7 @@ use crate::{
     AtatCmd, Config, Error, Response,
 };
 use embassy_time::{with_timeout, Duration, Instant, TimeoutError, Timer};
+use embedded_io::ErrorType;
 use embedded_io_async::Write;
 use futures::{
     future::{select, Either},
@@ -34,7 +35,23 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
             cooldown_timer: None,
         }
     }
+}
 
+impl<W: Write, const INGRESS_BUF_SIZE: usize> ErrorType for Client<'_, W, INGRESS_BUF_SIZE> {
+    type Error = Error;
+}
+
+impl<W: Write, const INGRESS_BUF_SIZE: usize> Write for Client<'_, W, INGRESS_BUF_SIZE> {
+    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        self.writer.write(buf).await.map_err(|_| Error::Write)
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        self.writer.flush().await.map_err(|_| Error::Write)
+    }
+}
+
+impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE> {
     async fn send_request(&mut self, len: usize) -> Result<(), Error> {
         if len < 50 {
             debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
@@ -112,7 +129,7 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
 
 impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRESS_BUF_SIZE> {
     async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
-        let len = cmd.write(&mut self.buf);
+        let len = cmd.write(self.buf);
         self.send_request(len).await?;
         if !Cmd::EXPECTS_RESPONSE_CODE {
             cmd.parse(Ok(&[]))
