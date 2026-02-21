@@ -322,7 +322,11 @@ impl<'a, 'b> ser::Serializer for &'a mut Serializer<'b> {
     }
 
     fn serialize_none(self) -> Result<Self::Ok> {
-        self.written -= 1;
+        if self.written == self.options.cmd_prefix.len() + self.cmd.len() + 1
+            && self.options.value_sep
+        {
+            self.written -= 1;
+        }
         Ok(())
     }
 
@@ -654,6 +658,86 @@ mod tests {
         let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
 
         assert_eq!(s, String::<32>::try_from("AT+CMD=\"value\"\r").unwrap());
+    }
+
+    #[test]
+    fn struct_with_middle_none_option() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct WithOption {
+            a: u8,
+            b: Option<u8>,
+            c: u8,
+        }
+
+        let value = WithOption {
+            a: 0,
+            b: None,
+            c: 1,
+        };
+
+        let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+
+        assert_eq!(s, String::<32>::try_from("AT+CMD=0,,1\r").unwrap());
+    }
+
+    #[test]
+    fn struct_with_trailing_none_option() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct WithOption {
+            a: u8,
+            b: u8,
+            c: Option<u8>,
+        }
+
+        let value = WithOption {
+            a: 0,
+            b: 1,
+            c: None,
+        };
+
+        let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+
+        assert_eq!(s, String::<32>::try_from("AT+CMD=0,1\r").unwrap());
+    }
+
+    #[test]
+    fn struct_with_multiple_trailing_none_options() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct WithOption {
+            a: u8,
+            b: Option<u8>,
+            c: Option<u8>,
+        }
+
+        let value = WithOption {
+            a: 0,
+            b: None,
+            c: None,
+        };
+
+        let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+
+        assert_eq!(s, String::<32>::try_from("AT+CMD=0\r").unwrap());
+    }
+
+    #[test]
+    fn struct_with_all_none_options() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct WithOption {
+            a: Option<u8>,
+            b: Option<u8>,
+            c: Option<u8>,
+        }
+
+        let value = WithOption {
+            a: None,
+            b: None,
+            c: None,
+        };
+
+        let s: String<32> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+
+        assert_eq!(s, String::<32>::try_from("AT+CMD\r").unwrap());
     }
 
     #[test]
