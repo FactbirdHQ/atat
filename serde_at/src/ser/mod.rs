@@ -144,8 +144,8 @@ macro_rules! serialize_unsigned {
 macro_rules! serialize_signed {
     ($self:ident, $N:expr, $v:expr, $ixx:ident, $uxx:ident) => {{
         let v = $v;
-        let (signed, mut v) = if v == $ixx::min_value() {
-            (true, $ixx::max_value() as $uxx + 1)
+        let (signed, mut v) = if v == $ixx::MIN {
+            (true, $ixx::MAX as $uxx + 1)
         } else if v < 0 {
             (true, -v as $uxx)
         } else {
@@ -186,10 +186,7 @@ struct FmtWrapper<'a> {
 
 impl<'a> FmtWrapper<'a> {
     fn new(buf: &'a mut [u8]) -> Self {
-        FmtWrapper {
-            buf: buf,
-            offset: 0,
-        }
+        FmtWrapper { buf, offset: 0 }
     }
 }
 
@@ -592,6 +589,7 @@ mod tests {
     use serde_derive::{Deserialize, Serialize};
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
+    #[allow(dead_code, clippy::upper_case_acronyms)]
     pub enum PacketSwitchedParam {
         /// • 0: Protocol type; the allowed values of <param_val> parameter are
         // #[at_enum(0)]
@@ -613,6 +611,7 @@ mod tests {
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
+    #[allow(dead_code)]
     pub enum PinStatusCode {
         /// • READY: MT is not pending for any password
         #[serde(rename = "READY")]

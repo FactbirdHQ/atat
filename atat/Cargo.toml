@@ -38,7 +38,7 @@ log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^0.3", optional = true }
 
 [dev-dependencies]
-embassy-time = { version = "0.5", features = ["std"] }
+embassy-time = { version = "0.5", features = ["std", "generic-queue-8"] }
 critical-section = { version = "1.1", features = ["std"] }
 serde_at = { path = "../serde_at", version = "^0.24.1", features = [
     "heapless",
@@ -48,7 +48,7 @@ static_cell = { version = "2.0.0" }
 
 [features]
 default = ["derive", "bytes"]
-defmt = ["dep:defmt", "embedded-io-async/defmt-03", "heapless/defmt-03"]
+defmt = ["dep:defmt", "embedded-io-async/defmt-03", "heapless/defmt"]
 derive = ["atat_derive", "serde_at"]
 bytes = ["heapless-bytes", "serde_bytes"]
 custom-error-messages = []

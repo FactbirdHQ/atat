@@ -34,9 +34,9 @@ async fn main(spawner: Spawner) {
     static RX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
     let uart = BufferedUart::new(
         uart,
-        Irqs,
         tx_pin,
         rx_pin,
+        Irqs,
         TX_BUF.init([0; 16]),
         RX_BUF.init([0; 16]),
         uart::Config::default(),
@@ -96,7 +96,7 @@ async fn ingress_task(
         URC_CAPACITY,
         URC_SUBSCRIBERS,
     >,
-    mut reader: BufferedUartRx<'static, UART0>,
+    mut reader: BufferedUartRx,
 ) -> ! {
     ingress.read_from(&mut reader).await
 }

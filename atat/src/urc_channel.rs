@@ -18,6 +18,14 @@ pub struct UrcChannel<Urc: AtatUrc, const CAPACITY: usize, const SUBSCRIBERS: us
     pub(crate) PubSubChannel<CriticalSectionRawMutex, Urc::Response, CAPACITY, SUBSCRIBERS, 1>,
 );
 
+impl<Urc: AtatUrc, const CAPACITY: usize, const SUBSCRIBERS: usize> Default
+    for UrcChannel<Urc, CAPACITY, SUBSCRIBERS>
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<Urc: AtatUrc, const CAPACITY: usize, const SUBSCRIBERS: usize>
     UrcChannel<Urc, CAPACITY, SUBSCRIBERS>
 {

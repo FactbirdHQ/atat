@@ -68,9 +68,9 @@ macro_rules! impl_hex_literal_visitor {
 
                 for c in s.chars() {
                     let v = match c {
-                        '0'..='9' => Some((c as $int_type) - ('0' as $int_type)),
-                        'A'..='F' => Some(0xA + ((c as $int_type) - ('A' as $int_type))),
-                        'a'..='f' => Some(0xa + ((c as $int_type) - ('a' as $int_type))),
+                        '0'..='9' => Some((c as $int_type) - (b'0' as $int_type)),
+                        'A'..='F' => Some(0xA + ((c as $int_type) - (b'A' as $int_type))),
+                        'a'..='f' => Some(0xa + ((c as $int_type) - (b'a' as $int_type))),
                         _ => None
                     };
 
@@ -210,9 +210,9 @@ mod tests {
         let val: HexStr<u32> = crate::from_str("+CCID: D3AdB3ef").unwrap();
         assert_eq!(*val, 0xd3adb3ef);
         let val: HexStr<u64> = crate::from_str("+CCID: 0xFeedfACECAfeBE3F").unwrap();
-        assert_eq!(*val, 0xFeedfACECAfeBE3F);
+        assert_eq!(*val, 0xFEEDFACECAFEBE3F);
         let val: HexStr<u64> = crate::from_str("+CCID: 0xFee-dfA-CE-C-Afe-BE-3F").unwrap();
-        assert_eq!(*val, 0xFeedfACECAfeBE3F);
+        assert_eq!(*val, 0xFEEDFACECAFEBE3F);
         let val: HexStr<u128> =
             crate::from_str("+CCID: 0x1234567890abcdef1234567890abcdef").unwrap();
         assert_eq!(*val, 0x1234567890abcdef1234567890abcdef);
