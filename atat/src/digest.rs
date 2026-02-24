@@ -244,7 +244,7 @@ pub mod parser {
         }
     }
 
-    pub fn error_response(buf: &[u8]) -> IResult<&[u8], (DigestResult, usize)> {
+    pub fn error_response(buf: &[u8]) -> IResult<&[u8], (DigestResult<'_>, usize)> {
         alt((
             // Matches the equivalent of regex: "\r\n\+CME ERROR:\s*(\d+)\r\n"
             map(numeric_error("\r\n+CME ERROR:"), |(error_code, len)| {
@@ -310,8 +310,8 @@ pub mod parser {
         ))(buf)
     }
 
-    pub fn prompt_response(buf: &[u8]) -> IResult<&[u8], (DigestResult, usize)> {
-        for prompt in &[b'>', b'@'] {
+    pub fn prompt_response(buf: &[u8]) -> IResult<&[u8], (DigestResult<'_>, usize)> {
+        for prompt in b">@" {
             if let Ok((buf, ((prefix, p), ws, _))) = tuple((
                 take_until_including::<_, _, nom::error::Error<_>>(&[*prompt][..]),
                 complete::multispace0,
@@ -333,7 +333,7 @@ pub mod parser {
         )))
     }
 
-    pub fn success_response(buf: &[u8]) -> IResult<&[u8], (DigestResult, usize)> {
+    pub fn success_response(buf: &[u8]) -> IResult<&[u8], (DigestResult<'_>, usize)> {
         let (i, ((data, tag), ws)) = alt((
             tuple((
                 take_until_including("\r\nOK\r\n"),
@@ -499,10 +499,9 @@ mod test {
 
     use super::parser::{echo, urc_helper};
     use super::*;
-    use crate::{
-        error::{CmeError, CmsError, ConnectionError},
-        helpers::LossyStr,
-    };
+    #[cfg(feature = "string_errors")]
+    use crate::error::{CmsError, ConnectionError};
+    use crate::{error::CmeError, helpers::LossyStr};
 
     const TEST_RX_BUF_LEN: usize = 256;
 

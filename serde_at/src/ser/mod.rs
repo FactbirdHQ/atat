@@ -30,10 +30,10 @@ pub struct SerializeOptions<'a> {
     ///
     /// **default**: "\r\n"
     pub termination: &'a str,
-    /// Whether to add quotes before a string when serializing a string
+    /// Whether to escape and quote strings when serializing
     ///
     /// **default**: true
-    pub quote_escape_strings: bool,
+    pub escape_strings: bool,
 }
 
 impl<'a> Default for SerializeOptions<'a> {
@@ -42,7 +42,7 @@ impl<'a> Default for SerializeOptions<'a> {
             value_sep: true,
             cmd_prefix: "AT",
             termination: "\r",
-            quote_escape_strings: true,
+            escape_strings: true,
         }
     }
 }
@@ -144,8 +144,8 @@ macro_rules! serialize_unsigned {
 macro_rules! serialize_signed {
     ($self:ident, $N:expr, $v:expr, $ixx:ident, $uxx:ident) => {{
         let v = $v;
-        let (signed, mut v) = if v == $ixx::min_value() {
-            (true, $ixx::max_value() as $uxx + 1)
+        let (signed, mut v) = if v == $ixx::MIN {
+            (true, $ixx::MAX as $uxx + 1)
         } else if v < 0 {
             (true, -v as $uxx)
         } else {
@@ -186,10 +186,7 @@ struct FmtWrapper<'a> {
 
 impl<'a> FmtWrapper<'a> {
     fn new(buf: &'a mut [u8]) -> Self {
-        FmtWrapper {
-            buf: buf,
-            offset: 0,
-        }
+        FmtWrapper { buf, offset: 0 }
     }
 }
 
@@ -302,16 +299,39 @@ impl<'a, 'b> ser::Serializer for &'a mut Serializer<'b> {
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
-        if self.options.quote_escape_strings {
+        if self.options.escape_strings {
             self.push(b'"')?;
-        }
-        let mut encoding_tmp = [0_u8; 4];
-        for c in v.chars() {
-            let encoded = c.encode_utf8(&mut encoding_tmp as &mut [u8]);
-            self.extend_from_slice(encoded.as_bytes())?;
-        }
-        if self.options.quote_escape_strings {
+            for byte in v.bytes() {
+                match byte {
+                    b'\\' => {
+                        // Backslash: use \5C (hex code)
+                        self.extend_from_slice(b"\\5C")?;
+                    }
+                    b'"' => {
+                        // Quote: use \22 (hex code)
+                        self.extend_from_slice(b"\\22")?;
+                    }
+                    0..=31 => {
+                        // Characters below 32 (space): use \XX hex format
+                        self.push(b'\\')?;
+                        // Convert to uppercase hex
+                        let hi = (byte >> 4) & 0x0F;
+                        let lo = byte & 0x0F;
+                        self.push(if hi < 10 { b'0' + hi } else { b'A' + (hi - 10) })?;
+                        self.push(if lo < 10 { b'0' + lo } else { b'A' + (lo - 10) })?;
+                    }
+                    _ => {
+                        self.push(byte)?;
+                    }
+                }
+            }
             self.push(b'"')?;
+        } else {
+            let mut encoding_tmp = [0_u8; 4];
+            for c in v.chars() {
+                let encoded = c.encode_utf8(&mut encoding_tmp as &mut [u8]);
+                self.extend_from_slice(encoded.as_bytes())?;
+            }
         }
         Ok(())
     }
@@ -569,6 +589,7 @@ mod tests {
     use serde_derive::{Deserialize, Serialize};
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
+    #[allow(dead_code, clippy::upper_case_acronyms)]
     pub enum PacketSwitchedParam {
         /// • 0: Protocol type; the allowed values of <param_val> parameter are
         // #[at_enum(0)]
@@ -590,6 +611,7 @@ mod tests {
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
+    #[allow(dead_code)]
     pub enum PinStatusCode {
         /// • READY: MT is not pending for any password
         #[serde(rename = "READY")]
@@ -874,7 +896,7 @@ mod tests {
             },
         };
         let options = SerializeOptions {
-            quote_escape_strings: false,
+            escape_strings: false,
             ..Default::default()
         };
         let s: String<600> = to_string(&params, "+CMD", options).unwrap();
@@ -952,7 +974,7 @@ mod tests {
             },
         };
         let options = SerializeOptions {
-            quote_escape_strings: false,
+            escape_strings: false,
             ..Default::default()
         };
         let s: String<600> = to_string(&params, "+CMD", options).unwrap();
@@ -963,6 +985,109 @@ mod tests {
             )
             .unwrap()
         );
+    }
+
+    #[test]
+    fn serialize_string_with_escape_sequences() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct WithString<'a> {
+            s: &'a str,
+        }
+
+        // Test backslash escaping (\ → \5C)
+        let value = WithString { s: "test1234\\" };
+        let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test1234\\5C\"\r").unwrap()
+        );
+
+        // Test quote escaping (" → \22)
+        let value = WithString { s: "test\"quote" };
+        let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test\\22quote\"\r").unwrap()
+        );
+
+        // Test newline escaping (\n → \0A)
+        let value = WithString { s: "test\nline" };
+        let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test\\0Aline\"\r").unwrap()
+        );
+
+        // Test carriage return escaping (\r → \0D)
+        let value = WithString {
+            s: "test\rcarriage",
+        };
+        let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test\\0Dcarriage\"\r").unwrap()
+        );
+
+        // Test tab escaping (\t → \09)
+        let value = WithString { s: "test\ttab" };
+        let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test\\09tab\"\r").unwrap()
+        );
+
+        // Test null character escaping (\0 → \00)
+        let value = WithString { s: "test\0null" };
+        let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"test\\00null\"\r").unwrap()
+        );
+
+        // Test multiple escape sequences
+        let value = WithString {
+            s: "path\\to\"file\"\n",
+        };
+        let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"path\\5Cto\\22file\\22\\0A\"\r").unwrap()
+        );
+    }
+
+    #[test]
+    fn serialize_string_without_escape_sequences() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct WithString<'a> {
+            s: &'a str,
+        }
+
+        let value = WithString {
+            s: "normalstring123",
+        };
+        let s: String<64> = to_string(&value, "+CMD", SerializeOptions::default()).unwrap();
+        assert_eq!(
+            s,
+            String::<64>::try_from("AT+CMD=\"normalstring123\"\r").unwrap()
+        );
+    }
+
+    #[test]
+    fn serialize_string_no_quotes() {
+        #[derive(Clone, PartialEq, Serialize)]
+        pub struct WithString<'a> {
+            s: &'a str,
+        }
+
+        let options = SerializeOptions {
+            escape_strings: false,
+            ..Default::default()
+        };
+
+        // When quotes are disabled, backslashes should NOT be escaped
+        let value = WithString { s: "test1234\\" };
+        let s: String<64> = to_string(&value, "+CMD", options).unwrap();
+        assert_eq!(s, String::<64>::try_from("AT+CMD=test1234\\\r").unwrap());
     }
 
     #[cfg(feature = "hex_str_arrays")]
@@ -982,7 +1107,7 @@ mod tests {
         }
 
         let options = SerializeOptions {
-            quote_escape_strings: false,
+            escape_strings: false,
             ..Default::default()
         };
         let params = WithHexStr {

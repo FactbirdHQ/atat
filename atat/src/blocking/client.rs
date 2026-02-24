@@ -106,7 +106,7 @@ where
     W: Write,
 {
     fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
-        let len = cmd.write(&mut self.buf);
+        let len = cmd.write(self.buf);
         self.send_request(len)?;
         if !Cmd::EXPECTS_RESPONSE_CODE {
             cmd.parse(Ok(&[]))
@@ -132,6 +132,7 @@ mod test {
     const TEST_RX_BUF_LEN: usize = 256;
 
     #[derive(Debug, PartialEq, Eq)]
+    #[allow(dead_code)]
     pub enum InnerError {
         Test,
     }
@@ -192,6 +193,7 @@ mod test {
 
     #[derive(Clone, PartialEq, AtatEnum)]
     #[at_enum(u8)]
+    #[allow(clippy::upper_case_acronyms)]
     pub enum Functionality {
         #[at_arg(value = 0)]
         Min,
@@ -235,6 +237,7 @@ mod test {
     }
 
     #[derive(Debug, Clone, AtatResp, PartialEq)]
+    #[allow(dead_code)]
     pub struct MessageWaitingIndication {
         #[at_arg(position = 0)]
         pub status: u8,
@@ -243,6 +246,7 @@ mod test {
     }
 
     #[derive(Debug, Clone, AtatUrc, PartialEq)]
+    #[allow(dead_code)]
     pub enum Urc {
         #[at_urc(b"+UMWI")]
         MessageWaitingIndication(MessageWaitingIndication),
@@ -258,8 +262,12 @@ mod test {
             static mut BUF: [u8; 1000] = [0; 1000];
 
             let tx_mock = crate::tx_mock::TxMock::new(TX_CHANNEL.publisher().unwrap());
-            let client: Client<crate::tx_mock::TxMock, TEST_RX_BUF_LEN> =
-                Client::new(tx_mock, &RES_SLOT, unsafe { BUF.as_mut() }, $config);
+            let client: Client<crate::tx_mock::TxMock, TEST_RX_BUF_LEN> = Client::new(
+                tx_mock,
+                &RES_SLOT,
+                unsafe { &mut *core::ptr::addr_of_mut!(BUF) },
+                $config,
+            );
             (client, TX_CHANNEL.subscriber().unwrap(), &RES_SLOT)
         }};
     }
@@ -272,8 +280,7 @@ mod test {
 
         let sent = tokio::spawn(async move {
             tx.next_message_pure().await;
-            rx.signal_response(Err(InternalError::Error).into())
-                .unwrap();
+            rx.signal_response(Err(InternalError::Error)).unwrap();
         });
 
         tokio::task::spawn_blocking(move || {
@@ -296,8 +303,7 @@ mod test {
 
         let sent = tokio::spawn(async move {
             tx.next_message_pure().await;
-            rx.signal_response(Err(InternalError::Error).into())
-                .unwrap();
+            rx.signal_response(Err(InternalError::Error)).unwrap();
         });
 
         tokio::task::spawn_blocking(move || {

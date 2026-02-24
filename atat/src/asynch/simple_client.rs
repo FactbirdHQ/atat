@@ -48,7 +48,7 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
         Ok(())
     }
 
-    async fn wait_response<'guard>(&'guard mut self) -> Result<Response<256>, Error> {
+    async fn wait_response(&mut self) -> Result<Response<256>, Error> {
         loop {
             match self.rw.read(&mut self.buf[self.pos..]).await {
                 Ok(n) => {
@@ -143,7 +143,7 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
 
 impl<RW: Read + Write, D: Digester> AtatClient for SimpleClient<'_, RW, D> {
     async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
-        let len = cmd.write(&mut self.buf);
+        let len = cmd.write(self.buf);
 
         self.send_request(len).await?;
         if !Cmd::EXPECTS_RESPONSE_CODE {

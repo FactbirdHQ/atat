@@ -69,11 +69,9 @@ impl<'a, const N: usize> From<&'a Response<N>> for Result<&'a [u8], InternalErro
             Response::AbortedError => Err(InternalError::Aborted),
             Response::ParseError => Err(InternalError::Parse),
             Response::OtherError => Err(InternalError::Error),
-            Response::CmeError(e) => Err(InternalError::CmeError((*e).try_into().unwrap())),
-            Response::CmsError(e) => Err(InternalError::CmsError((*e).try_into().unwrap())),
-            Response::ConnectionError(e) => {
-                Err(InternalError::ConnectionError((*e).try_into().unwrap()))
-            }
+            Response::CmeError(e) => Err(InternalError::CmeError((*e).into())),
+            Response::CmsError(e) => Err(InternalError::CmsError((*e).into())),
+            Response::ConnectionError(e) => Err(InternalError::ConnectionError((*e).into())),
             Response::CustomError(e) => Err(InternalError::Custom(e)),
         }
     }

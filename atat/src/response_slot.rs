@@ -19,6 +19,12 @@ pub type ResponseSlotGuard<'a, const N: usize> =
 #[derive(Debug)]
 pub struct SlotInUseError;
 
+impl<const N: usize> Default for ResponseSlot<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const N: usize> ResponseSlot<N> {
     pub const fn new() -> Self {
         Self(

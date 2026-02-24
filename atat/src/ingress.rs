@@ -476,7 +476,7 @@ mod tests {
         }
         impl embedded_io_async::Read for Reader {
             async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
-                assert!(buf.len() > 0);
+                assert!(!buf.is_empty());
                 if self.pos >= self.data.len() {
                     // Simulate waiting on more data.
                     loop {

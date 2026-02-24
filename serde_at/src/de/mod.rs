@@ -127,8 +127,7 @@ impl<'a> Deserializer<'a> {
         let start = self.index;
         if self.is_trailing_parsing {
             self.index = self.slice.len();
-            return str::from_utf8(&self.slice[start..])
-                .map_err(|_| Error::InvalidUnicodeCodePoint);
+            str::from_utf8(&self.slice[start..]).map_err(|_| Error::InvalidUnicodeCodePoint)
         } else {
             loop {
                 match self.peek() {
@@ -194,10 +193,10 @@ impl<'a> Deserializer<'a> {
 
     fn parse_at(&mut self) -> Result<Option<()>> {
         // match AT command identifier starting in known prefixes and ending in ':'
-        if self.parse_whitespace().map(|c| match c {
-            b'+' | b'#' | b'$' | b'&' | b'%' => true,
-            _ => false,
-        }) == Some(true)
+        if self
+            .parse_whitespace()
+            .map(|c| matches!(c, b'+' | b'#' | b'$' | b'&' | b'%'))
+            == Some(true)
         {
             let index = self.index;
             loop {
@@ -334,7 +333,7 @@ macro_rules! deserialize_fromstr {
     }};
 }
 
-impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
+impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
     type Error = Error;
 
     /// Unsupported. Can’t parse a value without knowing its expected type.
@@ -508,9 +507,8 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
         visitor
             .visit_bytes(&self.slice[self.index..self.index + idx])
-            .map(|r| {
+            .inspect(|_| {
                 self.index += idx;
-                r
             })
     }
 
@@ -579,9 +577,8 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         visitor
             .visit_bytes(self.slice[self.index..].as_ref())
-            .map(|v| {
+            .inspect(|_| {
                 self.index = self.slice.len(); // Since we know it is the last param.
-                v
             })
     }
 
@@ -774,6 +771,7 @@ where
 }
 
 #[cfg(all(test, feature = "heapless"))]
+#[allow(clippy::upper_case_acronyms, clippy::approx_constant)]
 mod tests {
     use super::length_delimited::LengthDelimited;
     use heapless::String;
