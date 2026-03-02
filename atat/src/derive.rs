@@ -1,3 +1,5 @@
+use core::num::NonZero;
+
 use heapless::{String, Vec};
 use serde_at::HexStr;
 
@@ -6,11 +8,13 @@ use serde_at::HexStr;
 /// [`atat_derive`]: https://crates.io/crates/atat_derive
 pub trait AtatLen {
     const LEN: usize;
+    const ESCAPED_LEN: usize;
 }
 
 #[cfg(feature = "bytes")]
 impl<const N: usize> AtatLen for heapless_bytes::Bytes<N> {
     const LEN: usize = N;
+    const ESCAPED_LEN: usize = N;
 }
 
 macro_rules! impl_length {
@@ -18,6 +22,7 @@ macro_rules! impl_length {
         #[allow(clippy::use_self)]
         impl AtatLen for $type {
             const LEN: usize = $len;
+            const ESCAPED_LEN: usize = $len;
         }
     };
 }
@@ -49,14 +54,17 @@ impl_length!(HexStr<u128>, 130);
 
 impl<const T: usize> AtatLen for String<T> {
     const LEN: usize = 1 + T + 1;
+    const ESCAPED_LEN: usize = 3 * T + 2;
 }
 
 impl<T: AtatLen> AtatLen for Option<T> {
     const LEN: usize = T::LEN;
+    const ESCAPED_LEN: usize = T::ESCAPED_LEN;
 }
 
 impl<T: AtatLen> AtatLen for &T {
     const LEN: usize = T::LEN;
+    const ESCAPED_LEN: usize = T::ESCAPED_LEN;
 }
 
 impl<T, const L: usize> AtatLen for Vec<T, L>
@@ -64,16 +72,43 @@ where
     T: AtatLen,
 {
     const LEN: usize = L * <T as AtatLen>::LEN;
+    const ESCAPED_LEN: usize = L * <T as AtatLen>::ESCAPED_LEN;
 }
 
 //       0x   F:F:F:F
 // uN = (2 + (N*4) - 1) * 2 bytes
 impl<const L: usize> AtatLen for HexStr<[u8; L]> {
     const LEN: usize = (2 + L * 4 - 1) * 2;
+    const ESCAPED_LEN: usize = (2 + L * 4 - 1) * 2;
 }
+
+// Currently, stable rust (version at the time of writing: 1.93)
+// does not allow to implement
+// traits on generic NonZero<T>.
+macro_rules! impl_nonzero_length {
+    ($type:ty) => {
+        impl AtatLen for NonZero<$type> {
+            const LEN: usize = <$type as AtatLen>::LEN;
+            const ESCAPED_LEN: usize = <$type as AtatLen>::ESCAPED_LEN;
+        }
+    };
+}
+impl_nonzero_length!(isize);
+impl_nonzero_length!(usize);
+impl_nonzero_length!(u8);
+impl_nonzero_length!(u16);
+impl_nonzero_length!(u32);
+impl_nonzero_length!(u64);
+impl_nonzero_length!(u128);
+impl_nonzero_length!(i8);
+impl_nonzero_length!(i16);
+impl_nonzero_length!(i32);
+impl_nonzero_length!(i64);
+impl_nonzero_length!(i128);
 
 #[cfg(test)]
 mod tests {
+    use core::num::NonZero;
     use std::convert::TryFrom;
 
     use crate as atat;
@@ -176,8 +211,18 @@ mod tests {
         assert_eq!(<f32 as AtatLen>::LEN, 42);
         assert_eq!(<f64 as AtatLen>::LEN, 312);
 
+        // For non-string primitives, ESCAPED_LEN == LEN
+        assert_eq!(<u8 as AtatLen>::ESCAPED_LEN, 3);
+        assert_eq!(<i64 as AtatLen>::ESCAPED_LEN, 20);
+
+        // String<T>: LEN = 1 + T + 1 (quotes), ESCAPED_LEN = 3*T + 2
+        assert_eq!(<String<10> as AtatLen>::LEN, 12);
+        assert_eq!(<String<10> as AtatLen>::ESCAPED_LEN, 32);
+
         assert_eq!(<SimpleEnum as AtatLen>::LEN, 3);
         assert_eq!(<SimpleEnumU32 as AtatLen>::LEN, 10);
+        assert_eq!(<SimpleEnum as AtatLen>::ESCAPED_LEN, 3);
+        assert_eq!(<SimpleEnumU32 as AtatLen>::ESCAPED_LEN, 10);
 
         assert_eq!(<HexStr<u8> as AtatLen>::LEN, 10);
         assert_eq!(<HexStr<u16> as AtatLen>::LEN, 18);
@@ -188,18 +233,47 @@ mod tests {
         #[cfg(feature = "hex_str_arrays")]
         {
             assert_eq!(<HexStr<[u8; 16]> as AtatLen>::LEN, 130);
+            assert_eq!(<HexStr<[u8; 16]> as AtatLen>::ESCAPED_LEN, 130);
         }
 
         // (fields) + (n_fields - 1)
-        // (3 + (1 + 128 + 1) + 2 + (1 + 150 + 1) + 3 + 10 + 3 + (10*5)) + 7
+        // (3 + (1 + 128 + 1) + 2 + (1 + 150 + 1) + 3 + 10 + 3) + 6
         assert_eq!(
             <LengthTester<'_> as AtatLen>::LEN,
             (3 + (1 + 128 + 1) + 2 + (1 + 150 + 1) + 3 + 10 + 3) + 6
+        );
+        // ESCAPED_LEN: String<128> -> 3*128+2=386, &str len=150 -> 3*150+2=452
+        // (3 + 386 + 2 + 452 + 3 + 10 + 3) + 6
+        assert_eq!(
+            <LengthTester<'_> as AtatLen>::ESCAPED_LEN,
+            (3 + (3 * 128 + 2) + 2 + (3 * 150 + 2) + 3 + 10 + 3) + 6
         );
         assert_eq!(
             <MixedEnum<'_> as AtatLen>::LEN,
             (3 + 3 + (1 + 10 + 1) + 20 + 10) + 4
         );
+        // ESCAPED_LEN: String<10> -> 3*10+2=32
+        // max variant AdvancedTuple: (3 + 32 + 20 + 10) + 4 separators = 69
+        assert_eq!(
+            <MixedEnum<'_> as AtatLen>::ESCAPED_LEN,
+            3 + (3 + 32 + 20 + 10) + 4
+        );
+    }
+
+    #[test]
+    fn test_atatlen_nonzero() {
+        assert_eq!(<isize as AtatLen>::LEN, <NonZero<isize> as AtatLen>::LEN);
+        assert_eq!(<usize as AtatLen>::LEN, <NonZero<usize> as AtatLen>::LEN);
+        assert_eq!(<u8 as AtatLen>::LEN, <NonZero<u8> as AtatLen>::LEN);
+        assert_eq!(<u16 as AtatLen>::LEN, <NonZero<u16> as AtatLen>::LEN);
+        assert_eq!(<u32 as AtatLen>::LEN, <NonZero<u32> as AtatLen>::LEN);
+        assert_eq!(<u64 as AtatLen>::LEN, <NonZero<u64> as AtatLen>::LEN);
+        assert_eq!(<u128 as AtatLen>::LEN, <NonZero<u128> as AtatLen>::LEN);
+        assert_eq!(<i8 as AtatLen>::LEN, <NonZero<i8> as AtatLen>::LEN);
+        assert_eq!(<i16 as AtatLen>::LEN, <NonZero<i16> as AtatLen>::LEN);
+        assert_eq!(<i32 as AtatLen>::LEN, <NonZero<i32> as AtatLen>::LEN);
+        assert_eq!(<i64 as AtatLen>::LEN, <NonZero<i64> as AtatLen>::LEN);
+        assert_eq!(<i128 as AtatLen>::LEN, <NonZero<i128> as AtatLen>::LEN);
     }
 
     #[test]

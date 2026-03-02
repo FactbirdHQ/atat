@@ -8,7 +8,7 @@ categories = ["embedded", "no-std"]
 readme = "../README.md"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/BlackbirdHQ/atat"
-edition = "2021"
+edition = "2024"
 documentation = "https://docs.rs/atat"
 
 [[bin]]
@@ -34,7 +34,7 @@ cortex-m = { version = "0.7.6", optional = true }
 cortex-m-rt = { version = "0.7.3", optional = true }
 defmt-rtt = { version = "1.1.0", optional = true }
 log = { version = "0.4", optional = true }
-panic-probe = { version = "1.0.0", features = ["print-defmt"], optional = true }
+panic-probe = { version = "0.3.0", features = ["print-defmt"], optional = true }
 embassy-executor = { version = "0.9.1", features = [
     "defmt",
     "arch-cortex-m",

@@ -9,19 +9,34 @@ use crate::parse::{parse_field_attr, ArgAttributes, FieldAttributes, ParseInput,
 /// Use `#[at_arg(len = xxx)]`, with a fallback to
 /// types `AtatLen` implementation, allowing overwriting the max length of all
 /// types, including borrowed data
-pub fn struct_len(variants: Vec<Variant>, init_len: usize) -> proc_macro2::TokenStream {
+///
+/// When `escaped` is true, uses `ESCAPED_LEN` for types and `3 * len + 2` for
+/// `&str` fields with `#[at_arg(len)]`, accounting for worst-case escape expansion.
+pub fn struct_len(
+    variants: Vec<Variant>,
+    init_len: usize,
+    escaped: bool,
+) -> proc_macro2::TokenStream {
     let mut struct_len = quote! { #init_len };
     for field in variants {
         let len = if let Some(ArgAttributes { len: Some(len), .. }) = field.attrs.at_arg {
             let ty = field.ty.unwrap();
             if is_ref_str(ty) {
-                quote! { 1 + #len + 1 }
+                if escaped {
+                    quote! { 3 * #len + 2 }
+                } else {
+                    quote! { 1 + #len + 1 }
+                }
             } else {
                 quote! { #len }
             }
         } else {
             let ty = field.ty.unwrap();
-            quote! { <#ty as atat::AtatLen>::LEN }
+            if escaped {
+                quote! { <#ty as atat::AtatLen>::ESCAPED_LEN }
+            } else {
+                quote! { <#ty as atat::AtatLen>::LEN }
+            }
         };
         struct_len = quote! {
             #len + #struct_len
@@ -45,10 +60,14 @@ fn is_ref_str(ty: Type) -> bool {
 /// Use `#[at_arg(len = xxx)]`, with a fallback to
 /// types `AtatLen` implementation, allowing overwriting the max length of all
 /// types, including borrowed data
+///
+/// When `escaped` is true, uses `ESCAPED_LEN` for types, accounting for
+/// worst-case escape expansion.
 pub fn enum_len(
     variants: &[Variant],
     repr: &Ident,
     _generics: &mut syn::Generics,
+    escaped: bool,
 ) -> proc_macro2::TokenStream {
     let mut enum_len = quote! { 0 };
     for variant in variants {
@@ -71,10 +90,18 @@ pub fn enum_len(
                         position.is_none(),
                         "position is not allowed in this position"
                     );
-                    quote! { #len }
+                    if escaped && is_ref_str(field.ty.clone()) {
+                        quote! { 3 * #len + 2 }
+                    } else {
+                        quote! { #len }
+                    }
                 } else {
                     let ty = &field.ty;
-                    quote! { <#ty as atat::AtatLen>::LEN }
+                    if escaped {
+                        quote! { <#ty as atat::AtatLen>::ESCAPED_LEN }
+                    } else {
+                        quote! { <#ty as atat::AtatLen>::LEN }
+                    }
                 };
                 fields_len = quote! {
                     #fields_len + #field_len + 1
@@ -89,7 +116,11 @@ pub fn enum_len(
             };
         }
     }
-    quote! { <#repr as atat::AtatLen>::LEN + #enum_len }
+    if escaped {
+        quote! { <#repr as atat::AtatLen>::ESCAPED_LEN + #enum_len }
+    } else {
+        quote! { <#repr as atat::AtatLen>::LEN + #enum_len }
+    }
 }
 
 pub fn atat_len(input: TokenStream) -> TokenStream {
@@ -104,12 +135,15 @@ pub fn atat_len(input: TokenStream) -> TokenStream {
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let struct_len = struct_len(variants, n_fields.checked_sub(1).unwrap_or(n_fields));
+    let init_len = n_fields.checked_sub(1).unwrap_or(n_fields);
+    let len = struct_len(variants.clone(), init_len, false);
+    let escaped_len = struct_len(variants, init_len, true);
 
     TokenStream::from(quote! {
         #[automatically_derived]
         impl #impl_generics atat::AtatLen for #ident #ty_generics #where_clause {
-            const LEN: usize = #struct_len;
+            const LEN: usize = #len;
+            const ESCAPED_LEN: usize = #escaped_len;
         }
     })
 }

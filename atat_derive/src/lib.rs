@@ -70,8 +70,8 @@ pub fn derive_atat_resp(input: TokenStream) -> TokenStream {
 ///
 /// Allowed optionals for `at_urc` are:
 /// - `parse`: **function** Function that should be used to parse for the URC
-///    instead of using default `atat::digest::parser::urc_helper` function. The
-///    passed functions need to have a valid `nom` signature `(arguments) -> impl Fn(Input) -> IResult<Input, Output, Error>`.
+///   instead of using default `atat::digest::parser::urc_helper` function. The
+///   passed functions need to have a valid `nom` signature `(arguments) -> impl Fn(Input) -> IResult<Input, Output, Error>`.
 #[proc_macro_derive(AtatUrc, attributes(at_urc))]
 pub fn derive_atat_urc(input: TokenStream) -> TokenStream {
     urc::atat_urc(input)
@@ -166,12 +166,12 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 ///   'AT'). Can also be set to '' (empty).
 /// - `termination`: **string** Overwrite the line termination of the command
 ///   (default '\r'). Can also be set to '' (empty).
-/// - `quote_escape_strings`: **bool** Whether to escape strings in commands
+/// - `escape_strings`: **bool** Whether to escape and quote strings in commands
 ///   (default true).
 /// - `parse`: **function** Function that should be used to parse the response
-///    instead of using default `atat::serde_at::from_slice` function. The
-///    passed functions needs to have a signature `Result<Response, E>` where
-///    `Response` is the type of the response passed in the `at_cmd`
+///   instead of using default `atat::serde_at::from_slice` function. The
+///   passed functions needs to have a signature `Result<Response, E>` where
+///   `Response` is the type of the response passed in the `at_cmd`
 ///
 /// ### Field attribute (`#[at_arg(..)]`)
 /// The `AtatCmd` derive macro comes with an optional field attribute

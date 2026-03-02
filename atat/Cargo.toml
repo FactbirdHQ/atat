@@ -8,7 +8,7 @@ keywords = ["arm", "cortex-m", "AT", "no-std", "embedded-hal-driver"]
 categories = ["embedded", "no-std"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/BlackbirdHQ/atat"
-edition = "2021"
+edition = "2024"
 documentation = "https://docs.rs/atat"
 
 [badges]
@@ -19,12 +19,12 @@ name = "atat"
 
 [dependencies]
 embedded-io = "0.7.1"
-embedded-io-async = "0.7.0"
+embedded-io-async = "0.7"
 futures = { version = "0.3", default-features = false }
-embassy-sync = "0.7.0"
+embassy-sync = "0.7.2"
 embassy-time = "0.5.0"
 embassy-futures = "0.1"
-heapless = { version = "^0.8", features = ["serde"] }
+heapless = { version = "^0.9", features = ["serde"] }
 thiserror = { version = "2", default-features = false }
 serde_at = { path = "../serde_at", version = "^0.24.1", optional = true }
 atat_derive = { path = "../atat_derive", version = "^0.24.1", optional = true }
@@ -38,7 +38,7 @@ log = { version = "^0.4", default-features = false, optional = true }
 defmt = { version = "^1.0.1", optional = true }
 
 [dev-dependencies]
-embassy-time = { version = "0.5", features = ["std"] }
+embassy-time = { version = "0.5", features = ["std", "generic-queue-8"] }
 critical-section = { version = "1.1", features = ["std"] }
 serde_at = { path = "../serde_at", version = "^0.24.1", features = [
     "heapless",
@@ -56,3 +56,4 @@ std = ["serde_at/std", "nom/std", "embassy-time/std", "embedded-io/std"]
 hex_str_arrays = []
 heapless = ["serde_at/heapless"]
 string_errors = []
+log = ["dep:log", "serde_at/log"]

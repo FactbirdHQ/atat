@@ -6,6 +6,7 @@ use embassy_time::{Duration, Instant};
 ///
 /// [`Command`]: enum.Command.html
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[allow(unpredictable_function_pointer_comparisons)]
 pub struct Config {
     pub(crate) cmd_cooldown: Duration,
     pub(crate) tx_timeout: Duration,

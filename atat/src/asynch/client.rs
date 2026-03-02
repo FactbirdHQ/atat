@@ -169,6 +169,7 @@ mod tests {
 
     #[derive(Clone, PartialEq, AtatEnum)]
     #[at_enum(u8)]
+    #[allow(clippy::upper_case_acronyms)]
     pub enum Functionality {
         #[at_arg(value = 0)]
         Min,
@@ -200,8 +201,12 @@ mod tests {
             static mut BUF: [u8; 1000] = [0; 1000];
 
             let tx_mock = crate::tx_mock::TxMock::new(TX_CHANNEL.publisher().unwrap());
-            let client: Client<crate::tx_mock::TxMock, TEST_RX_BUF_LEN> =
-                Client::new(tx_mock, &RES_SLOT, unsafe { BUF.as_mut() }, $config);
+            let client: Client<crate::tx_mock::TxMock, TEST_RX_BUF_LEN> = Client::new(
+                tx_mock,
+                &RES_SLOT,
+                unsafe { &mut *core::ptr::addr_of_mut!(BUF) },
+                $config,
+            );
             (client, TX_CHANNEL.subscriber().unwrap(), &RES_SLOT)
         }};
     }

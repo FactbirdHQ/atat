@@ -499,10 +499,9 @@ mod test {
 
     use super::parser::{echo, urc_helper};
     use super::*;
-    use crate::{
-        error::{CmeError, CmsError, ConnectionError},
-        helpers::LossyStr,
-    };
+    #[cfg(feature = "string_errors")]
+    use crate::error::{CmsError, ConnectionError};
+    use crate::{error::CmeError, helpers::LossyStr};
 
     const TEST_RX_BUF_LEN: usize = 256;
 

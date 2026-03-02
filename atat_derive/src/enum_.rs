@@ -223,7 +223,8 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         info.anonymous_enum.fields.push(anon_ident);
     }
 
-    let enum_len = crate::len::enum_len(&variants, &repr, &mut atat_len_generics);
+    let enum_len = crate::len::enum_len(&variants, &repr, &mut atat_len_generics, false);
+    let escaped_enum_len = crate::len::enum_len(&variants, &repr, &mut atat_len_generics, true);
 
     let Info {
         serialize_match_arms,
@@ -321,6 +322,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         #[automatically_derived]
         impl #atat_len_impl_generics atat::AtatLen for #ident #atat_len_ty_generics #atat_len_where_clause {
             const LEN: usize = #enum_len;
+            const ESCAPED_LEN: usize = #escaped_enum_len;
         }
 
         #[automatically_derived]
