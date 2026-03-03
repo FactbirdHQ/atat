@@ -12,7 +12,7 @@ pub trait AtatLen {
 }
 
 #[cfg(feature = "bytes")]
-impl<const N: usize> AtatLen for heapless_bytes::Bytes<N> {
+impl<const N: usize, LenT: heapless::LenType> AtatLen for heapless_bytes::Bytes<N, LenT> {
     const LEN: usize = N;
     const ESCAPED_LEN: usize = N;
 }
@@ -52,7 +52,7 @@ impl_length!(HexStr<u32>, 30);
 impl_length!(HexStr<u64>, 66);
 impl_length!(HexStr<u128>, 130);
 
-impl<const T: usize> AtatLen for String<T> {
+impl<const T: usize, LenT: heapless::LenType> AtatLen for String<T, LenT> {
     const LEN: usize = 1 + T + 1;
     const ESCAPED_LEN: usize = 3 * T + 2;
 }
@@ -67,7 +67,7 @@ impl<T: AtatLen> AtatLen for &T {
     const ESCAPED_LEN: usize = T::ESCAPED_LEN;
 }
 
-impl<T, const L: usize> AtatLen for Vec<T, L>
+impl<T, const L: usize, LenT: heapless::LenType> AtatLen for Vec<T, L, LenT>
 where
     T: AtatLen,
 {
