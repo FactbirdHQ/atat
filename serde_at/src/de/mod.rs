@@ -884,7 +884,7 @@ mod tests {
         }
 
         let expectation = CGMI {
-            id: Bytes::from_slice(b"u-blox").unwrap(),
+            id: Bytes::from(b"u-blox"),
         };
 
         assert_eq!(core::str::from_utf8(&expectation.id), Ok("u-blox"));
@@ -914,7 +914,7 @@ mod tests {
     #[test]
     fn char_vec_struct() {
         let res: Bytes<4> = crate::from_str("+CCID: IMP_").unwrap();
-        assert_eq!(res, Bytes::<4>::from_slice(b"IMP_").unwrap());
+        assert_eq!(res, Bytes::<4>::from(b"IMP_"));
 
         assert_eq!(&res, b"IMP_");
     }
@@ -957,10 +957,7 @@ mod tests {
         assert_eq!(res.ctx, 1);
         assert_eq!(res.id, -1);
         assert_eq!(res.payload.len, 9);
-        assert_eq!(
-            res.payload.bytes,
-            Bytes::<32>::from_slice(b"ABCD,1234").unwrap()
-        );
+        assert_eq!(res.payload.bytes, Bytes::<32>::from(b"ABCD,1234"));
     }
 
     #[test]
@@ -976,10 +973,7 @@ mod tests {
         assert_eq!(res.ctx, 1);
         assert_eq!(res.id, -1);
         assert_eq!(res.payload.len, 9);
-        assert_eq!(
-            res.payload.bytes,
-            Bytes::<32>::from_slice(b"ABCD,1234").unwrap()
-        );
+        assert_eq!(res.payload.bytes, Bytes::<32>::from(b"ABCD,1234"));
     }
 
     #[test]
@@ -995,10 +989,7 @@ mod tests {
         assert_eq!(res.ctx, 1);
         assert_eq!(res.id, -1);
         assert_eq!(res.payload.len, 9);
-        assert_eq!(
-            res.payload.bytes,
-            Bytes::<32>::from_slice(b"ABCD,1234").unwrap()
-        );
+        assert_eq!(res.payload.bytes, Bytes::<32>::from(b"ABCD,1234"));
     }
 
     #[test]
@@ -1016,7 +1007,7 @@ mod tests {
         assert_eq!(res.payload.len, 28);
         assert_eq!(
             res.payload.bytes,
-            Bytes::<32>::from_slice(b"{\"cmd\": \"blink\", \"pin\": \"2\"}").unwrap()
+            Bytes::<32>::from(b"{\"cmd\": \"blink\", \"pin\": \"2\"}")
         );
     }
 

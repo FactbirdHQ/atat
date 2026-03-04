@@ -69,7 +69,7 @@ impl<'de, const N: usize, const S: usize> de::Visitor<'de> for LengthDelimitedVi
                 }
                 Ok(LengthDelimited {
                     len,
-                    bytes: Bytes::from_slice(&v[start..end])
+                    bytes: Bytes::try_from(&v[start..end])
                         .map_err(|_| de::Error::custom("incorrect slice size"))?,
                 })
             })
