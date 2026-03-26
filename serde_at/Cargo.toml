@@ -12,9 +12,9 @@ name = "serde_at"
 version = "0.24.1"
 
 [dependencies]
-heapless = { workspace = true, features = ["serde"], optional = true }
+heapless = { version = "^0.9.2", features = ["serde"], optional = true }
 serde = { version = "^1", default-features = false }
-heapless-bytes = { workspace = true, optional = true }
+heapless-bytes = { version = "0.5.0", optional = true }
 log = { version = "0.4", default-features = false, optional = true }
 
 [dependencies.num-traits]
