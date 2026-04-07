@@ -41,16 +41,6 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> ErrorType for Client<'_, W, INGRES
     type Error = Error;
 }
 
-impl<W: Write, const INGRESS_BUF_SIZE: usize> Write for Client<'_, W, INGRESS_BUF_SIZE> {
-    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
-        self.writer.write(buf).await.map_err(|_| Error::Write)
-    }
-
-    async fn flush(&mut self) -> Result<(), Self::Error> {
-        self.writer.flush().await.map_err(|_| Error::Write)
-    }
-}
-
 impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE> {
     async fn send_request(&mut self, len: usize) -> Result<(), Error> {
         if len < 50 {

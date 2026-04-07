@@ -2,22 +2,16 @@ use core::fmt;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::Publisher};
 use embedded_io::ErrorType;
 use heapless::String;
+use thiserror::Error;
 
 pub struct TxMock<'a> {
     buf: String<64>,
     publisher: Publisher<'a, CriticalSectionRawMutex, String<64>, 1, 1, 1>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("IO Buffer Error")]
 pub struct IoError;
-
-impl fmt::Display for IoError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "IoError")
-    }
-}
-
-impl core::error::Error for IoError {}
 
 impl embedded_io::Error for IoError {
     fn kind(&self) -> embedded_io::ErrorKind {

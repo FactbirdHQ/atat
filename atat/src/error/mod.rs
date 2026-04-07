@@ -5,51 +5,44 @@ mod connection_error;
 pub use cme_error::CmeError;
 pub use cms_error::CmsError;
 pub use connection_error::ConnectionError;
-use core::fmt;
+use thiserror::Error;
 
 /// Errors returned used internally within the crate
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum InternalError<'a> {
     /// Serial read error
+    #[error("Serial read error")]
     Read,
     /// Serial write error
+    #[error("Serial write error")]
     Write,
     /// Timed out while waiting for a response
+    #[error("Timed out while waiting for a response")]
     Timeout,
     /// Invalid response from module
+    #[error("Invalid response from module")]
     InvalidResponse,
     /// Command was aborted
+    #[error("Command was aborted")]
     Aborted,
     /// Failed to parse received response
+    #[error("Failed to parse received response")]
     Parse,
     /// Error response containing any error message
+    #[error("Generic error response")]
     Error,
     /// GSM Equipment related error
+    #[error("GSM Equipment related error")]
     CmeError(CmeError),
     /// GSM Network related error
+    #[error("GSM Network related error")]
     CmsError(CmsError),
     /// Connection Error
+    #[error("Connection Error")]
     ConnectionError(ConnectionError),
     /// Custom error match
+    #[error("Custom error match: {0:?}")]
     Custom(&'a [u8]),
-}
-
-impl<'a> fmt::Display for InternalError<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            InternalError::Read => write!(f, "Serial read error"),
-            InternalError::Write => write!(f, "Serial write error"),
-            InternalError::Timeout => write!(f, "Timed out while waiting for a response"),
-            InternalError::InvalidResponse => write!(f, "Invalid response from module"),
-            InternalError::Aborted => write!(f, "Command was aborted"),
-            InternalError::Parse => write!(f, "Failed to parse received response"),
-            InternalError::Error => write!(f, "Generic error response"),
-            InternalError::CmeError(e) => write!(f, "GSM Equipment related error: {:?}", e),
-            InternalError::CmsError(e) => write!(f, "GSM Network related error: {:?}", e),
-            InternalError::ConnectionError(e) => write!(f, "Connection Error: {:?}", e),
-            InternalError::Custom(e) => write!(f, "Custom error match: {:?}", e),
-        }
-    }
 }
 
 #[cfg(feature = "defmt")]
@@ -76,65 +69,64 @@ impl<'a> defmt::Format for InternalError<'a> {
 }
 
 /// Errors returned by the crate
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     /// Serial read error
+    #[error("Serial read error")]
     Read,
     /// Serial write error
+    #[error("Serial write error")]
     Write,
     /// Timed out while waiting for a response
+    #[error("Timed out while waiting for a response")]
     Timeout,
     /// Invalid response from module
+    #[error("Invalid response from module")]
     InvalidResponse,
     /// Command was aborted
+    #[error("Command was aborted")]
     Aborted,
     /// Failed to parse received response
+    #[error("Failed to parse received response")]
     Parse,
     /// Generic error response without any error message
+    #[error("Generic error response")]
     Error,
     /// GSM Equipment related error
+    #[error("GSM Equipment related error")]
     CmeError(CmeError),
     /// GSM Network related error
+    #[error("GSM Network related error")]
     CmsError(CmsError),
     /// Connection Error
+    #[error("Connection Error")]
     ConnectionError(ConnectionError),
     /// Error response containing any error message
+    #[error("Custom error response")]
     Custom,
     #[cfg(feature = "custom-error-messages")]
+    #[error("Error response containing any error message {0:?}")]
     CustomMessage(heapless::Vec<u8, 64>),
 }
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Read => write!(f, "Serial read error"),
-            Self::Write => write!(f, "Serial write error"),
-            Self::Timeout => write!(f, "Timed out while waiting for a response"),
-            Self::InvalidResponse => write!(f, "Invalid response from module"),
-            Self::Aborted => write!(f, "Command was aborted"),
-            Self::Parse => write!(f, "Failed to parse received response"),
-            Self::Error => write!(f, "Generic error response"),
-            Self::CmeError(e) => write!(f, "GSM Equipment related error: {:?}", e),
-            Self::CmsError(e) => write!(f, "GSM Network related error: {:?}", e),
-            Self::ConnectionError(e) => write!(f, "Connection Error: {:?}", e),
-            Self::Custom => write!(f, "Custom error response"),
-            #[cfg(feature = "custom-error-messages")]
-            Self::CustomMessage(msg) => {
-                write!(f, "Error response containing any error message {:?}", msg)
-            }
-        }
-    }
-}
-
-impl core::error::Error for Error {}
 
 impl embedded_io::Error for Error {
     fn kind(&self) -> embedded_io::ErrorKind {
         match self {
-            Self::Read => embedded_io::ErrorKind::Other,
-            Self::Write => embedded_io::ErrorKind::Other,
+            Self::Timeout => embedded_io::ErrorKind::TimedOut,
+            Self::InvalidResponse => embedded_io::ErrorKind::InvalidData,
+            Self::Aborted => embedded_io::ErrorKind::ConnectionAborted,
+            Self::Parse => embedded_io::ErrorKind::InvalidData,
+            Self::ConnectionError(e) => match e {
+                ConnectionError::Unknown => embedded_io::ErrorKind::NotConnected,
+                ConnectionError::NoCarrier => embedded_io::ErrorKind::ConnectionReset,
+                ConnectionError::NoDialtone => embedded_io::ErrorKind::NotConnected,
+                ConnectionError::Busy => embedded_io::ErrorKind::Other,
+                ConnectionError::NoAnswer => embedded_io::ErrorKind::TimedOut,
+            },
             _ => embedded_io::ErrorKind::Other,
+            #[cfg(feature = "custom-error-messages")]
+            Self::CustomMessage(_) => embedded_io::ErrorKind::Other,
         }
     }
 }
@@ -159,5 +151,43 @@ impl<'a> From<InternalError<'a>> for Error {
             #[cfg(not(feature = "custom-error-messages"))]
             InternalError::Custom(_) => Self::Custom,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use embedded_io::{Error as _, ErrorKind};
+
+    #[test]
+    fn test_error_kind_mapping() {
+        assert_eq!(Error::Read.kind(), ErrorKind::Other);
+        assert_eq!(Error::Write.kind(), ErrorKind::Other);
+        assert_eq!(Error::Timeout.kind(), ErrorKind::TimedOut);
+        assert_eq!(Error::InvalidResponse.kind(), ErrorKind::InvalidData);
+        assert_eq!(Error::Aborted.kind(), ErrorKind::ConnectionAborted);
+        assert_eq!(Error::Parse.kind(), ErrorKind::InvalidData);
+        assert_eq!(Error::Error.kind(), ErrorKind::Other);
+        assert_eq!(
+            Error::ConnectionError(ConnectionError::Unknown).kind(),
+            ErrorKind::NotConnected
+        );
+        assert_eq!(
+            Error::ConnectionError(ConnectionError::NoCarrier).kind(),
+            ErrorKind::ConnectionReset
+        );
+        assert_eq!(
+            Error::ConnectionError(ConnectionError::NoDialtone).kind(),
+            ErrorKind::NotConnected
+        );
+        assert_eq!(
+            Error::ConnectionError(ConnectionError::Busy).kind(),
+            ErrorKind::Other
+        );
+        assert_eq!(
+            Error::ConnectionError(ConnectionError::NoAnswer).kind(),
+            ErrorKind::TimedOut
+        );
+        assert_eq!(Error::Custom.kind(), ErrorKind::Other);
     }
 }
