@@ -59,7 +59,8 @@ async fn main(spawner: Spawner) {
         atat::Config::default(),
     );
 
-    spawner.spawn(ingress_task(ingress, reader)).unwrap();
+    let token = ingress_task(ingress, reader);
+    spawner.spawn(token.unwrap());
 
     let mut state: u8 = 0;
     loop {
