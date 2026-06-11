@@ -4,9 +4,9 @@ use embassy_sync::pubsub::{PubSubChannel, Publisher, Subscriber};
 use crate::AtatUrc;
 
 pub type UrcPublisher<'sub, Urc, const CAPACITY: usize, const SUBSCRIBERS: usize> =
-    Publisher<'sub, CriticalSectionRawMutex, <Urc as AtatUrc>::Response, CAPACITY, SUBSCRIBERS, 1>;
+    Publisher<'sub, CriticalSectionRawMutex, Urc, CAPACITY, SUBSCRIBERS, 1>;
 pub type UrcSubscription<'sub, Urc, const CAPACITY: usize, const SUBSCRIBERS: usize> =
-    Subscriber<'sub, CriticalSectionRawMutex, <Urc as AtatUrc>::Response, CAPACITY, SUBSCRIBERS, 1>;
+    Subscriber<'sub, CriticalSectionRawMutex, Urc, CAPACITY, SUBSCRIBERS, 1>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -15,7 +15,7 @@ pub enum Error {
 }
 
 pub struct UrcChannel<Urc: AtatUrc, const CAPACITY: usize, const SUBSCRIBERS: usize>(
-    pub(crate) PubSubChannel<CriticalSectionRawMutex, Urc::Response, CAPACITY, SUBSCRIBERS, 1>,
+    pub(crate) PubSubChannel<CriticalSectionRawMutex, Urc, CAPACITY, SUBSCRIBERS, 1>,
 );
 
 impl<Urc: AtatUrc, const CAPACITY: usize, const SUBSCRIBERS: usize> Default
