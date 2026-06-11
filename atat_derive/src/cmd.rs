@@ -1,6 +1,6 @@
 use crate::proc_macro::TokenStream;
 
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::parse_macro_input;
 
 use crate::parse::{CmdAttributes, ParseInput};
@@ -80,11 +80,6 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         None => quote! {},
     };
 
-    let mut cmd_len = cmd_prefix.len() + cmd.len() + termination.len();
-    if value_sep {
-        cmd_len += 1;
-    }
-
     let (field_names, field_names_str): (Vec<_>, Vec<_>) = variants
         .iter()
         .map(|f| {
@@ -92,18 +87,6 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
             (ident.clone(), ident.to_string())
         })
         .unzip();
-
-    let init_len = n_fields.checked_sub(1).unwrap_or(n_fields);
-    let unescaped_struct_len = crate::len::struct_len(variants.clone(), init_len, false);
-    let escaped_struct_len = crate::len::struct_len(variants, init_len, true);
-
-    let max_len_struct = if escape_strings {
-        &escaped_struct_len
-    } else {
-        &unescaped_struct_len
-    };
-
-    let ident_len = format_ident!("ATAT_{}_LEN", ident.to_string().to_uppercase());
 
     let parse = if let Some(parse) = parse {
         quote! {
@@ -133,18 +116,8 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
 
     TokenStream::from(quote! {
         #[automatically_derived]
-        impl #impl_generics atat::AtatLen for #ident #ty_generics #where_clause {
-            const LEN: usize = #unescaped_struct_len;
-            const ESCAPED_LEN: usize = #escaped_struct_len;
-        }
-
-        const #ident_len: usize = #max_len_struct;
-
-        #[automatically_derived]
         impl #impl_generics atat::AtatCmd for #ident #ty_generics #where_clause {
             type Response = #resp;
-
-            const MAX_LEN: usize = { #ident_len + #cmd_len };
 
             #timeout
 

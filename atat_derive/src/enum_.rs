@@ -62,13 +62,13 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
 
     let mut deserialize_generics = syn::Generics::default();
     let mut serialize_generics = syn::Generics::default();
-    let mut atat_len_generics = syn::Generics::default();
+    let mut default_generics = syn::Generics::default();
 
     helpers::add_lifetime(&mut deserialize_generics, "'de");
     for lt in generics.lifetimes() {
         helpers::add_lifetime_bound(&mut deserialize_generics, &lt.lifetime);
         helpers::add_lifetime_bound(&mut serialize_generics, &lt.lifetime);
-        helpers::add_lifetime_bound(&mut atat_len_generics, &lt.lifetime);
+        helpers::add_lifetime_bound(&mut default_generics, &lt.lifetime);
     }
     for tp in generics.type_params() {
         helpers::add_type_parameter_bound(
@@ -81,11 +81,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
             tp.clone(),
             parse_quote!(atat::serde_at::serde::Serialize),
         );
-        helpers::add_type_parameter_bound(
-            &mut atat_len_generics,
-            tp.clone(),
-            parse_quote!(atat::AtatLen),
-        );
+        helpers::add_type_generic(&mut default_generics, tp.clone());
     }
 
     let (_, ty_generics, _) = generics.split_for_impl();
@@ -223,9 +219,6 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         info.anonymous_enum.fields.push(anon_ident);
     }
 
-    let enum_len = crate::len::enum_len(&variants, &repr, &mut atat_len_generics, false);
-    let escaped_enum_len = crate::len::enum_len(&variants, &repr, &mut atat_len_generics, true);
-
     let Info {
         serialize_match_arms,
         anonymous_enum,
@@ -239,8 +232,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         fields: anon_fields,
     } = anonymous_enum;
 
-    let (atat_len_impl_generics, atat_len_ty_generics, atat_len_where_clause) =
-        atat_len_generics.split_for_impl();
+    let (default_impl_generics, ..) = default_generics.split_for_impl();
 
     let mut default_impls: Vec<proc_macro2::TokenStream> = variants.iter().filter_map(|variant| {
         if let Some(ArgAttributes { default: true, .. }) = variant.attrs.at_arg {
@@ -275,7 +267,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
 
             Some(quote! {
                 #[automatically_derived]
-                impl #atat_len_impl_generics Default for #ident #ty_generics #deserialize_where_clause {
+                impl #default_impl_generics Default for #ident #ty_generics #deserialize_where_clause {
                     fn default() -> Self {
                         #variant_default
                     }
@@ -294,7 +286,7 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
     }) {
         quote! {
             #[automatically_derived]
-            impl #atat_len_impl_generics core::convert::TryFrom<#repr> for #ident #ty_generics #deserialize_where_clause {
+            impl #default_impl_generics core::convert::TryFrom<#repr> for #ident #ty_generics #deserialize_where_clause {
                 type Error = ();
 
                 fn try_from(value: #repr) -> Result<Self, Self::Error> {
@@ -318,12 +310,6 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
 
     TokenStream::from(quote! {
         #default_impl
-
-        #[automatically_derived]
-        impl #atat_len_impl_generics atat::AtatLen for #ident #atat_len_ty_generics #atat_len_where_clause {
-            const LEN: usize = #enum_len;
-            const ESCAPED_LEN: usize = #escaped_enum_len;
-        }
 
         #[automatically_derived]
         impl #serialize_impl_generics atat::serde_at::serde::Serialize for #ident #serialize_ty_generics #serialize_where_clause {
