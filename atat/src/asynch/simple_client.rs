@@ -24,6 +24,11 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
         }
     }
 
+    /// Returns a mutable reference to the inner reader/writer.
+    pub fn inner(&mut self) -> &mut RW {
+        &mut self.rw
+    }
+
     async fn send_request(&mut self, len: usize) -> Result<(), Error> {
         if len < 50 {
             debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));

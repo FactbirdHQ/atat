@@ -43,6 +43,11 @@ where
         }
     }
 
+    /// Returns a mutable reference to the inner writer.
+    pub fn inner(&mut self) -> &mut W {
+        &mut self.writer
+    }
+
     fn send_request(&mut self, len: usize) -> Result<(), Error> {
         if len < 50 {
             debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
