@@ -214,9 +214,11 @@ mod test {
         Reset,
     }
     #[derive(Clone, AtatResp, PartialEq, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct NoResponse;
 
     #[derive(Clone, AtatResp, PartialEq, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct TestResponseString {
         #[at_arg(position = 0)]
         pub socket: u8,
@@ -227,6 +229,7 @@ mod test {
     }
 
     #[derive(Clone, AtatResp, PartialEq, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct TestResponseStringMixed {
         #[at_arg(position = 1)]
         pub socket: u8,

@@ -1,4 +1,3 @@
-use core::fmt;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::Publisher};
 use embedded_io::ErrorType;
 use heapless::String;
