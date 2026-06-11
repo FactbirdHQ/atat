@@ -28,7 +28,7 @@ pub struct SerializeOptions<'a> {
     pub cmd_prefix: &'a str,
     /// The termination characters to add after the last serialized parameter.
     ///
-    /// **default**: "\r\n"
+    /// **default**: "\r"
     pub termination: &'a str,
     /// Whether to escape and quote strings when serializing
     ///
@@ -1191,7 +1191,7 @@ mod tests {
         assert_eq!(
             s,
             String::<600>::try_from(
-                "AT+CMD=ff00aa55ff00aa55,0xFF00AA55FF00AA55,0xff00aa55ff00aa55,FF00AA55FF00AA55,ff00aa55ff00aa55,0xFF-00-AA-55-FF-00-AA-55,0xf:f:0:0:a:a:5:5:f:f:0:0:a:a:5:5,FF_00_AA_55_FF_00_AA_55,f#f#0#0#a#a#5#5#f#f#0#0#a#a#5#5\r\n"
+                "AT+CMD=ff00aa55ff00aa55,0xFF00AA55FF00AA55,0xff00aa55ff00aa55,FF00AA55FF00AA55,ff00aa55ff00aa55,0xFF-00-AA-55-FF-00-AA-55,0xf:f:0:0:a:a:5:5:f:f:0:0:a:a:5:5,FF_00_AA_55_FF_00_AA_55,f#f#0#0#a#a#5#5#f#f#0#0#a#a#5#5\r"
             ).unwrap()
         );
     }
