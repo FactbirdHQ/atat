@@ -2,6 +2,7 @@ use crate::InternalError;
 use heapless::Vec;
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Response<const N: usize> {
     Ok(Vec<u8, N>),
     Prompt(u8),

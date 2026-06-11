@@ -333,6 +333,7 @@ mod tests {
     use super::*;
 
     #[derive(AtatUrc, Clone, PartialEq, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     enum Urc {
         #[at_urc(b"CONNECT OK")]
         ConnectOk,

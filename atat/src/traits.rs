@@ -123,6 +123,7 @@ mod test {
     use heapless::String;
 
     #[derive(Debug, Clone, PartialEq, AtatEnum)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub enum PDPContextStatus {
         /// 0: deactivated
         Deactivated = 0,
@@ -131,6 +132,7 @@ mod test {
     }
 
     #[derive(Debug, Clone, AtatResp, PartialEq)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct PDPContextState {
         #[at_arg(position = 0)]
         pub cid: u8,
@@ -139,6 +141,7 @@ mod test {
     }
 
     #[derive(Debug, Clone, AtatResp, PartialEq)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct PDPContextDefinition {
         #[at_arg(position = 0)]
         pub cid: u8,

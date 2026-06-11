@@ -135,6 +135,7 @@ mod tests {
     struct NoResponse {}
 
     #[derive(Debug, PartialEq, AtatEnum)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     enum SimpleEnum {
         #[at_arg(default, value = 0)]
         A,
@@ -146,6 +147,7 @@ mod tests {
         D,
     }
     #[derive(Debug, PartialEq, AtatEnum)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     #[at_enum(u32)]
     enum SimpleEnumU32 {
         #[at_arg(default)]
@@ -156,6 +158,7 @@ mod tests {
     }
 
     #[derive(Debug, PartialEq, AtatEnum)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     enum MixedEnum<'a> {
         #[at_arg(value = 0)]
         UnitVariant,
@@ -387,6 +390,7 @@ mod tests {
     }
 
     #[derive(Debug, PartialEq, AtatResp)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     struct CustomResponseParse {
         arg1: u8,
     }
