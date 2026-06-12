@@ -35,6 +35,11 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
             cooldown_timer: None,
         }
     }
+
+    /// Returns a mutable reference to the inner writer.
+    pub fn inner(&mut self) -> &mut W {
+        &mut self.writer
+    }
 }
 
 impl<W: Write, const INGRESS_BUF_SIZE: usize> ErrorType for Client<'_, W, INGRESS_BUF_SIZE> {
