@@ -471,8 +471,7 @@ mod tests {
         assert_eq!(Urc::CustomParse, sub.try_next_message_pure().unwrap());
 
         let response = res_slot.try_get().unwrap();
-        let response: &Response<100> = &response.borrow();
-        assert_eq!(&Response::default(), response);
+        assert_eq!(Response::default(), *response);
     }
 
     #[tokio::test]

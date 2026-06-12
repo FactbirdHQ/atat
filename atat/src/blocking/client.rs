@@ -5,7 +5,7 @@ use super::{blocking_timer::BlockingTimer, AtatClient};
 use crate::{
     helpers::LossyStr,
     response_slot::{ResponseSlot, ResponseSlotGuard},
-    AtatCmd, Config, Error, Response,
+    AtatCmd, Config, Error,
 };
 
 /// Client responsible for handling send, receive and timeout from the
@@ -112,8 +112,7 @@ where
             cmd.parse(Ok(&[]))
         } else {
             let response = self.wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))?;
-            let response: &Response<INGRESS_BUF_SIZE> = &response.borrow();
-            cmd.parse(response.into())
+            cmd.parse((&*response).into())
         }
     }
 }
