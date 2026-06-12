@@ -2,7 +2,7 @@ use super::AtatClient;
 use crate::{
     helpers::LossyStr,
     response_slot::{ResponseSlot, ResponseSlotGuard},
-    AtatCmd, Config, Error, Response,
+    AtatCmd, Config, Error,
 };
 use embassy_time::{with_timeout, Duration, Instant, TimeoutError, Timer};
 use embedded_io::ErrorType;
@@ -127,8 +127,7 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
             let response = self
                 .wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
                 .await?;
-            let response: &Response<INGRESS_BUF_SIZE> = &response.borrow();
-            cmd.parse(response.into())
+            cmd.parse((&*response).into())
         }
     }
 }

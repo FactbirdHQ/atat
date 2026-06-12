@@ -1,4 +1,3 @@
-use core::cell::RefCell;
 use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
     mutex::{Mutex, MutexGuard},
@@ -9,12 +8,12 @@ use heapless::Vec;
 use crate::{InternalError, Response};
 
 pub struct ResponseSlot<const N: usize>(
-    Mutex<CriticalSectionRawMutex, RefCell<Response<N>>>,
+    Mutex<CriticalSectionRawMutex, Response<N>>,
     Signal<CriticalSectionRawMutex, ()>,
 );
 
 pub type ResponseSlotGuard<'a, const N: usize> =
-    MutexGuard<'a, CriticalSectionRawMutex, RefCell<Response<N>>>;
+    MutexGuard<'a, CriticalSectionRawMutex, Response<N>>;
 
 #[derive(Debug)]
 pub struct SlotInUseError;
@@ -27,10 +26,7 @@ impl<const N: usize> Default for ResponseSlot<N> {
 
 impl<const N: usize> ResponseSlot<N> {
     pub const fn new() -> Self {
-        Self(
-            Mutex::new(RefCell::new(Response::Ok(Vec::new()))),
-            Signal::new(),
-        )
+        Self(Mutex::new(Response::Ok(Vec::new())), Signal::new())
     }
 
     /// Reset the current response slot
@@ -62,11 +58,7 @@ impl<const N: usize> ResponseSlot<N> {
         }
 
         // Not currently signaled: We know that the client is not currently holding the response slot guard
-        {
-            let buf = self.0.try_lock().unwrap();
-            let mut res = buf.borrow_mut();
-            *res = Response::Prompt(prompt);
-        }
+        *self.0.try_lock().unwrap() = Response::Prompt(prompt);
 
         // Mutex is unlocked before we signal
         self.1.signal(());
@@ -82,11 +74,7 @@ impl<const N: usize> ResponseSlot<N> {
         }
 
         // Not currently signaled: We know that the client is not currently holding the response slot guard
-        {
-            let buf = self.0.try_lock().unwrap();
-            let mut res = buf.borrow_mut();
-            *res = response.into();
-        }
+        *self.0.try_lock().unwrap() = response.into();
 
         // Mutex is unlocked before we signal
         self.1.signal(());
