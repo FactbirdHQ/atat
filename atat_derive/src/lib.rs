@@ -42,7 +42,6 @@ extern crate proc_macro2;
 mod cmd;
 mod enum_;
 mod helpers;
-mod len;
 mod parse;
 mod resp;
 mod urc;
@@ -185,14 +184,4 @@ pub fn derive_atat_enum(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(AtatCmd, attributes(at_cmd, at_arg))]
 pub fn derive_atat_cmd(input: TokenStream) -> TokenStream {
     cmd::atat_cmd(input)
-}
-
-/// Automatically derive [`atat::AtatLen`] trait
-///
-/// [`atat::AtatLen`]: ../atat/derive/trait.AtatLen.html
-///
-/// This requires all of the fields to also implement [`atat::AtatLen`]
-#[proc_macro_derive(AtatLen, attributes(at_arg))]
-pub fn derive_atat_len(input: TokenStream) -> TokenStream {
-    len::atat_len(input)
 }
