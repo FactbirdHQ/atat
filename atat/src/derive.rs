@@ -67,7 +67,7 @@ mod tests {
             d: SimpleEnum,
         },
         #[at_arg(value = 6)]
-        SingleSimpleTupleLifetime(#[at_arg(len = 10)] &'a str),
+        SingleSimpleTupleLifetime(&'a str),
     }
 
     #[derive(Debug, PartialEq, AtatCmd)]
@@ -75,13 +75,10 @@ mod tests {
     struct LengthTester<'a> {
         x: u8,
         y: String<128>,
-        #[at_arg(len = 2)]
         z: u16,
-        #[at_arg(len = 150)]
         w: &'a str,
         a: SimpleEnum,
         b: SimpleEnumU32,
-        #[at_arg(len = 3)]
         c: SimpleEnumU32,
         // d: Vec<SimpleEnumU32, 5>,
     }
