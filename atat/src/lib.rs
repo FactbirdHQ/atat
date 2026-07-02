@@ -77,7 +77,7 @@
 //! #[derive(Clone, AtatCmd)]
 //! #[at_cmd("+CSGT", NoResponse)]
 //! pub struct SetGreetingText<'a> {
-//!     #[at_arg(position = 0, len = 32)]
+//!     #[at_arg(position = 0)]
 //!     pub text: &'a str,
 //! }
 //!

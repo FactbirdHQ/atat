@@ -35,7 +35,6 @@ pub struct CmdAttributes {
 pub struct ArgAttributes {
     pub value: Option<i64>,
     pub position: Option<usize>,
-    pub len: Option<usize>,
     pub default: bool,
 }
 
@@ -162,7 +161,6 @@ impl Parse for ArgAttributes {
         let mut attrs = Self {
             value: None,
             position: None,
-            len: None,
             default: false,
         };
 
@@ -190,19 +188,6 @@ impl Parse for ArgAttributes {
                             return Err(Error::new(
                                 Span::call_site(),
                                 "position argument must be a positive integer",
-                            ))
-                        }
-                    }
-                }
-                syn::Meta::NameValue(name_value) if name_value.path.is_ident("len") => {
-                    match name_value.value.clone() {
-                        Expr::Lit(ExprLit {
-                            lit: Lit::Int(v), ..
-                        }) => attrs.len = Some(v.base10_parse().unwrap()),
-                        _ => {
-                            return Err(Error::new(
-                                Span::call_site(),
-                                "len argument must be a positive integer",
                             ))
                         }
                     }
