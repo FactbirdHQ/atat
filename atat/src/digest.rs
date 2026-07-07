@@ -238,10 +238,7 @@ pub mod parser {
                 ))),
             ))(i)?;
 
-            Ok((
-                i,
-                (trim_ascii_whitespace(urc_tag), le.len() + urc_tag.len()),
-            ))
+            Ok((i, (urc_tag.trim_ascii(), le.len() + urc_tag.len())))
         }
     }
 
@@ -349,7 +346,7 @@ pub mod parser {
         Ok((
             i,
             (
-                DigestResult::Response(Ok(trim_ascii_whitespace(data))),
+                DigestResult::Response(Ok(data.trim_ascii())),
                 data.len() + tag.len() + ws.len(),
             ),
         ))
@@ -426,10 +423,7 @@ pub mod parser {
 
             Ok((
                 i,
-                (
-                    trim_ascii_whitespace(error_msg),
-                    prefix_data.len() + error_msg.len(),
-                ),
+                (error_msg.trim_ascii(), prefix_data.len() + error_msg.len()),
             ))
         }
     }
@@ -476,15 +470,6 @@ pub mod parser {
                 ),
             ))(i)
         }
-    }
-
-    fn trim_ascii_whitespace(x: &[u8]) -> &[u8] {
-        let from = match x.iter().position(|x| !x.is_ascii_whitespace()) {
-            Some(i) => i,
-            None => return &x[0..0],
-        };
-        let to = x.iter().rposition(|x| !x.is_ascii_whitespace()).unwrap();
-        &x[from..=to]
     }
 
     pub fn trim_start_ascii_space(x: &[u8]) -> &[u8] {
