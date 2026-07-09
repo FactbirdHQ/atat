@@ -1,6 +1,8 @@
 mod client;
+mod simple_client;
 
 pub use client::Client;
+pub use simple_client::SimpleClient;
 
 use crate::{AtatCmd, Error};
 
