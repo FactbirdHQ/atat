@@ -1,4 +1,3 @@
-mod blocking_timer;
 mod client;
 
 pub use client::Client;
