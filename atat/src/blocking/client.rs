@@ -1,7 +1,7 @@
 use embassy_time::{Duration, Instant, TimeoutError};
 use embedded_io::Write;
 
-use super::{blocking_timer::BlockingTimer, AtatClient};
+use super::AtatClient;
 use crate::{
     helpers::LossyStr,
     response_slot::{ResponseSlot, ResponseSlotGuard},
@@ -20,7 +20,7 @@ where
     writer: W,
     res_slot: &'a ResponseSlot<INGRESS_BUF_SIZE>,
     buf: &'a mut [u8],
-    cooldown_timer: Option<BlockingTimer>,
+    cooldown_timer: Option<Instant>,
     config: Config,
 }
 
@@ -96,12 +96,14 @@ where
     }
 
     fn start_cooldown_timer(&mut self) {
-        self.cooldown_timer = Some(BlockingTimer::after(self.config.cmd_cooldown));
+        self.cooldown_timer = Some(Instant::now() + self.config.cmd_cooldown);
     }
 
     fn wait_cooldown_timer(&mut self) {
         if let Some(cooldown) = self.cooldown_timer.take() {
-            cooldown.wait();
+            while Instant::now() < cooldown {
+                core::hint::spin_loop();
+            }
         }
     }
 }
