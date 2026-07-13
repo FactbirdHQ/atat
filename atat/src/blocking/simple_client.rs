@@ -41,10 +41,9 @@ impl<'a, RW: Read + Write + ReadReady + WriteReady, D: Digester> SimpleClient<'a
         // Write request
         let until = Instant::now() + self.config.tx_timeout;
         let mut pos = 0;
-        while pos < self.pos {
+        while pos < len {
             wait_for_write(&mut self.rw, until)?;
-            self.rw.write(&self.buf[pos..]).or(Err(Error::Write))?;
-            pos += 1;
+            pos += self.rw.write(&self.buf[pos..len]).or(Err(Error::Write))?;
         }
 
         let until = Instant::now() + self.config.flush_timeout;
@@ -135,6 +134,8 @@ impl<RW: Read + ReadReady + Write + WriteReady, D: Digester> AtatClient
         if !Cmd::EXPECTS_RESPONSE_CODE {
             return cmd.parse(Ok(&[]));
         }
+
+        self.pos = 0;
 
         let timeout = Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into());
         let until = Instant::now() + timeout;
