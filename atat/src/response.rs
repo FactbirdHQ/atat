@@ -50,8 +50,8 @@ impl<'a, const N: usize> From<InternalError<'a>> for Response<N> {
             InternalError::Aborted => Response::AbortedError,
             InternalError::Parse => Response::ParseError,
             InternalError::Error => Response::OtherError,
-            InternalError::CmeError(e) => Response::CmeError(e as u16),
-            InternalError::CmsError(e) => Response::CmsError(e as u16),
+            InternalError::CmeError(e) => Response::CmeError(e.into()),
+            InternalError::CmsError(e) => Response::CmsError(e.into()),
             InternalError::ConnectionError(e) => Response::ConnectionError(e as u8),
             InternalError::Custom(e) => Response::CustomError(Vec::from_slice(e).unwrap()),
         }

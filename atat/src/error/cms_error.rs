@@ -1,62 +1,68 @@
 /// Enumeration of message errors, as defined in 3GPP TS 27.005 version 10
 /// section 3.2.5.
-///
-/// 0 -> 127 per 3GPP TS 24.011 [6] clause E.2 128 -> 255 per 3GPP TS 23.040 [3]
-/// clause 9.2.3.22
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u16)]
 pub enum CmsError {
+    /// 3GPP TS 24.011 [6] clause E.2
+    RelayProtocolCause(u16),
+    /// 3GPP TS 23.040 [3] clause 9.2.3.22
+    TransferProtocolFailureCause(u16),
     /// nick=MeFailure
-    MeFailure = 300,
+    MeFailure,
     /// nick=SmsServiceReserved
-    SmsServiceReserved = 301,
+    SmsServiceReserved,
     /// nick=NotAllowed
-    NotAllowed = 302,
+    NotAllowed,
     /// nick=NotSupported
-    NotSupported = 303,
+    NotSupported,
     /// nick=InvalidPduParameter
-    InvalidPduParameter = 304,
+    InvalidPduParameter,
     /// nick=InvalidTextParameter
-    InvalidTextParameter = 305,
+    InvalidTextParameter,
     /// nick=SimNotInserted
-    SimNotInserted = 310,
+    SimNotInserted,
     /// nick=SimPin
-    SimPin = 311,
+    SimPin,
     /// nick=PhSimPin
-    PhSimPin = 312,
+    PhSimPin,
     /// nick=SimFailure
-    SimFailure = 313,
+    SimFailure,
     /// nick=SimBusy
-    SimBusy = 314,
+    SimBusy,
     /// nick=SimWrong
-    SimWrong = 315,
+    SimWrong,
     /// nick=SimPuk
-    SimPuk = 316,
+    SimPuk,
     /// nick=SimPin2
-    SimPin2 = 317,
+    SimPin2,
     /// nick=SimPuk2
-    SimPuk2 = 318,
+    SimPuk2,
     /// nick=MemoryFailure
-    MemoryFailure = 320,
+    MemoryFailure,
     /// nick=InvalidIndex
-    InvalidIndex = 321,
+    InvalidIndex,
     /// nick=MemoryFull
-    MemoryFull = 322,
+    MemoryFull,
     /// nick=SmscAddressUnknown
-    SmscAddressUnknown = 330,
+    SmscAddressUnknown,
     /// nick=NoNetwork
-    NoNetwork = 331,
+    NoNetwork,
     /// nick=NetworkTimeout
-    NetworkTimeout = 332,
+    NetworkTimeout,
     /// nick=NoCnmaAckExpected
-    NoCnmaAckExpected = 340,
+    NoCnmaAckExpected,
     /// nick=Unknown
-    Unknown = 500,
+    Unknown,
+    /// Other values in range `256..=511` are reserved.
+    Reserved(u16),
+    /// All values in range `512..` are manufacturer specific.
+    ManufacturerSpecific(u16),
 }
 
 impl From<u16> for CmsError {
     fn from(v: u16) -> Self {
         match v {
+            0..=127 => Self::RelayProtocolCause(v),
+            128..=255 => Self::TransferProtocolFailureCause(v),
             300 => Self::MeFailure,
             301 => Self::SmsServiceReserved,
             302 => Self::NotAllowed,
@@ -79,7 +85,43 @@ impl From<u16> for CmsError {
             331 => Self::NoNetwork,
             332 => Self::NetworkTimeout,
             340 => Self::NoCnmaAckExpected,
-            _ => Self::Unknown,
+            500 => Self::Unknown,
+            256..=511 => Self::Reserved(v),
+            512.. => Self::ManufacturerSpecific(v),
+        }
+    }
+}
+
+impl From<CmsError> for u16 {
+    fn from(error: CmsError) -> Self {
+        match error {
+            CmsError::MeFailure => 300,
+            CmsError::SmsServiceReserved => 301,
+            CmsError::NotAllowed => 302,
+            CmsError::NotSupported => 303,
+            CmsError::InvalidPduParameter => 304,
+            CmsError::InvalidTextParameter => 305,
+            CmsError::SimNotInserted => 310,
+            CmsError::SimPin => 311,
+            CmsError::PhSimPin => 312,
+            CmsError::SimFailure => 313,
+            CmsError::SimBusy => 314,
+            CmsError::SimWrong => 315,
+            CmsError::SimPuk => 316,
+            CmsError::SimPin2 => 317,
+            CmsError::SimPuk2 => 318,
+            CmsError::MemoryFailure => 320,
+            CmsError::InvalidIndex => 321,
+            CmsError::MemoryFull => 322,
+            CmsError::SmscAddressUnknown => 330,
+            CmsError::NoNetwork => 331,
+            CmsError::NetworkTimeout => 332,
+            CmsError::NoCnmaAckExpected => 340,
+            CmsError::Unknown => 500,
+            CmsError::RelayProtocolCause(error)
+            | CmsError::TransferProtocolFailureCause(error)
+            | CmsError::Reserved(error)
+            | CmsError::ManufacturerSpecific(error) => error,
         }
     }
 }
@@ -115,6 +157,10 @@ impl CmsError {
 impl core::fmt::Display for CmsError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Self::RelayProtocolCause(error) => write!(f, "Relay protocol error {error}"),
+            Self::TransferProtocolFailureCause(error) => {
+                write!(f, "Transfer protocol error {error}")
+            }
             Self::MeFailure => write!(f, "ME failure"),
             Self::SmsServiceReserved => write!(f, "SMS service reserved"),
             Self::NotAllowed => write!(f, "Operation not allowed"),
@@ -138,6 +184,8 @@ impl core::fmt::Display for CmsError {
             Self::NetworkTimeout => write!(f, "Network timeout"),
             Self::NoCnmaAckExpected => write!(f, "No CNMA acknowledgement expected"),
             Self::Unknown => write!(f, "Unknown"),
+            Self::Reserved(error) => write!(f, "Unknown reserved error {error}"),
+            Self::ManufacturerSpecific(error) => write!(f, "Manufacturer specific error {error}"),
         }
     }
 }
@@ -146,6 +194,10 @@ impl core::fmt::Display for CmsError {
 impl<'a> defmt::Format for CmsError {
     fn format(&self, f: defmt::Formatter) {
         match self {
+            Self::RelayProtocolCause(error) => defmt::write!(f, "Relay protocol error {}", error),
+            Self::TransferProtocolFailureCause(error) => {
+                defmt::write!(f, "Transfer protocol error {}", error)
+            }
             Self::MeFailure => defmt::write!(f, "ME failure"),
             Self::SmsServiceReserved => defmt::write!(f, "SMS service reserved"),
             Self::NotAllowed => defmt::write!(f, "Operation not allowed"),
@@ -169,6 +221,10 @@ impl<'a> defmt::Format for CmsError {
             Self::NetworkTimeout => defmt::write!(f, "Network timeout"),
             Self::NoCnmaAckExpected => defmt::write!(f, "No CNMA acknowledgement expected"),
             Self::Unknown => defmt::write!(f, "Unknown"),
+            Self::Reserved(error) => defmt::write!(f, "Unknown reserved error {}", error),
+            Self::ManufacturerSpecific(error) => {
+                defmt::write!(f, "Manufacturer specific error {}", error)
+            }
         }
     }
 }

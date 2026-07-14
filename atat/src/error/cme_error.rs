@@ -1,334 +1,337 @@
 /// Enumeration of Mobile Equipment errors, as defined in 3GPP TS 27.007
 /// v17.1.0, section 9.2 (Mobile termination error result code +CME ERROR).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u16)]
 pub enum CmeError {
     /// nick=PhoneFailure
-    PhoneFailure = 0,
+    PhoneFailure,
     /// nick=NoConnection
-    NoConnection = 1,
+    NoConnection,
     /// nick=LinkReserved
-    LinkReserved = 2,
+    LinkReserved,
     /// nick=NotAllowed
-    NotAllowed = 3,
+    NotAllowed,
     /// nick=NotSupported
-    NotSupported = 4,
+    NotSupported,
     /// nick=PhSimPin
-    PhSimPin = 5,
+    PhSimPin,
     /// nick=PhFsimPin
-    PhFsimPin = 6,
+    PhFsimPin,
     /// nick=PhFsimPuk
-    PhFsimPuk = 7,
+    PhFsimPuk,
     /// nick=SimNotInserted
-    SimNotInserted = 10,
+    SimNotInserted,
     /// nick=SimPin
-    SimPin = 11,
+    SimPin,
     /// nick=SimPuk
-    SimPuk = 12,
+    SimPuk,
     /// nick=SimFailure
-    SimFailure = 13,
+    SimFailure,
     /// nick=SimBusy
-    SimBusy = 14,
+    SimBusy,
     /// nick=SimWrong
-    SimWrong = 15,
+    SimWrong,
     /// nick=IncorrectPassword
-    IncorrectPassword = 16,
+    IncorrectPassword,
     /// nick=SimPin2
-    SimPin2 = 17,
+    SimPin2,
     /// nick=SimPuk2
-    SimPuk2 = 18,
+    SimPuk2,
     /// nick=MemoryFull
-    MemoryFull = 20,
+    MemoryFull,
     /// nick=InvalidIndex
-    InvalidIndex = 21,
+    InvalidIndex,
     /// nick=NotFound
-    NotFound = 22,
+    NotFound,
     /// nick=MemoryFailure
-    MemoryFailure = 23,
+    MemoryFailure,
     /// nick=TextTooLong
-    TextTooLong = 24,
+    TextTooLong,
     /// nick=InvalidChars
-    InvalidChars = 25,
+    InvalidChars,
     /// nick=DialStringTooLong
-    DialStringTooLong = 26,
+    DialStringTooLong,
     /// nick=DialStringInvalid
-    DialStringInvalid = 27,
+    DialStringInvalid,
     /// nick=NoNetwork
-    NoNetwork = 30,
+    NoNetwork,
     /// nick=NetworkTimeout
-    NetworkTimeout = 31,
+    NetworkTimeout,
     /// nick=NetworkNotAllowed
-    NetworkNotAllowed = 32,
+    NetworkNotAllowed,
     /// nick=NetworkPin
-    NetworkPin = 40,
+    NetworkPin,
     /// nick=NetworkPuk
-    NetworkPuk = 41,
+    NetworkPuk,
     /// nick=NetworkSubsetPin
-    NetworkSubsetPin = 42,
+    NetworkSubsetPin,
     /// nick=NetworkSubsetPuk
-    NetworkSubsetPuk = 43,
+    NetworkSubsetPuk,
     /// nick=ServicePin
-    ServicePin = 44,
+    ServicePin,
     /// nick=ServicePuk
-    ServicePuk = 45,
+    ServicePuk,
     /// nick=CorpPin
-    CorpPin = 46,
+    CorpPin,
     /// nick=CorpPuk
-    CorpPuk = 47,
+    CorpPuk,
     /// nick=HiddenKeyRequired
-    HiddenKeyRequired = 48,
+    HiddenKeyRequired,
     /// nick=EapMethodNotSupported
-    EapMethodNotSupported = 49,
+    EapMethodNotSupported,
     /// nick=IncorrectParameters
-    IncorrectParameters = 50,
+    IncorrectParameters,
     /// nick=CommandDisabled
-    CommandDisabled = 51,
+    CommandDisabled,
     /// nick=CommandAborted
-    CommandAborted = 52,
+    CommandAborted,
     /// nick=NotAttachedRestricted
-    NotAttachedRestricted = 53,
+    NotAttachedRestricted,
     /// nick=NotAllowedEmergencyOnly
-    NotAllowedEmergencyOnly = 54,
+    NotAllowedEmergencyOnly,
     /// nick=NotAllowedRestricted
-    NotAllowedRestricted = 55,
+    NotAllowedRestricted,
     /// nick=FixedDialNumberOnly
-    FixedDialNumberOnly = 56,
+    FixedDialNumberOnly,
     /// nick=TemporarilyOutOfService
-    TemporarilyOutOfService = 57,
+    TemporarilyOutOfService,
     /// nick=LanguageOrAlphabetNotSupported
-    LanguageOrAlphabetNotSupported = 58,
+    LanguageOrAlphabetNotSupported,
     /// nick=UnexpectedDataValue
-    UnexpectedDataValue = 59,
+    UnexpectedDataValue,
     /// nick=SystemFailure
-    SystemFailure = 60,
+    SystemFailure,
     /// nick=DataMissing
-    DataMissing = 61,
+    DataMissing,
     /// nick=CallBarred
-    CallBarred = 62,
+    CallBarred,
     /// nick=MessageWaitingIndicationSubscriptionFailure
-    MessageWaitingIndicationSubscriptionFailure = 63,
+    MessageWaitingIndicationSubscriptionFailure,
     /// nick=Unknown
-    Unknown = 100,
+    Unknown,
     /// nick=ImsiUnknownInHss
-    ImsiUnknownInHss = 102,
+    ImsiUnknownInHss,
     /// nick=IllegalUe
-    IllegalUe = 103,
+    IllegalUe,
     /// nick=ImsiUnknownInVlr
-    ImsiUnknownInVlr = 104,
+    ImsiUnknownInVlr,
     /// nick=ImeiNotAccepted
-    ImeiNotAccepted = 105,
+    ImeiNotAccepted,
     /// nick=IllegalMe
-    IllegalMe = 106,
+    IllegalMe,
     /// nick=PsServicesNotAllowed
-    PsServicesNotAllowed = 107,
+    PsServicesNotAllowed,
     /// nick=PsAndNonPsServicesNotAllowed
-    PsAndNonPsServicesNotAllowed = 108,
+    PsAndNonPsServicesNotAllowed,
     /// nick=UeIdentityNotDerivedFromNetwork
-    UeIdentityNotDerivedFromNetwork = 109,
+    UeIdentityNotDerivedFromNetwork,
     /// nick=ImplicitlyDetached
-    ImplicitlyDetached = 110,
+    ImplicitlyDetached,
     /// nick=PlmnNotAllowed
-    PlmnNotAllowed = 111,
+    PlmnNotAllowed,
     /// nick=AreaNotAllowed
-    AreaNotAllowed = 112,
+    AreaNotAllowed,
     /// nick=RoamingNotAllowedInArea
-    RoamingNotAllowedInArea = 113,
+    RoamingNotAllowedInArea,
     /// nick=PsServicesNotAllowedInPlmn
-    PsServicesNotAllowedInPlmn = 114,
+    PsServicesNotAllowedInPlmn,
     /// nick=NoCellsInArea
-    NoCellsInArea = 115,
+    NoCellsInArea,
     /// nick=MscTemporarilyNotReachable
-    MscTemporarilyNotReachable = 116,
+    MscTemporarilyNotReachable,
     /// nick=NetworkFailureAttach
-    NetworkFailureAttach = 117,
+    NetworkFailureAttach,
     /// nick=CsDomainUnavailable
-    CsDomainUnavailable = 118,
+    CsDomainUnavailable,
     /// nick=EsmFailure
-    EsmFailure = 119,
+    EsmFailure,
     /// nick=Congestion
-    Congestion = 122,
+    Congestion,
     /// nick=MbmsBearerCapabilitiesInsufficientForService
-    MbmsBearerCapabilitiesInsufficientForService = 124,
+    MbmsBearerCapabilitiesInsufficientForService,
     /// nick=NotAuthorizedForCsg
-    NotAuthorizedForCsg = 125,
+    NotAuthorizedForCsg,
     /// nick=InsufficientResources
-    InsufficientResources = 126,
+    InsufficientResources,
     /// nick=MissingOrUnknownApn
-    MissingOrUnknownApn = 127,
+    MissingOrUnknownApn,
     /// nick=UnknownPdpAddressOrType
-    UnknownPdpAddressOrType = 128,
+    UnknownPdpAddressOrType,
     /// nick=UserAuthenticationFailed
-    UserAuthenticationFailed = 129,
+    UserAuthenticationFailed,
     /// nick=ActivationRejectedByGgsnOrGw
-    ActivationRejectedByGgsnOrGw = 130,
+    ActivationRejectedByGgsnOrGw,
     /// nick=ActivationRejectedUnspecified
-    ActivationRejectedUnspecified = 131,
+    ActivationRejectedUnspecified,
     /// nick=ServiceOptionNotSupported
-    ServiceOptionNotSupported = 132,
+    ServiceOptionNotSupported,
     /// nick=ServiceOptionNotSubscribed
-    ServiceOptionNotSubscribed = 133,
+    ServiceOptionNotSubscribed,
     /// nick=ServiceOptionOutOfOrder
-    ServiceOptionOutOfOrder = 134,
+    ServiceOptionOutOfOrder,
     /// nick=NsapiOrPtiAlreadyInUse
-    NsapiOrPtiAlreadyInUse = 135,
+    NsapiOrPtiAlreadyInUse,
     /// nick=RegularDeactivation
-    RegularDeactivation = 136,
+    RegularDeactivation,
     /// nick=QosNotAccepted
-    QosNotAccepted = 137,
+    QosNotAccepted,
     /// nick=CallCannotBeIdentified
-    CallCannotBeIdentified = 138,
+    CallCannotBeIdentified,
     /// nick=CsServiceTemporarilyUnavailable
-    CsServiceTemporarilyUnavailable = 139,
+    CsServiceTemporarilyUnavailable,
     /// nick=FeatureNotSupported
-    FeatureNotSupported = 140,
+    FeatureNotSupported,
     /// nick=SemanticErrorInTftOperation
-    SemanticErrorInTftOperation = 141,
+    SemanticErrorInTftOperation,
     /// nick=SyntacticalErrorInTftOperation
-    SyntacticalErrorInTftOperation = 142,
+    SyntacticalErrorInTftOperation,
     /// nick=UnknownPdpContext
-    UnknownPdpContext = 143,
+    UnknownPdpContext,
     /// nick=SemanticErrorsInPacketFilter
-    SemanticErrorsInPacketFilter = 144,
+    SemanticErrorsInPacketFilter,
     /// nick=SyntacticalErrorsInPacketFilter
-    SyntacticalErrorInPacketFilter = 145,
+    SyntacticalErrorInPacketFilter,
     /// nick=PdpContextWithoutTftAlreadyActivated
-    PdpContextWithoutTftAlreadyActivated = 146,
+    PdpContextWithoutTftAlreadyActivated,
     /// nick=MulticastGroupMembershipTimeout
-    MulticastGroupMembershipTimeout = 147,
+    MulticastGroupMembershipTimeout,
     /// nick=GprsUnknown
-    GprsUnknown = 148,
+    GprsUnknown,
     /// nick=PdpAuthFailure
-    PdpAuthFailure = 149,
+    PdpAuthFailure,
     /// nick=InvalidMobileClass
-    InvalidMobileClass = 150,
+    InvalidMobileClass,
     /// nick=LastPdnDisconnectionNotAllowedLegacy
-    LastPdnDisconnectionNotAllowedLegacy = 151,
+    LastPdnDisconnectionNotAllowedLegacy,
     /// nick=LastPdnDisconnectionNotAllowed
-    LastPdnDisconnectionNotAllowed = 171,
+    LastPdnDisconnectionNotAllowed,
     /// nick=SemanticallyIncorrectMessage
-    SemanticallyIncorrectMessage = 172,
+    SemanticallyIncorrectMessage,
     /// nick=InvalidMandatoryInformation
-    InvalidMandatoryInformation = 173,
+    InvalidMandatoryInformation,
     /// nick=MessageTypeNotImplemented
-    MessageTypeNotImplemented = 174,
+    MessageTypeNotImplemented,
     /// nick=ConditionalIeError
-    ConditionalIeError = 175,
+    ConditionalIeError,
     /// nick=UnspecifiedProtocolError
-    UnspecifiedProtocolError = 176,
+    UnspecifiedProtocolError,
     /// nick=OperatorDeterminedBarring
-    OperatorDeterminedBarring = 177,
+    OperatorDeterminedBarring,
     /// nick=MaximumNumberOfBearersReached
-    MaximumNumberOfBearersReached = 178,
+    MaximumNumberOfBearersReached,
     /// nick=RequestedApnNotSupported
-    RequestedApnNotSupported = 179,
+    RequestedApnNotSupported,
     /// nick=RequestRejectedBcmViolation
-    RequestRejectedBcmViolation = 180,
+    RequestRejectedBcmViolation,
     /// nick=UnsupportedQciOr5qiValue
-    UnsupportedQciOr5QiValue = 181,
+    UnsupportedQciOr5QiValue,
     /// nick=UserDataViaControlPlaneCongested
-    UserDataViaControlPlaneCongested = 182,
+    UserDataViaControlPlaneCongested,
     /// nick=SmsProvidedViaGprsInRoutingArea
-    SmsProvidedViaGprsInRoutingArea = 183,
+    SmsProvidedViaGprsInRoutingArea,
     /// nick=InvalidPtiValue
-    InvalidPtiValue = 184,
+    InvalidPtiValue,
     /// nick=NoBearerActivated
-    NoBearerActivated = 185,
+    NoBearerActivated,
     /// nick=MessageNotCompatibleWithProtocolState
-    MessageNotCompatibleWithProtocolState = 186,
+    MessageNotCompatibleWithProtocolState,
     /// nick=RecoveryOnTimerExpiry
-    RecoveryOnTimerExpiry = 187,
+    RecoveryOnTimerExpiry,
     /// nick=InvalidTransactionIdValue
-    InvalidTransactionIdValue = 188,
+    InvalidTransactionIdValue,
     /// nick=ServiceOptionNotAuthorizedInPlmn
-    ServiceOptionNotAuthorizedInPlmn = 189,
+    ServiceOptionNotAuthorizedInPlmn,
     /// nick=NetworkFailureActivation
-    NetworkFailureActivation = 190,
+    NetworkFailureActivation,
     /// nick=ReactivationRequested
-    ReactivationRequested = 191,
+    ReactivationRequested,
     /// nick=Ipv4OnlyAllowed
-    Ipv4OnlyAllowed = 192,
+    Ipv4OnlyAllowed,
     /// nick=Ipv6OnlyAllowed
-    Ipv6OnlyAllowed = 193,
+    Ipv6OnlyAllowed,
     /// nick=SingleAddressBearersOnlyAllowed
-    SingleAddressBearersOnlyAllowed = 194,
+    SingleAddressBearersOnlyAllowed,
     /// nick=CollisionWithNetworkInitiatedRequest
-    CollisionWithNetworkInitiatedRequest = 195,
+    CollisionWithNetworkInitiatedRequest,
     /// nick=Ipv4v6OnlyAllowed
-    Ipv4V6OnlyAllowed = 196,
+    Ipv4V6OnlyAllowed,
     /// nick=NonIpOnlyAllowed
-    NonIpOnlyAllowed = 197,
+    NonIpOnlyAllowed,
     /// nick=BearerHandlingUnsupported
-    BearerHandlingUnsupported = 198,
+    BearerHandlingUnsupported,
     /// nick=ApnRestrictionIncompatible
-    ApnRestrictionIncompatible = 199,
+    ApnRestrictionIncompatible,
     /// nick=MultipleAccessToPdnConnectionNotAllowed
-    MultipleAccessToPdnConnectionNotAllowed = 200,
+    MultipleAccessToPdnConnectionNotAllowed,
     /// nick=EsmInformationNotReceived
-    EsmInformationNotReceived = 201,
+    EsmInformationNotReceived,
     /// nick=PdnConnectionNonexistent
-    PdnConnectionNonexistent = 202,
+    PdnConnectionNonexistent,
     /// nick=MultiplePdnConnectionSameApnNotAllowed
-    MultiplePdnConnectionSameApnNotAllowed = 203,
+    MultiplePdnConnectionSameApnNotAllowed,
     /// nick=SevereNetworkFailure
-    SevereNetworkFailure = 204,
+    SevereNetworkFailure,
     /// nick=InsufficientResourcesForSliceAndDnn
-    InsufficientResourcesForSliceAndDnn = 205,
+    InsufficientResourcesForSliceAndDnn,
     /// nick=UnsupportedSscMode
-    UnsupportedSscMode = 206,
+    UnsupportedSscMode,
     /// nick=InsufficientResourcesForSlice
-    InsufficientResourcesForSlice = 207,
+    InsufficientResourcesForSlice,
     /// nick=MessageTypeNotCompatibleWithProtocolState
-    MessageTypeNotCompatibleWithProtocolState = 208,
+    MessageTypeNotCompatibleWithProtocolState,
     /// nick=IeNotImplemented
-    IeNotImplemented = 209,
+    IeNotImplemented,
     /// nick=N1ModeNotAllowed
-    N1ModeNotAllowed = 210,
+    N1ModeNotAllowed,
     /// nick=RestrictedServiceArea
-    RestrictedServiceArea = 211,
+    RestrictedServiceArea,
     /// nick=LadnUnavailable
-    LadnUnavailable = 212,
+    LadnUnavailable,
     /// nick=MissingOrUnknownDnnInSlice
-    MissingOrUnknownDnnInSlice = 213,
+    MissingOrUnknownDnnInSlice,
     /// nick=NkgsiAlreadyInUse
-    NgksiAlreadyInUse = 214,
+    NgksiAlreadyInUse,
     /// nick=PayloadNotForwarded
-    PayloadNotForwarded = 215,
+    PayloadNotForwarded,
     /// nick=Non3gppAccessTo5gcnNotAllowed
-    Non3GppAccessTo5GcnNotAllowed = 216,
+    Non3GppAccessTo5GcnNotAllowed,
     /// nick=ServingNetworkNotAuthorized
-    ServingNetworkNotAuthorized = 217,
+    ServingNetworkNotAuthorized,
     /// nick=DnnNotSupportedInSlice
-    DnnNotSupportedInSlice = 218,
+    DnnNotSupportedInSlice,
     /// nick=InsufficientUserPlaneResourcesForPduSession
-    InsufficientUserPlaneResourcesForPduSessio = 219,
+    InsufficientUserPlaneResourcesForPduSessio,
     /// nick=OutOfLadnServiceArea
-    OutOfLadnServiceArea = 220,
+    OutOfLadnServiceArea,
     /// nick=PtiMismatch
-    PtiMismatch = 221,
+    PtiMismatch,
     /// nick=MaxDataRateForUserPlaneIntegrityTooLow
-    MaxDataRateForUserPlaneIntegrityTooLow = 222,
+    MaxDataRateForUserPlaneIntegrityTooLow,
     /// nick=SemanticErrorInQosOperation
-    SemanticErrorInQosOperation = 223,
+    SemanticErrorInQosOperation,
     /// nick=SyntacticalErrorInQosOperation
-    SyntacticalErrorInQosOperation = 224,
+    SyntacticalErrorInQosOperation,
     /// nick=InvalidMappedEpsBearerIdentity
-    InvalidMappedEpsBearerIdentity = 225,
+    InvalidMappedEpsBearerIdentity,
     /// nick=RedirectionTo5gcnRequired
-    RedirectionTo5GcnRequired = 226,
+    RedirectionTo5GcnRequired,
     /// nick=RedirectionToEpcRequired
-    RedirectionToEpcRequired = 227,
+    RedirectionToEpcRequired,
     /// nick=TemporarilyUnauthorizedForSnpn
-    TemporarilyUnauthorizedForSnpn = 228,
+    TemporarilyUnauthorizedForSnpn,
     /// nick=PermanentlyUnauthorizedForSnpn
-    PermanentlyUnauthorizedForSnpn = 229,
+    PermanentlyUnauthorizedForSnpn,
     /// nick=EthernetOnlyAllowed
-    EthernetOnlyAllowed = 230,
+    EthernetOnlyAllowed,
     /// nick=UnauthorizedForCag
-    UnauthorizedForCag = 231,
+    UnauthorizedForCag,
     /// nick=NoNetworkSlicesAvailable
-    NoNetworkSlicesAvailable = 232,
+    NoNetworkSlicesAvailable,
     /// nick=WirelineAccessAreaNotAllowed
-    WirelineAccessAreaNotAllowed = 233,
+    WirelineAccessAreaNotAllowed,
+    /// All values below 256 are reserved.
+    Reserved(u16),
+    /// All values above and including 256 are manufactuer specific.
+    ManufacturerSpecific(u16),
 }
 
 impl From<u16> for CmeError {
@@ -386,7 +389,7 @@ impl From<u16> for CmeError {
             61 => Self::DataMissing,
             62 => Self::CallBarred,
             63 => Self::MessageWaitingIndicationSubscriptionFailure,
-            // 100 => Self::Unknown,
+            100 => Self::Unknown,
             102 => Self::ImsiUnknownInHss,
             103 => Self::IllegalUe,
             104 => Self::ImsiUnknownInVlr,
@@ -497,7 +500,179 @@ impl From<u16> for CmeError {
             231 => Self::UnauthorizedForCag,
             232 => Self::NoNetworkSlicesAvailable,
             233 => Self::WirelineAccessAreaNotAllowed,
-            _ => Self::Unknown,
+            0..256 => Self::Reserved(v),
+            256.. => Self::ManufacturerSpecific(v),
+        }
+    }
+}
+
+impl From<CmeError> for u16 {
+    fn from(error: CmeError) -> Self {
+        match error {
+            CmeError::PhoneFailure => 0,
+            CmeError::NoConnection => 1,
+            CmeError::LinkReserved => 2,
+            CmeError::NotAllowed => 3,
+            CmeError::NotSupported => 4,
+            CmeError::PhSimPin => 5,
+            CmeError::PhFsimPin => 6,
+            CmeError::PhFsimPuk => 7,
+            CmeError::SimNotInserted => 10,
+            CmeError::SimPin => 11,
+            CmeError::SimPuk => 12,
+            CmeError::SimFailure => 13,
+            CmeError::SimBusy => 14,
+            CmeError::SimWrong => 15,
+            CmeError::IncorrectPassword => 16,
+            CmeError::SimPin2 => 17,
+            CmeError::SimPuk2 => 18,
+            CmeError::MemoryFull => 20,
+            CmeError::InvalidIndex => 21,
+            CmeError::NotFound => 22,
+            CmeError::MemoryFailure => 23,
+            CmeError::TextTooLong => 24,
+            CmeError::InvalidChars => 25,
+            CmeError::DialStringTooLong => 26,
+            CmeError::DialStringInvalid => 27,
+            CmeError::NoNetwork => 30,
+            CmeError::NetworkTimeout => 31,
+            CmeError::NetworkNotAllowed => 32,
+            CmeError::NetworkPin => 40,
+            CmeError::NetworkPuk => 41,
+            CmeError::NetworkSubsetPin => 42,
+            CmeError::NetworkSubsetPuk => 43,
+            CmeError::ServicePin => 44,
+            CmeError::ServicePuk => 45,
+            CmeError::CorpPin => 46,
+            CmeError::CorpPuk => 47,
+            CmeError::HiddenKeyRequired => 48,
+            CmeError::EapMethodNotSupported => 49,
+            CmeError::IncorrectParameters => 50,
+            CmeError::CommandDisabled => 51,
+            CmeError::CommandAborted => 52,
+            CmeError::NotAttachedRestricted => 53,
+            CmeError::NotAllowedEmergencyOnly => 54,
+            CmeError::NotAllowedRestricted => 55,
+            CmeError::FixedDialNumberOnly => 56,
+            CmeError::TemporarilyOutOfService => 57,
+            CmeError::LanguageOrAlphabetNotSupported => 58,
+            CmeError::UnexpectedDataValue => 59,
+            CmeError::SystemFailure => 60,
+            CmeError::DataMissing => 61,
+            CmeError::CallBarred => 62,
+            CmeError::MessageWaitingIndicationSubscriptionFailure => 63,
+            CmeError::Unknown => 100,
+            CmeError::ImsiUnknownInHss => 102,
+            CmeError::IllegalUe => 103,
+            CmeError::ImsiUnknownInVlr => 104,
+            CmeError::ImeiNotAccepted => 105,
+            CmeError::IllegalMe => 106,
+            CmeError::PsServicesNotAllowed => 107,
+            CmeError::PsAndNonPsServicesNotAllowed => 108,
+            CmeError::UeIdentityNotDerivedFromNetwork => 109,
+            CmeError::ImplicitlyDetached => 110,
+            CmeError::PlmnNotAllowed => 111,
+            CmeError::AreaNotAllowed => 112,
+            CmeError::RoamingNotAllowedInArea => 113,
+            CmeError::PsServicesNotAllowedInPlmn => 114,
+            CmeError::NoCellsInArea => 115,
+            CmeError::MscTemporarilyNotReachable => 116,
+            CmeError::NetworkFailureAttach => 117,
+            CmeError::CsDomainUnavailable => 118,
+            CmeError::EsmFailure => 119,
+            CmeError::Congestion => 122,
+            CmeError::MbmsBearerCapabilitiesInsufficientForService => 124,
+            CmeError::NotAuthorizedForCsg => 125,
+            CmeError::InsufficientResources => 126,
+            CmeError::MissingOrUnknownApn => 127,
+            CmeError::UnknownPdpAddressOrType => 128,
+            CmeError::UserAuthenticationFailed => 129,
+            CmeError::ActivationRejectedByGgsnOrGw => 130,
+            CmeError::ActivationRejectedUnspecified => 131,
+            CmeError::ServiceOptionNotSupported => 132,
+            CmeError::ServiceOptionNotSubscribed => 133,
+            CmeError::ServiceOptionOutOfOrder => 134,
+            CmeError::NsapiOrPtiAlreadyInUse => 135,
+            CmeError::RegularDeactivation => 136,
+            CmeError::QosNotAccepted => 137,
+            CmeError::CallCannotBeIdentified => 138,
+            CmeError::CsServiceTemporarilyUnavailable => 139,
+            CmeError::FeatureNotSupported => 140,
+            CmeError::SemanticErrorInTftOperation => 141,
+            CmeError::SyntacticalErrorInTftOperation => 142,
+            CmeError::UnknownPdpContext => 143,
+            CmeError::SemanticErrorsInPacketFilter => 144,
+            CmeError::SyntacticalErrorInPacketFilter => 145,
+            CmeError::PdpContextWithoutTftAlreadyActivated => 146,
+            CmeError::MulticastGroupMembershipTimeout => 147,
+            CmeError::GprsUnknown => 148,
+            CmeError::PdpAuthFailure => 149,
+            CmeError::InvalidMobileClass => 150,
+            CmeError::LastPdnDisconnectionNotAllowedLegacy => 151,
+            CmeError::LastPdnDisconnectionNotAllowed => 171,
+            CmeError::SemanticallyIncorrectMessage => 172,
+            CmeError::InvalidMandatoryInformation => 173,
+            CmeError::MessageTypeNotImplemented => 174,
+            CmeError::ConditionalIeError => 175,
+            CmeError::UnspecifiedProtocolError => 176,
+            CmeError::OperatorDeterminedBarring => 177,
+            CmeError::MaximumNumberOfBearersReached => 178,
+            CmeError::RequestedApnNotSupported => 179,
+            CmeError::RequestRejectedBcmViolation => 180,
+            CmeError::UnsupportedQciOr5QiValue => 181,
+            CmeError::UserDataViaControlPlaneCongested => 182,
+            CmeError::SmsProvidedViaGprsInRoutingArea => 183,
+            CmeError::InvalidPtiValue => 184,
+            CmeError::NoBearerActivated => 185,
+            CmeError::MessageNotCompatibleWithProtocolState => 186,
+            CmeError::RecoveryOnTimerExpiry => 187,
+            CmeError::InvalidTransactionIdValue => 188,
+            CmeError::ServiceOptionNotAuthorizedInPlmn => 189,
+            CmeError::NetworkFailureActivation => 190,
+            CmeError::ReactivationRequested => 191,
+            CmeError::Ipv4OnlyAllowed => 192,
+            CmeError::Ipv6OnlyAllowed => 193,
+            CmeError::SingleAddressBearersOnlyAllowed => 194,
+            CmeError::CollisionWithNetworkInitiatedRequest => 195,
+            CmeError::Ipv4V6OnlyAllowed => 196,
+            CmeError::NonIpOnlyAllowed => 197,
+            CmeError::BearerHandlingUnsupported => 198,
+            CmeError::ApnRestrictionIncompatible => 199,
+            CmeError::MultipleAccessToPdnConnectionNotAllowed => 200,
+            CmeError::EsmInformationNotReceived => 201,
+            CmeError::PdnConnectionNonexistent => 202,
+            CmeError::MultiplePdnConnectionSameApnNotAllowed => 203,
+            CmeError::SevereNetworkFailure => 204,
+            CmeError::InsufficientResourcesForSliceAndDnn => 205,
+            CmeError::UnsupportedSscMode => 206,
+            CmeError::InsufficientResourcesForSlice => 207,
+            CmeError::MessageTypeNotCompatibleWithProtocolState => 208,
+            CmeError::IeNotImplemented => 209,
+            CmeError::N1ModeNotAllowed => 210,
+            CmeError::RestrictedServiceArea => 211,
+            CmeError::LadnUnavailable => 212,
+            CmeError::MissingOrUnknownDnnInSlice => 213,
+            CmeError::NgksiAlreadyInUse => 214,
+            CmeError::PayloadNotForwarded => 215,
+            CmeError::Non3GppAccessTo5GcnNotAllowed => 216,
+            CmeError::ServingNetworkNotAuthorized => 217,
+            CmeError::DnnNotSupportedInSlice => 218,
+            CmeError::InsufficientUserPlaneResourcesForPduSessio => 219,
+            CmeError::OutOfLadnServiceArea => 220,
+            CmeError::PtiMismatch => 221,
+            CmeError::MaxDataRateForUserPlaneIntegrityTooLow => 222,
+            CmeError::SemanticErrorInQosOperation => 223,
+            CmeError::SyntacticalErrorInQosOperation => 224,
+            CmeError::InvalidMappedEpsBearerIdentity => 225,
+            CmeError::RedirectionTo5GcnRequired => 226,
+            CmeError::RedirectionToEpcRequired => 227,
+            CmeError::TemporarilyUnauthorizedForSnpn => 228,
+            CmeError::PermanentlyUnauthorizedForSnpn => 229,
+            CmeError::EthernetOnlyAllowed => 230,
+            CmeError::UnauthorizedForCag => 231,
+            CmeError::NoNetworkSlicesAvailable => 232,
+            CmeError::WirelineAccessAreaNotAllowed => 233,
+            CmeError::Reserved(error) | CmeError::ManufacturerSpecific(error) => error,
         }
     }
 }
@@ -738,6 +913,8 @@ impl core::fmt::Display for CmeError {
             Self::UnauthorizedForCag => write!(f, "Unauthorized for CAG"),
             Self::NoNetworkSlicesAvailable => write!(f, "No network slices available"),
             Self::WirelineAccessAreaNotAllowed => write!(f, "Wireline access area not allowed"),
+            Self::Reserved(error) => write!(f, "Unknown reserved error {error}"),
+            Self::ManufacturerSpecific(error) => write!(f, "Manufacturer specific error {error}"),
         }
     }
 }
@@ -996,6 +1173,10 @@ impl<'a> defmt::Format for CmeError {
             Self::NoNetworkSlicesAvailable => defmt::write!(f, "No network slices available"),
             Self::WirelineAccessAreaNotAllowed => {
                 defmt::write!(f, "Wireline access area not allowed")
+            }
+            Self::Reserved(error) => defmt::write!(f, "Unknown reserved error {}", error),
+            Self::ManufacturerSpecific(error) => {
+                defmt::write!(f, "Manufacturer specific error {}", error)
             }
         }
     }
