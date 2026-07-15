@@ -30,11 +30,7 @@ use core::mem::MaybeUninit;
 
 // TODO: Use `MaybeUninit::uninit_array` once it has stabilized?
 fn uninit_array<T, const N: usize>() -> [MaybeUninit<T>; N] {
-    // SAFETY: See `MaybeUninit::uninit_array`.
-    unsafe {
-        #[allow(clippy::uninit_assumed_init)]
-        MaybeUninit::uninit().assume_init()
-    }
+    core::array::from_fn(|_| MaybeUninit::uninit())
 }
 
 // TODO: Use `MaybeUninit::slice_assume_init_ref` once it has stabilized?
