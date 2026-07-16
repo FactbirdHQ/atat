@@ -13,7 +13,7 @@ pub struct ResponseSlot<const N: usize>(
 );
 
 pub type ResponseSlotGuard<'a, const N: usize> =
-MutexGuard<'a, CriticalSectionRawMutex, Response<N>>;
+    MutexGuard<'a, CriticalSectionRawMutex, Response<N>>;
 
 #[derive(Debug)]
 pub struct SlotInUseError;
@@ -52,7 +52,7 @@ impl<const N: usize> ResponseSlot<N> {
             // The mutex is not locked when signal is emitted
             Some(self.0.try_lock().unwrap())
         } else {
-                None
+            None
         }
     }
 
