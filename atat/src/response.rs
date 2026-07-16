@@ -12,6 +12,7 @@ pub enum Response<const N: usize> {
     InvalidResponseError,
     AbortedError,
     ParseError,
+    CapacityError,
     OtherError,
     CmeError(u16),
     CmsError(u16),
@@ -34,7 +35,13 @@ impl<const N: usize> Default for Response<N> {
 impl<'a, const N: usize> From<Result<&'a [u8], InternalError<'a>>> for Response<N> {
     fn from(value: Result<&'a [u8], InternalError<'a>>) -> Self {
         match value {
-            Ok(slice) => Response::Ok(Vec::from_slice(slice).unwrap()),
+            Ok(slice) => {
+                if let Ok(vec) = Vec::from_slice(slice) {
+                    Response::Ok(vec)
+                } else {
+                    Response::CapacityError
+                }
+            }
             Err(error) => error.into(),
         }
     }
@@ -49,6 +56,7 @@ impl<'a, const N: usize> From<InternalError<'a>> for Response<N> {
             InternalError::InvalidResponse => Response::InvalidResponseError,
             InternalError::Aborted => Response::AbortedError,
             InternalError::Parse => Response::ParseError,
+            InternalError::Capacity => Response::CapacityError,
             InternalError::Error => Response::OtherError,
             InternalError::CmeError(e) => Response::CmeError(e.into()),
             InternalError::CmsError(e) => Response::CmsError(e.into()),
@@ -69,11 +77,33 @@ impl<'a, const N: usize> From<&'a Response<N>> for Result<&'a [u8], InternalErro
             Response::InvalidResponseError => Err(InternalError::InvalidResponse),
             Response::AbortedError => Err(InternalError::Aborted),
             Response::ParseError => Err(InternalError::Parse),
+            Response::CapacityError => Err(InternalError::Capacity),
             Response::OtherError => Err(InternalError::Error),
             Response::CmeError(e) => Err(InternalError::CmeError((*e).into())),
             Response::CmsError(e) => Err(InternalError::CmsError((*e).into())),
             Response::ConnectionError(e) => Err(InternalError::ConnectionError((*e).into())),
             Response::CustomError(e) => Err(InternalError::Custom(e)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn response_from_slice() {
+        assert_eq!(
+            Response::Ok([1, 2, 3].try_into().unwrap()),
+            Response::<3>::from(Ok::<&[u8], InternalError<'_>>(&[1, 2, 3]))
+        );
+    }
+
+    #[test]
+    fn response_from_overlong_slice() {
+        assert_eq!(
+            Response::CapacityError,
+            Response::<3>::from(Ok::<&[u8], InternalError<'_>>(&[0; 4]))
+        );
     }
 }

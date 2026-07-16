@@ -28,6 +28,9 @@ pub enum InternalError<'a> {
     /// Failed to parse received response
     #[error("Failed to parse received response")]
     Parse,
+    /// Received response exceeded capacity
+    #[error("Received response exceeded capacity")]
+    Capacity,
     /// Error response containing any error message
     #[error("Generic error response")]
     Error,
@@ -55,6 +58,7 @@ impl<'a> defmt::Format for InternalError<'a> {
             InternalError::InvalidResponse => defmt::write!(f, "InternalError::InvalidResponse"),
             InternalError::Aborted => defmt::write!(f, "InternalError::Aborted"),
             InternalError::Parse => defmt::write!(f, "InternalError::Parse"),
+            InternalError::Capacity => defmt::write!(f, "InternalError::Capacity"),
             InternalError::Error => defmt::write!(f, "InternalError::Error"),
             InternalError::CmeError(e) => defmt::write!(f, "InternalError::CmeError({:?})", e),
             InternalError::CmsError(e) => defmt::write!(f, "InternalError::CmsError({:?})", e),
@@ -90,6 +94,9 @@ pub enum Error {
     /// Failed to parse received response
     #[error("Failed to parse received response")]
     Parse,
+    /// Received response exceeded capacity
+    #[error("Received response exceeded capacity")]
+    Capacity,
     /// Generic error response without any error message
     #[error("Generic error response")]
     Error,
@@ -140,6 +147,7 @@ impl<'a> From<InternalError<'a>> for Error {
             InternalError::InvalidResponse => Self::InvalidResponse,
             InternalError::Aborted => Self::Aborted,
             InternalError::Parse => Self::Parse,
+            InternalError::Capacity => Self::Capacity,
             InternalError::Error => Self::Error,
             InternalError::CmeError(e) => Self::CmeError(e),
             InternalError::CmsError(e) => Self::CmsError(e),
