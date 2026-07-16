@@ -13,7 +13,7 @@ pub struct ResponseSlot<const N: usize>(
 );
 
 pub type ResponseSlotGuard<'a, const N: usize> =
-    MutexGuard<'a, CriticalSectionRawMutex, Response<N>>;
+MutexGuard<'a, CriticalSectionRawMutex, Response<N>>;
 
 #[derive(Debug)]
 pub struct SlotInUseError;
@@ -27,6 +27,10 @@ impl<const N: usize> Default for ResponseSlot<N> {
 impl<const N: usize> ResponseSlot<N> {
     pub const fn new() -> Self {
         Self(Mutex::new(Response::Ok(Vec::new())), Signal::new())
+    }
+
+    pub fn is_signaled(&self) -> bool {
+        self.1.signaled()
     }
 
     /// Reset the current response slot
@@ -48,7 +52,7 @@ impl<const N: usize> ResponseSlot<N> {
             // The mutex is not locked when signal is emitted
             Some(self.0.try_lock().unwrap())
         } else {
-            None
+                None
         }
     }
 

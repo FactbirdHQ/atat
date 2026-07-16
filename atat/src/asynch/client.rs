@@ -68,12 +68,15 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
         .map_err(|_| Error::Timeout)?
         .map_err(|_| Error::Write)?;
 
-        with_timeout(self.config.flush_timeout, self.writer.flush())
-            .await
-            .map_err(|_| Error::Timeout)?
-            .map_err(|_| Error::Write)?;
 
-        self.start_cooldown_timer();
+        match with_timeout(self.config.flush_timeout, self.writer.flush()).await {
+            Ok(Ok(())) => {}
+            Ok(Err(_)) => return Err(Error::Write),
+            Err(_) if self.res_slot.is_signaled() => {}
+            Err(_) => return Err(Error::Timeout),
+        }
+
+         self.start_cooldown_timer();
         Ok(())
     }
 
