@@ -473,7 +473,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
             }
             _ => {
                 if (peek as char).is_ascii() && peek >= 32 {
-                    visitor.visit_bytes(self.parse_bytes()?)
+                    visitor.visit_borrowed_bytes(self.parse_bytes()?)
                 } else {
                     Err(Error::InvalidType)
                 }
@@ -507,7 +507,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
             .unwrap_or(self.slice.len() - self.index);
 
         visitor
-            .visit_bytes(&self.slice[self.index..self.index + idx])
+            .visit_borrowed_bytes(&self.slice[self.index..self.index + idx])
             .inspect(|_| {
                 self.index += idx;
             })
@@ -577,7 +577,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         visitor
-            .visit_bytes(self.slice[self.index..].as_ref())
+            .visit_borrowed_bytes(self.slice[self.index..].as_ref())
             .inspect(|_| {
                 self.index = self.slice.len(); // Since we know it is the last param.
             })
