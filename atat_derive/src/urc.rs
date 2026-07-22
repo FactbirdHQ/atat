@@ -66,10 +66,8 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
     TokenStream::from(quote! {
         #[automatically_derived]
         impl #impl_generics atat::AtatUrc for #ident #ty_generics #where_clause {
-            type Response = #ident;
-
             #[inline]
-            fn parse(resp: &[u8]) -> Option<Self::Response> {
+            fn parse(resp: &[u8]) -> Option<Self> {
                 // FIXME: this should be more generic than ':' (Split using #code?)
                 let index = resp.iter().position(|&x| x == b':').unwrap_or(resp.len());
                 Some(match &resp[..index] {
