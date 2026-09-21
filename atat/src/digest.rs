@@ -217,6 +217,22 @@ pub mod parser {
         IResult,
     };
 
+    pub fn try_urc<'a, P>(
+        parser: P,
+        buf: &'a [u8],
+    ) -> Option<Result<(&'a [u8], usize), crate::digest::ParseError>>
+    where
+        P: Fn(&'a [u8]) -> nom::IResult<&'a [u8], (&'a [u8], usize)>,
+    {
+        use crate::digest::ParseError;
+        match parser(buf) {
+            Ok((_, r)) => Some(Ok(r)),
+            Err(nom::Err::Incomplete(_)) => Some(Err(ParseError::Incomplete)),
+            Err(nom::Err::Failure(_)) => Some(Err(ParseError::NoMatch)),
+            Err(nom::Err::Error(_)) => None,
+        }
+    }
+
     /// Matches the equivalent of regex: "\r\n{token}(:.*)?\r\n"
     pub fn urc_helper<'a, T, Error: ParseError<&'a [u8]>>(
         token: T,

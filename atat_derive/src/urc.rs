@@ -1,7 +1,7 @@
 use crate::proc_macro::TokenStream;
 
 use quote::quote;
-use syn::{parse_macro_input, Fields};
+use syn::{parse_macro_input, parse_quote, Fields};
 
 use crate::parse::{ParseInput, UrcAttributes};
 
@@ -17,51 +17,43 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
 
     assert!(!variants.is_empty(), "there must be at least one variant");
 
-    let (match_arms, digest_arms): (Vec<_>, Vec<_>) = variants.iter().map(|variant| {
-        let UrcAttributes {
-            code,
-            parse
-        } = variant.attrs.at_urc.clone().unwrap_or_else(|| {
-            panic!(
-                "missing #[at_urc(...)] attribute",
-            )
-        });
+    let mut match_arms = Vec::with_capacity(variants.len());
+    let mut parsers = Vec::with_capacity(variants.len());
+
+    for variant in &variants {
+        let Some(UrcAttributes { code, parse }) = variant.attrs.at_urc.clone() else {
+            panic!("missing #[at_urc(...)] attribute")
+        };
+
+        let parse_fn = parse.unwrap_or_else(|| parse_quote! { atat::digest::parser::urc_helper });
+        parsers.push(quote! { #parse_fn(&#code[..]) });
 
         let variant_ident = variant.ident.clone();
-        let parse_arm = match variant.fields.clone() {
-            Some(Fields::Named(_)) => {
-                panic!("cannot handle named enum variants")
-            }
+        match variant.fields.clone() {
+            Some(Fields::Named(_)) => panic!("cannot handle named enum variants"),
             Some(Fields::Unnamed(f)) => {
                 let mut field_iter = f.unnamed.iter();
-                let first_field = field_iter.next().expect("variant must have exactly one field");
-                assert!(field_iter.next().is_none(), "cannot handle variants with more than one field");
-                quote! {
+                let first_field = field_iter
+                    .next()
+                    .expect("variant must have exactly one field");
+                assert!(
+                    field_iter.next().is_none(),
+                    "cannot handle variants with more than one field"
+                );
+                match_arms.push(quote! {
                     #code => #ident::#variant_ident(atat::serde_at::from_slice::<#first_field>(&resp).ok()?),
-                }
+                });
             }
             Some(Fields::Unit) => {
-                quote! {
+                match_arms.push(quote! {
                     #code => #ident::#variant_ident,
-                }
+                });
             }
             None => {
                 panic!()
             }
-        };
-
-        let digest_arm = if let Some(parse_fn) = parse {
-            quote! {
-                #parse_fn(&#code[..]),
-            }
-        } else {
-            quote! {
-                atat::digest::parser::urc_helper(&#code[..]),
-            }
-        };
-
-        (parse_arm, digest_arm)
-    }).unzip();
+        }
+    }
 
     TokenStream::from(quote! {
         #[automatically_derived]
@@ -81,16 +73,11 @@ pub fn atat_urc(input: TokenStream) -> TokenStream {
 
         #[automatically_derived]
         impl #impl_generics atat::Parser for #ident #ty_generics #where_clause {
-            fn parse<'a>(
-                buf: &'a [u8],
-            ) -> Result<(&'a [u8], usize), atat::digest::ParseError> {
-                let (_, r) = atat::nom::branch::alt((
-                    #(
-                        #digest_arms
-                    )*
-                ))(buf)?;
-
-                Ok(r)
+            fn parse<'a>(buf: &'a [u8]) -> Result<(&'a [u8], usize), atat::digest::ParseError> {
+                #(
+                    if let Some(r) = atat::digest::parser::try_urc(#parsers, buf) { return r };
+                )*
+                Err(atat::digest::ParseError::NoMatch)
             }
         }
     })

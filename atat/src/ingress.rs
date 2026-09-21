@@ -450,6 +450,60 @@ mod tests {
         );
     }
 
+    #[derive(AtatUrc, Clone, PartialEq, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    enum PlainUrc {
+        #[at_urc(b"APP RDY")]
+        Ready,
+        #[at_urc(b"RDY")]
+        ShortReady,
+        #[at_urc(b"POWERED DOWN")]
+        PowerDown,
+    }
+
+    #[test]
+    fn plain_urc_parse_matches_all_variants() {
+        // First variant, trailing data left in the buffer.
+        assert_eq!(
+            <PlainUrc as crate::Parser>::parse(b"\r\nAPP RDY\r\nOK\r\n"),
+            Ok((&b"APP RDY"[..], 11))
+        );
+        // Later variants: every tag in the table must be tried.
+        assert_eq!(
+            <PlainUrc as crate::Parser>::parse(b"\r\nRDY\r\n"),
+            Ok((&b"RDY"[..], 7))
+        );
+        assert_eq!(
+            <PlainUrc as crate::Parser>::parse(b"\r\nPOWERED DOWN\r\n"),
+            Ok((&b"POWERED DOWN"[..], 16))
+        );
+        // Colon form with parameters.
+        assert_eq!(
+            <PlainUrc as crate::Parser>::parse(b"\r\nRDY: 1,2\r\n"),
+            Ok((&b"RDY: 1,2"[..], 12))
+        );
+    }
+
+    #[test]
+    fn plain_urc_parse_propagates_incomplete() {
+        // Partial tag at the end of the buffer: streaming match, more bytes
+        // needed. Must report `Incomplete` (like `nom::branch::alt` does), not
+        // `NoMatch`, so the caller waits instead of discarding the bytes.
+        assert_eq!(
+            <PlainUrc as crate::Parser>::parse(b"\r\nAPP R"),
+            Err(crate::digest::ParseError::Incomplete)
+        );
+        // No tag matches: garbage and AT echo.
+        assert_eq!(
+            <PlainUrc as crate::Parser>::parse(b"\r\nUNKNOWN\r\n"),
+            Err(crate::digest::ParseError::NoMatch)
+        );
+        assert_eq!(
+            <PlainUrc as crate::Parser>::parse(b"AT+CMD\r\n"),
+            Err(crate::digest::ParseError::NoMatch)
+        );
+    }
+
     #[test]
     fn advance_can_processes_multiple_digest_results() {
         let res_slot = ResponseSlot::<100>::new();
