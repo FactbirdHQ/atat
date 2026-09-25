@@ -24,34 +24,39 @@ impl<'a, RW: Read + Write + ReadReady + WriteReady, D: Digester> SimpleClient<'a
         }
     }
 
-    /// Returns a mutable reference to the inner reader/writer.
-    pub fn inner(&mut self) -> &mut RW {
-        &mut self.rw
+    fn prepare_new_request(&mut self) -> Result<(), Error> {
+        self.wait_cooldown_timer();
+        Ok(())
     }
 
-    fn send_request(&mut self, len: usize) -> Result<(), Error> {
-        if len < 50 {
-            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
-        } else {
-            debug!("Sending command with long payload ({} bytes)", len);
-        }
-
-        self.wait_cooldown_timer();
-
-        // Write request
-        let until = Instant::now() + self.config.tx_timeout;
-        let mut pos = 0;
-        while pos < len {
-            wait_for_write(&mut self.rw, until)?;
-            pos += self.rw.write(&self.buf[pos..len]).or(Err(Error::Write))?;
-        }
-
+    fn flush_and_parse_response<Cmd: AtatCmd>(
+        &mut self,
+        cmd: &Cmd,
+    ) -> Result<Cmd::Response, Error> {
         let until = Instant::now() + self.config.flush_timeout;
         wait_for_write(&mut self.rw, until)?;
-        self.rw.flush().or(Err(Error::Write))?;
+        self.rw.flush().map_err(|_| Error::Write)?;
 
         self.start_cooldown_timer();
-        Ok(())
+
+        if !Cmd::EXPECTS_RESPONSE_CODE {
+            return cmd.parse(Ok(&[]));
+        }
+
+        self.pos = 0;
+
+        let timeout = Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into());
+        let until = Instant::now() + timeout;
+        loop {
+            self.read_response_chunk(until)?;
+            while self.pos > 0 {
+                match self.digest() {
+                    (Some(resp), _) => return cmd.parse(resp),
+                    (_, 0) => break,
+                    (_, swallowed) => self.consume(swallowed),
+                }
+            }
+        }
     }
 
     fn read_response_chunk(&mut self, until: Instant) -> Result<(), Error> {
@@ -59,7 +64,7 @@ impl<'a, RW: Read + Write + ReadReady + WriteReady, D: Digester> SimpleClient<'a
         self.pos += self
             .rw
             .read(&mut self.buf[self.pos..])
-            .or(Err(Error::Read))?;
+            .map_err(|_| Error::Read)?;
 
         trace!(
             "Buffer contents: ({:?} bytes) '{:?}'",
@@ -127,34 +132,52 @@ impl<'a, RW: Read + Write + ReadReady + WriteReady, D: Digester> SimpleClient<'a
 impl<RW: Read + ReadReady + Write + WriteReady, D: Digester> AtatClient
     for SimpleClient<'_, RW, D>
 {
+    type Writer = RW;
+
+    fn inner(&mut self) -> &mut RW {
+        &mut self.rw
+    }
+
+    fn send_with<Cmd: AtatCmd>(
+        &mut self,
+        cmd: &Cmd,
+        write: impl FnOnce(&mut RW) -> Result<(), RW::Error>,
+    ) -> Result<Cmd::Response, Error> {
+        self.prepare_new_request()?;
+
+        write(&mut self.rw).map_err(|_| Error::Write)?;
+
+        self.flush_and_parse_response(cmd)
+    }
+
     fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
         let len = cmd.write(self.buf);
 
-        self.send_request(len)?;
-        if !Cmd::EXPECTS_RESPONSE_CODE {
-            return cmd.parse(Ok(&[]));
+        if len < 50 {
+            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
+        } else {
+            debug!("Sending command with long payload ({} bytes)", len);
         }
 
-        self.pos = 0;
+        self.prepare_new_request()?;
 
-        let timeout = Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into());
-        let until = Instant::now() + timeout;
-        loop {
-            self.read_response_chunk(until)?;
-            while self.pos > 0 {
-                match self.digest() {
-                    (Some(resp), _) => return cmd.parse(resp),
-                    (_, 0) => break,
-                    (_, swallowed) => self.consume(swallowed),
-                }
-            }
+        let until = Instant::now() + self.config.tx_timeout;
+        let mut at = 0;
+        while at < len {
+            wait_for_write(&mut self.rw, until)?;
+            at += self
+                .rw
+                .write(&self.buf[at..len])
+                .map_err(|_| Error::Write)?;
         }
+
+        self.flush_and_parse_response(cmd)
     }
 }
 
 fn wait_for_write(w: &mut impl WriteReady, until: Instant) -> Result<(), Error> {
     while Instant::now() < until {
-        if w.write_ready().or(Err(Error::Write))? {
+        if w.write_ready().map_err(|_| Error::Write)? {
             return Ok(());
         }
     }
@@ -163,7 +186,7 @@ fn wait_for_write(w: &mut impl WriteReady, until: Instant) -> Result<(), Error> 
 
 fn wait_for_read(r: &mut impl ReadReady, until: Instant) -> Result<(), Error> {
     while Instant::now() < until {
-        if r.read_ready().or(Err(Error::Read))? {
+        if r.read_ready().map_err(|_| Error::Read)? {
             return Ok(());
         }
     }
