@@ -95,29 +95,21 @@
 //! };
 //! ```
 //!
-//! ### Basic usage example (More available in examples folder):
-//! ```ignore
+//! ### Basic usage example (more available in the examples folder):
 //!
-//! use cortex_m::asm;
-//! use hal::{
-//!     gpio::{
-//!         gpioa::{PA2, PA3},
-//!         Alternate, Floating, Input, AF7,
-//!     },
-//!     pac::{interrupt, Peripherals, USART2},
-//!     prelude::*,
-//!     serial::{Config, Event::Rxne, Rx, Serial},
-//!     timer::{Event, Timer},
+//! The ingress and the client are decoupled. The ingress reads bytes from the
+//! serial port and digests them into responses and URCs, while the client
+//! writes commands and waits for the matching response. They communicate
+//! through a shared [`ResponseSlot`] and [`UrcChannel`], so the ingress must be
+//! driven concurrently with the client, typically as its own task.
+//!
+//! ```no_run
+//! use atat::{
+//!     asynch::{AtatClient, Client},
+//!     atat_derive::{AtatCmd, AtatResp, AtatUrc},
+//!     AtatIngress, Config, DefaultDigester, Ingress, ResponseSlot, UrcChannel,
 //! };
-//!
-//! use atat::{atat_derive::{AtatResp, AtatCmd}};
-//!
-//! use heapless::{spsc::Queue, String};
-//!
-//! use crate::rt::entry;
-//! static mut INGRESS: Option<atat::IngressManager> = None;
-//! static mut RX: Option<Rx<USART2>> = None;
-//!
+//! use embedded_io_async::{Read, Write};
 //!
 //! #[derive(Clone, AtatResp)]
 //! pub struct NoResponse;
@@ -126,89 +118,66 @@
 //! #[at_cmd("", NoResponse, timeout_ms = 1000)]
 //! pub struct AT;
 //!
-//! #[entry]
-//! fn main() -> ! {
-//!     let p = Peripherals::take().unwrap();
+//! #[derive(Clone, AtatResp)]
+//! pub struct MessageWaitingIndication;
 //!
-//!     let mut flash = p.FLASH.constrain();
-//!     let mut rcc = p.RCC.constrain();
-//!     let mut pwr = p.PWR.constrain(&mut rcc.apb1r1);
+//! #[derive(Clone, AtatUrc)]
+//! pub enum Urc {
+//!     #[at_urc("+UMWI")]
+//!     MessageWaitingIndication(MessageWaitingIndication),
+//! }
 //!
-//!     let mut gpioa = p.GPIOA.split(&mut rcc.ahb2);
+//! const INGRESS_BUF_SIZE: usize = 1024;
+//! const URC_CAPACITY: usize = 128;
+//! const URC_SUBSCRIBERS: usize = 3;
 //!
-//!     let clocks = rcc.cfgr.freeze(&mut flash.acr, &mut pwr);
+//! async fn run(serial_rx: impl Read, serial_tx: impl Write) {
+//!     let res_slot = ResponseSlot::<INGRESS_BUF_SIZE>::new();
+//!     let urc_channel = UrcChannel::<Urc, URC_CAPACITY, URC_SUBSCRIBERS>::new();
 //!
-//!     let tx = gpioa.pa2.into_af7(&mut gpioa.moder, &mut gpioa.afrl);
-//!     let rx = gpioa.pa3.into_af7(&mut gpioa.moder, &mut gpioa.afrl);
-//!
-//!     let mut timer = Timer::tim7(p.TIM7, 1.hz(), clocks, &mut rcc.apb1r1);
-//!     let at_timer = Timer::tim6(p.TIM6, 100.hz(), clocks, &mut rcc.apb1r1);
-//!
-//!     let mut serial = Serial::usart2(
-//!         p.USART2,
-//!         (tx, rx),
-//!         Config::default().baudrate(115_200.bps()),
-//!         clocks,
-//!         &mut rcc.apb1r1,
+//!     let mut ingress_buf = [0; INGRESS_BUF_SIZE];
+//!     let mut ingress = Ingress::new(
+//!         DefaultDigester::<Urc>::default(),
+//!         &mut ingress_buf,
+//!         &res_slot,
+//!         &urc_channel,
 //!     );
 //!
-//!     serial.listen(Rxne);
+//!     let mut cmd_buf = [0; 1024];
+//!     let mut client = Client::new(serial_tx, &res_slot, &mut cmd_buf, Config::default());
+//!     let mut urc_subscription = urc_channel.subscribe().unwrap();
 //!
-//!     static mut RES_QUEUE: ResQueue<256> = Queue::new();
-//!     static mut URC_QUEUE: UrcQueue<256, 10> = Queue::new();
-//!     static mut COM_QUEUE: ComQueue = Queue::new();
-//!
-//!     let queues = Queues {
-//!         res_queue: unsafe { RES_QUEUE.split() },
-//!         urc_queue: unsafe { URC_QUEUE.split() },
-//!         com_queue: unsafe { COM_QUEUE.split() },
-//!     };
-//!
-//!     let (tx, rx) = serial.split();
-//!     let (mut client, ingress) =
-//!         ClientBuilder::new(tx, timer, atat::Config::new(atat::Mode::Timeout)).build(queues);
-//!
-//!     unsafe { INGRESS = Some(ingress) };
-//!     unsafe { RX = Some(rx) };
-//!
-//!     // configure NVIC interrupts
-//!     unsafe { cortex_m::peripheral::NVIC::unmask(hal::stm32::Interrupt::TIM7) };
-//!     timer.listen(Event::TimeOut);
-//!
-//!     // if all goes well you should reach this breakpoint
-//!     asm::bkpt();
-//!
-//!     loop {
-//!         asm::wfi();
-//!
-//!         match client.send(&AT) {
-//!             Ok(response) => {
-//!                 // Do something with response here
-//!             }
-//!             Err(e) => {}
-//!         }
-//!     }
-//! }
-//!
-//! #[interrupt]
-//! fn TIM7() {
-//!     let ingress = unsafe { INGRESS.as_mut().unwrap() };
-//!     ingress.digest();
-//! }
-//!
-//! #[interrupt]
-//! fn USART2() {
-//!     let ingress = unsafe { INGRESS.as_mut().unwrap() };
-//!     let rx = unsafe { RX.as_mut().unwrap() };
-//!     if let Ok(d) = nb::block!(rx.read()) {
-//!         ingress.write(&[d]);
-//!     }
+//!     embassy_futures::join::join(
+//!         // Feeds the ingress from the serial port forever.
+//!         // Spawn this as a separate task in a real application.
+//!         ingress.read_from(serial_rx),
+//!         async {
+//!             let _response = client.send(&AT).await.unwrap();
+//!             let _urc = urc_subscription.next_message_pure().await;
+//!         },
+//!     )
+//!     .await;
 //! }
 //! ```
+//!
 //! # Optional Cargo Features
 //!
-//! - **`derive`** *(enabled by default)* - Re-exports [`atat_derive`] to allow
-//!   deriving `Atat__` traits.
+//! - **`derive`** *(enabled by default)* - Re-exports [`atat_derive`], `serde_at`
+//!   and `heapless` to allow deriving `Atat__` traits.
+//! - **`bytes`** *(enabled by default)* - Re-exports `serde_bytes` and
+//!   `heapless_bytes` to allow serializing and deserializing non-quoted byte
+//!   slices correctly.
+//! - **`std`** - Enables `std` on `serde_at`, `nom`, `embassy-time` and `embedded-io`.
+//! - **`log`** - Log statements on various log levels, powered by `log`.
+//! - **`defmt`** - Log statements on various log levels, powered by `defmt`.
+//! - **`custom-error-messages`** - Adds an `Error::CustomMessage` variant
+//!   carrying up to 64 bytes of the custom error text matched by
+//!   `AtDigester::with_custom_error`.
+//! - **`string_errors`** - Parses textual `+CME ERROR` / `+CMS ERROR` responses
+//!   in addition to numeric codes.
+//! - **`hex_str_arrays`** - Serializes hex strings to fixed-width byte arrays.
+//!   Requires the nightly `generic_const_exprs` feature.
+//! - **`heapless`** - Enables the `heapless` feature on `serde_at`.
 
 // #![deny(warnings)]
 #![allow(clippy::multiple_crate_versions)]

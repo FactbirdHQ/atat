@@ -2,9 +2,9 @@
 /// section 3.2.5.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CmsError {
-    /// 3GPP TS 24.011 [6] clause E.2
+    /// 3GPP TS 24.011 \[6\] clause E.2
     RelayProtocolCause(u16),
-    /// 3GPP TS 23.040 [3] clause 9.2.3.22
+    /// 3GPP TS 23.040 \[3\] clause 9.2.3.22
     TransferProtocolFailureCause(u16),
     /// nick=MeFailure
     MeFailure,
