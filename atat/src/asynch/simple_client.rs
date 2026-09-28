@@ -1,5 +1,6 @@
 use super::AtatClient;
 use crate::{helpers::LossyStr, AtatCmd, Config, DigestResult, Digester, Error, InternalError};
+use embassy_futures::yield_now;
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_io_async::{Read, Write};
 
@@ -24,33 +25,48 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
         }
     }
 
-    /// Returns a mutable reference to the inner reader/writer.
-    pub fn inner(&mut self) -> &mut RW {
-        &mut self.rw
-    }
-
-    async fn send_request(&mut self, len: usize) -> Result<(), Error> {
-        if len < 50 {
-            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
-        } else {
-            debug!("Sending command with long payload ({} bytes)", len);
-        }
-
+    async fn prepare_new_request(&mut self) -> Result<(), Error> {
         self.wait_cooldown_timer().await;
 
-        // Write request
-        with_timeout(self.config.tx_timeout, self.rw.write_all(&self.buf[..len]))
-            .await
-            .map_err(|_| Error::Timeout)?
-            .map_err(|_| Error::Write)?;
+        // Clear any pending response signal
+        self.pos = 0;
 
+        Ok(())
+    }
+
+    async fn flush_and_parse_response<Cmd: AtatCmd>(
+        &mut self,
+        cmd: &Cmd,
+    ) -> Result<Cmd::Response, Error> {
         with_timeout(self.config.flush_timeout, self.rw.flush())
             .await
             .map_err(|_| Error::Timeout)?
             .map_err(|_| Error::Write)?;
 
         self.start_cooldown_timer();
-        Ok(())
+
+        if !Cmd::EXPECTS_RESPONSE_CODE {
+            return cmd.parse(Ok(&[]));
+        }
+
+        self.pos = 0;
+
+        let timeout = Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into());
+        with_timeout(timeout, async {
+            loop {
+                self.read_response_chunk().await?;
+                while self.pos > 0 {
+                    match self.digest() {
+                        (Some(resp), _) => return cmd.parse(resp),
+                        (_, 0) => break,
+                        (_, swallowed) => self.consume(swallowed),
+                    }
+                }
+                yield_now().await;
+            }
+        })
+        .await
+        .map_err(|_| Error::Timeout)?
     }
 
     async fn read_response_chunk(&mut self) -> Result<(), Error> {
@@ -58,7 +74,7 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
             .rw
             .read(&mut self.buf[self.pos..])
             .await
-            .or(Err(Error::Read))?;
+            .map_err(|_| Error::Read)?;
 
         trace!(
             "Buffer contents: ({:?} bytes) '{:?}'",
@@ -122,31 +138,40 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
 }
 
 impl<RW: Read + Write, D: Digester> AtatClient for SimpleClient<'_, RW, D> {
-    async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
-        let len = cmd.write(self.buf);
+    type Writer = RW;
 
-        self.send_request(len).await?;
-        if !Cmd::EXPECTS_RESPONSE_CODE {
-            return cmd.parse(Ok(&[]));
+    fn inner(&mut self) -> &mut RW {
+        &mut self.rw
+    }
+
+    async fn send_with<Cmd: AtatCmd>(
+        &mut self,
+        cmd: &Cmd,
+        write: impl AsyncFnOnce(&mut RW) -> Result<(), RW::Error>,
+    ) -> Result<Cmd::Response, Error> {
+        self.prepare_new_request().await?;
+
+        write(&mut self.rw).await.map_err(|_| Error::Write)?;
+
+        self.flush_and_parse_response(cmd).await
+    }
+
+    async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
+        let len = cmd.write(&mut self.buf);
+
+        if len < 50 {
+            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
+        } else {
+            debug!("Sending command with long payload ({} bytes)", len);
         }
 
-        self.pos = 0;
+        self.prepare_new_request().await?;
 
-        let timeout = Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into());
-        embassy_time::with_timeout(timeout, async {
-            loop {
-                self.read_response_chunk().await?;
-                while self.pos > 0 {
-                    match self.digest() {
-                        (Some(resp), _) => return cmd.parse(resp),
-                        (_, 0) => break,
-                        (_, swallowed) => self.consume(swallowed),
-                    }
-                }
-                embassy_futures::yield_now().await;
-            }
-        })
-        .await
-        .map_err(|_| Error::Timeout)?
+        with_timeout(self.config.tx_timeout, self.rw.write_all(&self.buf[..len]))
+            .await
+            .map_err(|_| Error::Timeout)?
+            .map_err(|_| Error::Write)?;
+
+        self.flush_and_parse_response(cmd).await
     }
 }
