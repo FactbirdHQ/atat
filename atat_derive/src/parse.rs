@@ -1,5 +1,6 @@
 use proc_macro2::Span;
 use syn::parse::{Error, Parse, ParseStream, Result};
+use syn::spanned::Spanned;
 use syn::{
     Attribute, Data, DataEnum, DataStruct, DeriveInput, Expr, ExprLit, ExprPath, Fields, Generics,
     Ident, Lit, LitByteStr, Path, Type,
@@ -36,6 +37,7 @@ pub struct ArgAttributes {
     pub value: Option<i64>,
     pub position: Option<usize>,
     pub default: bool,
+    pub deserialize_with: Option<Path>,
 }
 
 /// Parsed attributes of `#[at_urc(..)]`
@@ -84,6 +86,29 @@ pub fn parse_field_attr(attributes: &[Attribute]) -> Result<FieldAttributes> {
         }
     }
     Ok(attrs)
+}
+
+/// Reject `deserialize_with` on derives where it is not supported, pointing at
+/// the field instead of silently ignoring the attribute.
+pub fn reject_deserialize_with(variants: &[Variant]) -> Result<()> {
+    for variant in variants {
+        if let Some(ArgAttributes {
+            deserialize_with: Some(_),
+            ..
+        }) = &variant.attrs.at_arg
+        {
+            let span = match (&variant.ident, &variant.ty) {
+                (Some(ident), _) => ident.span(),
+                (None, Some(ty)) => ty.span(),
+                (None, None) => Span::call_site(),
+            };
+            return Err(Error::new(
+                span,
+                "`deserialize_with` is only supported on `AtatResp` fields",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn sorted_variants(data: Data) -> Result<Vec<Variant>> {
@@ -162,6 +187,7 @@ impl Parse for ArgAttributes {
             value: None,
             position: None,
             default: false,
+            deserialize_with: None,
         };
 
         while {
@@ -188,6 +214,29 @@ impl Parse for ArgAttributes {
                             return Err(Error::new(
                                 Span::call_site(),
                                 "position argument must be a positive integer",
+                            ))
+                        }
+                    }
+                }
+                syn::Meta::NameValue(name_value)
+                    if name_value.path.is_ident("deserialize_with") =>
+                {
+                    match &name_value.value {
+                        Expr::Lit(ExprLit {
+                            lit: Lit::Str(value),
+                            ..
+                        }) => {
+                            attrs.deserialize_with = Some(value.parse().map_err(|e| {
+                                Error::new(
+                                    value.span(),
+                                    format!("deserialize_with must be a string containing a function path: {e}"),
+                                )
+                            })?);
+                        }
+                        _ => {
+                            return Err(Error::new(
+                                name_value.value.span(),
+                                "deserialize_with must be a string containing a function path",
                             ))
                         }
                     }

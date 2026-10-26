@@ -3,7 +3,7 @@ use crate::proc_macro::TokenStream;
 use quote::quote;
 use syn::parse_macro_input;
 
-use crate::parse::{CmdAttributes, ParseInput};
+use crate::parse::{reject_deserialize_with, CmdAttributes, ParseInput};
 
 pub fn atat_cmd(input: TokenStream) -> TokenStream {
     let ParseInput {
@@ -13,6 +13,10 @@ pub fn atat_cmd(input: TokenStream) -> TokenStream {
         variants,
         ..
     } = parse_macro_input!(input as ParseInput);
+
+    if let Err(error) = reject_deserialize_with(&variants) {
+        return error.to_compile_error().into();
+    }
 
     let CmdAttributes {
         cmd,

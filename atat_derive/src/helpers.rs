@@ -1,3 +1,5 @@
+use std::iter::zip;
+
 use crate::parse::Variant;
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::{format_ident, quote};
@@ -82,22 +84,70 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
     let anon_field_ind64: Vec<u64> = anon_field_ind.iter().map(|i| *i as u64).collect();
     let anon_field_ind128: Vec<u128> = anon_field_ind.iter().map(|i| *i as u128).collect();
     let len = variants.len();
-    let visitor = format_ident!("{}Visitor", ident);
-    let field_visitor = format_ident!("{}FieldVisitor", ident);
     let enum_field = format_ident!("{}Field", ident);
-    let field_names_bytestr = field_names_str
-        .iter()
-        .map(|a| Literal::byte_string(a.as_bytes()));
     let invalid_len_err = format!("struct {ident} with {len} elements");
-    let invalid_val_err = format!("field index 0 <= i < {len}");
-    let struct_name = format!("struct {ident}");
 
-    let (_, ty_generics, _) = generics.split_for_impl();
+    let deserialize_with = variants.iter().map(|f| {
+        f.attrs
+            .at_arg
+            .as_ref()
+            .and_then(|attrs| attrs.deserialize_with.as_ref())
+    });
+
+    let wrappers: Vec<Option<Ident>> = deserialize_with
+        .clone()
+        .enumerate()
+        .map(|(i, d)| d.map(|_| format_ident!("__DeserializeWith{}", i)))
+        .collect();
+
+    let (_, ty_generics, where_clause) = generics.split_for_impl();
     let mut serde_generics = generics.clone();
     add_lifetime(&mut serde_generics, "'de");
     let (serde_impl_generics, serde_ty_generics, _) = serde_generics.split_for_impl();
 
+    let wrapper_defs = zip(&wrappers, deserialize_with)
+        .zip(&field_types)
+        .filter_map(|((wrapper, path), ty)| {
+            let (wrapper, path) = (wrapper.as_ref()?, path?);
+            Some(quote! {
+                struct #wrapper #serde_impl_generics #where_clause {
+                    value: #ty,
+                    phantom: core::marker::PhantomData<#ident #ty_generics>,
+                    lifetime: core::marker::PhantomData<&'de ()>,
+                }
+                impl #serde_impl_generics atat::serde_at::serde::Deserialize<'de> for #wrapper #serde_ty_generics #where_clause {
+                    fn deserialize<D: atat::serde_at::serde::Deserializer<'de>>(
+                        d: D,
+                    ) -> core::result::Result<Self, D::Error> {
+                        #path(d).map(|value| #wrapper {
+                            value,
+                            phantom: core::marker::PhantomData,
+                            lifetime: core::marker::PhantomData,
+                        })
+                    }
+                }
+            })
+        });
+
+    let (accessors, serde_types): (Vec<_>, Vec<_>) = zip(&wrappers, &anon_field)
+        .zip(&field_types)
+        .map(|((w, f), ty)| match w {
+            Some(w) => (quote!(#f.value), quote!(#w #serde_ty_generics)),
+            None => (quote!(#f), quote!(#ty)),
+        })
+        .unzip();
+
+    let visitor = format_ident!("{}Visitor", ident);
+    let field_visitor = format_ident!("{}FieldVisitor", ident);
+    let field_names_bytestr = field_names_str
+        .iter()
+        .map(|a| Literal::byte_string(a.as_bytes()));
+    let invalid_val_err = format!("field index 0 <= i < {len}");
+    let struct_name = format!("struct {ident}");
+
     quote! {
+        #(#wrapper_defs)*
+
         #[allow(non_camel_case_types)]
         enum #enum_field {
             #(#anon_field,)*
@@ -207,14 +257,14 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
             {
                 #(
                     let #anon_field =
-                        atat::serde_at::serde::de::SeqAccess::next_element::<#field_types>(&mut seq)?.ok_or_else(||atat::serde_at::serde::de::Error::invalid_length(
+                        atat::serde_at::serde::de::SeqAccess::next_element::<#serde_types>(&mut seq)?.ok_or_else(||atat::serde_at::serde::de::Error::invalid_length(
                             #anon_field_ind,
                             &#invalid_len_err,
                         ))?;
                 )*
                 Ok(#ident {
                     #(
-                        #field_names: #anon_field
+                        #field_names: #accessors
                     ),*
                 })
             }
@@ -227,7 +277,7 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
                 A: atat::serde_at::serde::de::MapAccess<'de>,
             {
                 #(
-                    let mut #anon_field: Option<#field_types> = None;
+                    let mut #anon_field: Option<#serde_types> = None;
                 )*
                 while let Some(key) =
                     atat::serde_at::serde::de::MapAccess::next_key::<#enum_field>(&mut map)?
@@ -243,7 +293,7 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
                                     );
                                 }
                                 #anon_field = Some(
-                                    atat::serde_at::serde::de::MapAccess::next_value::<#field_types>(&mut map)?
+                                    atat::serde_at::serde::de::MapAccess::next_value::<#serde_types>(&mut map)?
                                 );
                             }
                         )*
@@ -259,7 +309,7 @@ pub fn deserialize_struct(ident: &Ident, variants: &[Variant], generics: &Generi
                 )*
                 Ok(#ident {
                     #(
-                        #field_names: #anon_field
+                        #field_names: #accessors
                     ),*
                 })
             }

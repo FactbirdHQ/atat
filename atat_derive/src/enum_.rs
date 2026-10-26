@@ -4,7 +4,7 @@ use syn::{parse_macro_input, parse_quote, Field, Fields, Ident, PathSegment, Typ
 
 use crate::{
     helpers,
-    parse::{ArgAttributes, EnumAttributes, ParseInput},
+    parse::{reject_deserialize_with, ArgAttributes, EnumAttributes, ParseInput},
 };
 
 struct AnonymousEnum {
@@ -28,6 +28,10 @@ pub fn atat_enum(input: TokenStream) -> TokenStream {
         generics,
         ..
     } = parse_macro_input!(input as ParseInput);
+
+    if let Err(error) = reject_deserialize_with(&variants) {
+        return error.to_compile_error().into();
+    }
 
     let repr = at_enum
         .unwrap_or_else(|| EnumAttributes {
