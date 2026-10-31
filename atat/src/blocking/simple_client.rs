@@ -29,6 +29,27 @@ impl<'a, RW: Read + Write + ReadReady + WriteReady, D: Digester> SimpleClient<'a
         Ok(())
     }
 
+    fn send_inner(&mut self, len: usize) -> Result<(), Error> {
+        if len < 50 {
+            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
+        } else {
+            debug!("Sending command with long payload ({} bytes)", len);
+        }
+
+        self.prepare_new_request()?;
+
+        let until = Instant::now() + self.config.tx_timeout;
+        let mut at = 0;
+        while at < len {
+            wait_for_write(&mut self.rw, until)?;
+            at += self
+                .rw
+                .write(&self.buf[at..len])
+                .map_err(|_| Error::Write)?;
+        }
+        Ok(())
+    }
+
     fn flush_and_parse_response<Cmd: AtatCmd>(
         &mut self,
         cmd: &Cmd,
@@ -153,23 +174,7 @@ impl<RW: Read + ReadReady + Write + WriteReady, D: Digester> AtatClient
     fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
         let len = cmd.write(self.buf);
 
-        if len < 50 {
-            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
-        } else {
-            debug!("Sending command with long payload ({} bytes)", len);
-        }
-
-        self.prepare_new_request()?;
-
-        let until = Instant::now() + self.config.tx_timeout;
-        let mut at = 0;
-        while at < len {
-            wait_for_write(&mut self.rw, until)?;
-            at += self
-                .rw
-                .write(&self.buf[at..len])
-                .map_err(|_| Error::Write)?;
-        }
+        self.send_inner(len)?;
 
         self.flush_and_parse_response(cmd)
     }
