@@ -67,24 +67,29 @@ where
         Ok(())
     }
 
-    fn flush_and_get_response(
+    /// Flush, without awaiting a response.
+    fn flush(
         &mut self,
-        expects_response_code: bool,
-        max_timeout_ms: u32,
-    ) -> Result<Option<ResponseSlotGuard<'_, INGRESS_BUF_SIZE>>, Error> {
+    ) -> Result<(), Error> {
         self.writer.flush().map_err(|_| Error::Write)?;
 
         self.start_cooldown_timer();
 
-        if !expects_response_code {
-            return Ok(None);
-        }
+        Ok(())
+    }
+
+    /// Get the raw contents of the response.
+    fn flush_and_get_response(
+        &mut self,
+        max_timeout_ms: u32,
+    ) -> Result<ResponseSlotGuard<'_, INGRESS_BUF_SIZE>, Error> {
+        self.flush()?;
 
         let timeout = Duration::from_millis(max_timeout_ms.into());
         let response = self
             .with_timeout(timeout, || self.res_slot.try_get())
             .map_err(|_| Error::Timeout)?;
-        Ok(Some(response))
+        Ok(response)
     }
 
     fn with_timeout<R>(
@@ -136,13 +141,12 @@ where
 
         write(&mut self.writer).map_err(|_| Error::Write)?;
 
-        let response =
-            self.flush_and_get_response(Cmd::EXPECTS_RESPONSE_CODE, Cmd::MAX_TIMEOUT_MS)?;
-        let result = match &response {
-            Some(lock) => lock.deref().into(),
-            None => Ok(&[][..]),
-        };
-        cmd.parse(result)
+        if Cmd::EXPECTS_RESPONSE_CODE {
+            let response = self.flush_and_get_response(Cmd::MAX_TIMEOUT_MS)?;
+            cmd.parse(response.deref().into())
+        } else {
+            cmd.parse(Ok(&[]))
+        }
     }
 
     fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
@@ -150,13 +154,12 @@ where
 
         self.send_inner(len)?;
 
-        let response =
-            self.flush_and_get_response(Cmd::EXPECTS_RESPONSE_CODE, Cmd::MAX_TIMEOUT_MS)?;
-        let result = match &response {
-            Some(lock) => lock.deref().into(),
-            None => Ok(&[][..]),
-        };
-        cmd.parse(result)
+        if Cmd::EXPECTS_RESPONSE_CODE {
+            let response = self.flush_and_get_response(Cmd::MAX_TIMEOUT_MS)?;
+            cmd.parse(response.deref().into())
+        } else {
+            cmd.parse(Ok(&[]))
+        }
     }
 }
 

@@ -63,23 +63,25 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
         Ok(())
     }
 
-    /// Get the raw contents of the response. The returned value may hold a
-    /// lock, so consume it ASAP!
-    async fn flush_and_get_response(
+    /// Flush, without awaiting a response.
+    async fn flush(
         &mut self,
-        expects_response_code: bool,
-        max_timeout_ms: u32,
-    ) -> Result<Option<ResponseSlotGuard<'_, INGRESS_BUF_SIZE>>, Error> {
+    ) -> Result<(), Error> {
         with_timeout(self.config.flush_timeout, self.writer.flush())
             .await
             .map_err(|_| Error::Timeout)?
             .map_err(|_| Error::Write)?;
 
         self.start_cooldown_timer();
+        Ok(())
+    }
 
-        if !expects_response_code {
-            return Ok(None);
-        }
+    /// Get the raw contents of the response.
+    async fn flush_and_get_response(
+        &mut self,
+        max_timeout_ms: u32,
+    ) -> Result<ResponseSlotGuard<'_, INGRESS_BUF_SIZE>, Error> {
+        self.flush().await?;
 
         let timeout = Duration::from_millis(max_timeout_ms.into());
         let response = self
@@ -87,7 +89,7 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
             .await
             .map_err(|_| Error::Timeout)?;
 
-        Ok(Some(response))
+        Ok(response)
     }
 
     async fn with_timeout<F: Future>(
@@ -146,14 +148,12 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
 
         write(&mut self.writer).await.map_err(|_| Error::Write)?;
 
-        let response = self
-            .flush_and_get_response(Cmd::EXPECTS_RESPONSE_CODE, Cmd::MAX_TIMEOUT_MS)
-            .await?;
-        let result = match &response {
-            Some(lock) => lock.deref().into(),
-            None => Ok(&[][..]),
-        };
-        cmd.parse(result)
+        if Cmd::EXPECTS_RESPONSE_CODE {
+            let response = self.flush_and_get_response(Cmd::MAX_TIMEOUT_MS).await?;
+            cmd.parse(response.deref().into())
+        } else {
+            cmd.parse(Ok(&[]))
+        }
     }
 
     async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
@@ -161,14 +161,12 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
 
         self.send_inner(len).await?;
 
-        let response = self
-            .flush_and_get_response(Cmd::EXPECTS_RESPONSE_CODE, Cmd::MAX_TIMEOUT_MS)
-            .await?;
-        let result = match &response {
-            Some(lock) => lock.deref().into(),
-            None => Ok(&[][..]),
-        };
-        cmd.parse(result)
+        if Cmd::EXPECTS_RESPONSE_CODE {
+            let response = self.flush_and_get_response(Cmd::MAX_TIMEOUT_MS).await?;
+            cmd.parse(response.deref().into())
+        } else {
+            cmd.parse(Ok(&[]))
+        }
     }
 }
 
