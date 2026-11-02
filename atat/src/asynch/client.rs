@@ -1,6 +1,6 @@
 use super::AtatClient;
 use crate::helpers::LossyStr;
-use crate::response_slot::ResponseSlot;
+use crate::response_slot::{ResponseSlot, ResponseSlotGuard};
 use crate::{AtatCmd, Config, Error};
 use embassy_time::{with_timeout, Duration, Instant, TimeoutError, Timer};
 use embedded_io::ErrorType;
@@ -39,28 +39,50 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
         Ok(())
     }
 
-    async fn flush_and_parse_response<Cmd: AtatCmd>(
-        &mut self,
-        cmd: &Cmd,
-    ) -> Result<Cmd::Response, Error> {
+    /// Send `len` bytes of the buffer as a new request.
+    async fn send_and_flush(&mut self, len: usize) -> Result<(), Error> {
+        if len < 50 {
+            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
+        } else {
+            debug!("Sending command with long payload ({} bytes)", len);
+        }
+
+        self.prepare_new_request().await?;
+
+        with_timeout(
+            self.config.tx_timeout,
+            self.writer.write_all(&self.buf[..len]),
+        )
+        .await
+        .map_err(|_| Error::Timeout)?
+        .map_err(|_| Error::Write)?;
+
+        self.flush().await
+    }
+
+    /// Flush, without awaiting a response.
+    async fn flush(&mut self) -> Result<(), Error> {
         with_timeout(self.config.flush_timeout, self.writer.flush())
             .await
             .map_err(|_| Error::Timeout)?
             .map_err(|_| Error::Write)?;
 
         self.start_cooldown_timer();
+        Ok(())
+    }
 
-        if !Cmd::EXPECTS_RESPONSE_CODE {
-            return cmd.parse(Ok(&[]));
-        }
-
-        let timeout = Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into());
+    /// Get the raw contents of the response.
+    async fn get_response(
+        &mut self,
+        max_timeout_ms: u32,
+    ) -> Result<ResponseSlotGuard<'_, INGRESS_BUF_SIZE>, Error> {
+        let timeout = Duration::from_millis(max_timeout_ms.into());
         let response = self
             .with_timeout(timeout, self.res_slot.get())
             .await
             .map_err(|_| Error::Timeout)?;
 
-        cmd.parse((&*response).into())
+        Ok(response)
     }
 
     async fn with_timeout<F: Future>(
@@ -118,30 +140,27 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
         self.prepare_new_request().await?;
 
         write(&mut self.writer).await.map_err(|_| Error::Write)?;
+        self.flush().await?;
 
-        self.flush_and_parse_response(cmd).await
+        if Cmd::EXPECTS_RESPONSE_CODE {
+            let response = self.get_response(Cmd::MAX_TIMEOUT_MS).await?;
+            cmd.parse((&*response).into())
+        } else {
+            cmd.parse(Ok(&[]))
+        }
     }
 
     async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
         let len = cmd.write(&mut self.buf);
 
-        if len < 50 {
-            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
+        self.send_and_flush(len).await?;
+
+        if Cmd::EXPECTS_RESPONSE_CODE {
+            let response = self.get_response(Cmd::MAX_TIMEOUT_MS).await?;
+            cmd.parse((&*response).into())
         } else {
-            debug!("Sending command with long payload ({} bytes)", len);
+            cmd.parse(Ok(&[]))
         }
-
-        self.prepare_new_request().await?;
-
-        with_timeout(
-            self.config.tx_timeout,
-            self.writer.write_all(&self.buf[..len]),
-        )
-        .await
-        .map_err(|_| Error::Timeout)?
-        .map_err(|_| Error::Write)?;
-
-        self.flush_and_parse_response(cmd).await
     }
 }
 

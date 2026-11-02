@@ -34,17 +34,36 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
         Ok(())
     }
 
-    async fn flush_and_parse_response<Cmd: AtatCmd>(
-        &mut self,
-        cmd: &Cmd,
-    ) -> Result<Cmd::Response, Error> {
+    /// Send `len` bytes of the buffer as a new request.
+    async fn send_and_flush(&mut self, len: usize) -> Result<(), Error> {
+        if len < 50 {
+            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
+        } else {
+            debug!("Sending command with long payload ({} bytes)", len);
+        }
+
+        self.prepare_new_request().await?;
+
+        with_timeout(self.config.tx_timeout, self.rw.write_all(&self.buf[..len]))
+            .await
+            .map_err(|_| Error::Timeout)?
+            .map_err(|_| Error::Write)?;
+
+        self.flush().await
+    }
+
+    /// Flush, without awaiting a response.
+    async fn flush(&mut self) -> Result<(), Error> {
         with_timeout(self.config.flush_timeout, self.rw.flush())
             .await
             .map_err(|_| Error::Timeout)?
             .map_err(|_| Error::Write)?;
 
         self.start_cooldown_timer();
+        Ok(())
+    }
 
+    async fn parse_response<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
         if !Cmd::EXPECTS_RESPONSE_CODE {
             return cmd.parse(Ok(&[]));
         }
@@ -152,26 +171,16 @@ impl<RW: Read + Write, D: Digester> AtatClient for SimpleClient<'_, RW, D> {
         self.prepare_new_request().await?;
 
         write(&mut self.rw).await.map_err(|_| Error::Write)?;
+        self.flush().await?;
 
-        self.flush_and_parse_response(cmd).await
+        self.parse_response(cmd).await
     }
 
     async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
         let len = cmd.write(&mut self.buf);
 
-        if len < 50 {
-            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
-        } else {
-            debug!("Sending command with long payload ({} bytes)", len);
-        }
+        self.send_and_flush(len).await?;
 
-        self.prepare_new_request().await?;
-
-        with_timeout(self.config.tx_timeout, self.rw.write_all(&self.buf[..len]))
-            .await
-            .map_err(|_| Error::Timeout)?
-            .map_err(|_| Error::Write)?;
-
-        self.flush_and_parse_response(cmd).await
+        self.parse_response(cmd).await
     }
 }

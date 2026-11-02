@@ -29,16 +29,39 @@ impl<'a, RW: Read + Write + ReadReady + WriteReady, D: Digester> SimpleClient<'a
         Ok(())
     }
 
-    fn flush_and_parse_response<Cmd: AtatCmd>(
-        &mut self,
-        cmd: &Cmd,
-    ) -> Result<Cmd::Response, Error> {
+    fn send_and_flush(&mut self, len: usize) -> Result<(), Error> {
+        if len < 50 {
+            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
+        } else {
+            debug!("Sending command with long payload ({} bytes)", len);
+        }
+
+        self.prepare_new_request()?;
+
+        let until = Instant::now() + self.config.tx_timeout;
+        let mut at = 0;
+        while at < len {
+            wait_for_write(&mut self.rw, until)?;
+            at += self
+                .rw
+                .write(&self.buf[at..len])
+                .map_err(|_| Error::Write)?;
+        }
+
+        self.flush()
+    }
+
+    /// Flush, without awaiting a response.
+    fn flush(&mut self) -> Result<(), Error> {
         let until = Instant::now() + self.config.flush_timeout;
         wait_for_write(&mut self.rw, until)?;
         self.rw.flush().map_err(|_| Error::Write)?;
 
         self.start_cooldown_timer();
+        Ok(())
+    }
 
+    fn parse_response<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
         if !Cmd::EXPECTS_RESPONSE_CODE {
             return cmd.parse(Ok(&[]));
         }
@@ -146,32 +169,17 @@ impl<RW: Read + ReadReady + Write + WriteReady, D: Digester> AtatClient
         self.prepare_new_request()?;
 
         write(&mut self.rw).map_err(|_| Error::Write)?;
+        self.flush()?;
 
-        self.flush_and_parse_response(cmd)
+        self.parse_response(cmd)
     }
 
     fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
         let len = cmd.write(self.buf);
 
-        if len < 50 {
-            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
-        } else {
-            debug!("Sending command with long payload ({} bytes)", len);
-        }
+        self.send_and_flush(len)?;
 
-        self.prepare_new_request()?;
-
-        let until = Instant::now() + self.config.tx_timeout;
-        let mut at = 0;
-        while at < len {
-            wait_for_write(&mut self.rw, until)?;
-            at += self
-                .rw
-                .write(&self.buf[at..len])
-                .map_err(|_| Error::Write)?;
-        }
-
-        self.flush_and_parse_response(cmd)
+        self.parse_response(cmd)
     }
 }
 
