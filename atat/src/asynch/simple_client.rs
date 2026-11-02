@@ -35,7 +35,7 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
     }
 
     /// Send `len` bytes of the buffer as a new request.
-    async fn send_inner(&mut self, len: usize) -> Result<(), Error> {
+    async fn send_and_flush(&mut self, len: usize) -> Result<(), Error> {
         if len < 50 {
             debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
         } else {
@@ -48,20 +48,22 @@ impl<'a, RW: Read + Write, D: Digester> SimpleClient<'a, RW, D> {
             .await
             .map_err(|_| Error::Timeout)?
             .map_err(|_| Error::Write)?;
-        Ok(())
+
+        self.flush().await
     }
 
-    async fn flush_and_parse_response<Cmd: AtatCmd>(
-        &mut self,
-        cmd: &Cmd,
-    ) -> Result<Cmd::Response, Error> {
+    /// Flush, without awaiting a response.
+    async fn flush(&mut self) -> Result<(), Error> {
         with_timeout(self.config.flush_timeout, self.rw.flush())
             .await
             .map_err(|_| Error::Timeout)?
             .map_err(|_| Error::Write)?;
 
         self.start_cooldown_timer();
+        Ok(())
+    }
 
+    async fn parse_response<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
         if !Cmd::EXPECTS_RESPONSE_CODE {
             return cmd.parse(Ok(&[]));
         }
@@ -169,15 +171,16 @@ impl<RW: Read + Write, D: Digester> AtatClient for SimpleClient<'_, RW, D> {
         self.prepare_new_request().await?;
 
         write(&mut self.rw).await.map_err(|_| Error::Write)?;
+        self.flush().await?;
 
-        self.flush_and_parse_response(cmd).await
+        self.parse_response(cmd).await
     }
 
     async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
         let len = cmd.write(&mut self.buf);
 
-        self.send_inner(len).await?;
+        self.send_and_flush(len).await?;
 
-        self.flush_and_parse_response(cmd).await
+        self.parse_response(cmd).await
     }
 }

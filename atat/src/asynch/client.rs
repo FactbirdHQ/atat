@@ -1,5 +1,3 @@
-use core::ops::Deref;
-
 use super::AtatClient;
 use crate::helpers::LossyStr;
 use crate::response_slot::{ResponseSlot, ResponseSlotGuard};
@@ -42,12 +40,11 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
     }
 
     /// Send `len` bytes of the buffer as a new request.
-    async fn send_inner(&mut self, len: usize) -> Result<(), Error> {
-        let stuff = &self.buf[..len];
-        if stuff.len() < 50 {
-            debug!("Sending command: {:?}", LossyStr(stuff));
+    async fn send_and_flush(&mut self, len: usize) -> Result<(), Error> {
+        if len < 50 {
+            debug!("Sending command: {:?}", LossyStr(&self.buf[..len]));
         } else {
-            debug!("Sending command with long payload ({} bytes)", stuff.len());
+            debug!("Sending command with long payload ({} bytes)", len);
         }
 
         self.prepare_new_request().await?;
@@ -60,13 +57,11 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
         .map_err(|_| Error::Timeout)?
         .map_err(|_| Error::Write)?;
 
-        Ok(())
+        self.flush().await
     }
 
     /// Flush, without awaiting a response.
-    async fn flush(
-        &mut self,
-    ) -> Result<(), Error> {
+    async fn flush(&mut self) -> Result<(), Error> {
         with_timeout(self.config.flush_timeout, self.writer.flush())
             .await
             .map_err(|_| Error::Timeout)?
@@ -77,12 +72,10 @@ impl<'a, W: Write, const INGRESS_BUF_SIZE: usize> Client<'a, W, INGRESS_BUF_SIZE
     }
 
     /// Get the raw contents of the response.
-    async fn flush_and_get_response(
+    async fn get_response(
         &mut self,
         max_timeout_ms: u32,
     ) -> Result<ResponseSlotGuard<'_, INGRESS_BUF_SIZE>, Error> {
-        self.flush().await?;
-
         let timeout = Duration::from_millis(max_timeout_ms.into());
         let response = self
             .with_timeout(timeout, self.res_slot.get())
@@ -147,10 +140,11 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
         self.prepare_new_request().await?;
 
         write(&mut self.writer).await.map_err(|_| Error::Write)?;
+        self.flush().await?;
 
         if Cmd::EXPECTS_RESPONSE_CODE {
-            let response = self.flush_and_get_response(Cmd::MAX_TIMEOUT_MS).await?;
-            cmd.parse(response.deref().into())
+            let response = self.get_response(Cmd::MAX_TIMEOUT_MS).await?;
+            cmd.parse((&*response).into())
         } else {
             cmd.parse(Ok(&[]))
         }
@@ -159,11 +153,11 @@ impl<W: Write, const INGRESS_BUF_SIZE: usize> AtatClient for Client<'_, W, INGRE
     async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, Error> {
         let len = cmd.write(&mut self.buf);
 
-        self.send_inner(len).await?;
+        self.send_and_flush(len).await?;
 
         if Cmd::EXPECTS_RESPONSE_CODE {
-            let response = self.flush_and_get_response(Cmd::MAX_TIMEOUT_MS).await?;
-            cmd.parse(response.deref().into())
+            let response = self.get_response(Cmd::MAX_TIMEOUT_MS).await?;
+            cmd.parse((&*response).into())
         } else {
             cmd.parse(Ok(&[]))
         }
