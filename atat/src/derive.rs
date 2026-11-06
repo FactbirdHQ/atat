@@ -6,6 +6,7 @@ mod tests {
     use atat::AtatCmd;
     use atat_derive::{AtatCmd, AtatEnum, AtatResp};
     use heapless::{String, Vec};
+    use serde_at::serde::{Deserialize, Deserializer};
     use serde_at::{from_str, to_string, SerializeOptions};
 
     macro_rules! assert_not_impl {
@@ -208,6 +209,76 @@ mod tests {
         assert_eq!(
             RequestWithCustomResponseParse.parse(Ok(b"ignore123")),
             Ok(CustomResponseParse { arg1: 123 })
+        );
+    }
+
+    fn deserialize_plus_one<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u32, D::Error> {
+        let value = u32::deserialize(deserializer)?;
+        Ok(value + 1)
+    }
+
+    #[derive(Debug, PartialEq, AtatResp)]
+    struct CustomDeserialize {
+        #[at_arg(position = 0, deserialize_with = "deserialize_plus_one")]
+        arg0: u32,
+        #[at_arg(position = 1)]
+        arg1: u8,
+    }
+
+    #[test]
+    fn test_deserialize_with() {
+        assert_eq!(
+            Ok(CustomDeserialize { arg0: 42, arg1: 7 }),
+            from_str::<CustomDeserialize>("41,7")
+        );
+    }
+
+    fn deserialize_uppercase<'de, const N: usize, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<String<N>, D::Error> {
+        let mut value = String::deserialize(deserializer)?;
+        value.make_ascii_uppercase();
+        Ok(value)
+    }
+
+    #[derive(Debug, PartialEq, AtatResp)]
+    struct GenericCustomDeserialize<const N: usize> {
+        #[at_arg(position = 0, deserialize_with = "deserialize_uppercase")]
+        arg0: String<N>,
+        #[at_arg(position = 1)]
+        arg1: u8,
+    }
+
+    #[test]
+    fn test_deserialize_with_generic() {
+        assert_eq!(
+            Ok(GenericCustomDeserialize {
+                arg0: String::try_from("ABC").unwrap(),
+                arg1: 7,
+            }),
+            from_str::<GenericCustomDeserialize<16>>("\"abc\",7")
+        );
+    }
+
+    #[derive(Debug, PartialEq, AtatResp)]
+    struct CustomDeserializeMap {
+        #[at_arg(position = 0, deserialize_with = "deserialize_plus_one")]
+        arg0: u32,
+    }
+
+    #[test]
+    fn test_deserialize_with_map() {
+        use atat::serde_at::serde::de::value::{
+            Error as ValueError, MapDeserializer, U32Deserializer,
+        };
+        use atat::serde_at::serde::Deserialize;
+
+        let deserializer = MapDeserializer::<_, ValueError>::new(
+            vec![("arg0", U32Deserializer::<ValueError>::new(41))].into_iter(),
+        );
+        assert_eq!(
+            Ok(CustomDeserializeMap { arg0: 42 }),
+            CustomDeserializeMap::deserialize(deserializer)
         );
     }
 }

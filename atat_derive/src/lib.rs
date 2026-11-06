@@ -50,6 +50,13 @@ use crate::proc_macro::TokenStream;
 
 /// Automatically derive [`atat::AtatResp`] trait
 ///
+/// ### Field attribute (`#[at_arg(..)]`)
+/// - `position`: **integer** The index of the field in the response.
+/// - `deserialize_with`: **string** Path to a custom deserializer function.
+///   The function must have the signature `fn<'de, D>(D) -> Result<T, D::Error>`
+///   where `D: serde::Deserializer<'de>` and `T` is the field type. This is
+///   forwarded to serde in the generated `Deserialize` implementation.
+///
 /// [`atat::AtatResp`]: ../atat/trait.AtatResp.html
 #[proc_macro_derive(AtatResp, attributes(at_arg))]
 pub fn derive_atat_resp(input: TokenStream) -> TokenStream {
